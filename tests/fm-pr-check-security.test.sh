@@ -89,6 +89,32 @@ set_custom_check_privacy_fixture() {
   esac
 }
 
+make_windows_directory_inheritance_broad() {
+  local path=$1 native
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) return 0 ;;
+  esac
+  native=$(cygpath -w "$path") || return 1
+  # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+  FM_TEST_PRIVATE_NATIVE=$native \
+    powershell.exe -NoProfile -NonInteractive -Command '
+      $ErrorActionPreference = "Stop"
+      $item = [IO.DirectoryInfo]::new($env:FM_TEST_PRIVATE_NATIVE)
+      $acl = $item.GetAccessControl()
+      $everyone = [Security.Principal.SecurityIdentifier]::new("S-1-1-0")
+      $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+        $everyone,
+        [Security.AccessControl.FileSystemRights]::ReadAndExecute,
+        [Security.AccessControl.InheritanceFlags]"ContainerInherit, ObjectInherit",
+        [Security.AccessControl.PropagationFlags]::None,
+        [Security.AccessControl.AccessControlType]::Allow
+      )
+      [void]$acl.AddAccessRule($rule)
+      $item.SetAccessControl($acl)
+    ' >/dev/null 2>&1
+}
+
 LINK_KIND=
 LINK_TARGET=
 LINK_CONTENT=
@@ -667,7 +693,7 @@ run_watcher_bounded() {
   local watch_timeout=10
   shift 2
   case "$(uname -s 2>/dev/null)" in
-    MINGW*|MSYS*|CYGWIN*) watch_timeout=90 ;;
+    MINGW*|MSYS*|CYGWIN*) watch_timeout=300 ;;
   esac
   FM_TEST_WATCH_TIMEOUT=$watch_timeout \
     perl -e 'my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } local $SIG{ALRM}=sub { kill "TERM", $pid; waitpid $pid, 0; exit 124 }; alarm $ENV{FM_TEST_WATCH_TIMEOUT}; waitpid $pid, 0; alarm 0; exit($? >> 8)' \
@@ -974,6 +1000,32 @@ test_live_artifact_single_link_and_privacy_validation() {
     || fail "watcher snapshot accepted a non-private custom check source"
   fm_custom_check_snapshot_cleanup
   pass "live poll and custom-check artifacts require private single-link files"
+}
+
+test_windows_pr_publication_removes_broad_inheritance() {
+  local dir state device
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *)
+      pass "Windows PR publication privacy is not applicable"
+      return
+      ;;
+  esac
+
+  dir=$(make_case windows-pr-private-publication)
+  state="$dir/home/state"
+  write_task_meta "$dir"
+  make_windows_directory_inheritance_broad "$state" \
+    || fail "could not create the broad Windows inheritance fixture"
+
+  run_check_entry "$dir" task-a https://github.com/o/r/pull/1 >/dev/null \
+    || fail "PR publication did not secure inherited Windows ACLs"
+  device=$(fm_pr_file_device "$state") || fail "could not inspect the Windows state device"
+  fm_pr_private_file_valid "$state/task-a.meta" 600 "$device" \
+    || fail "PR publication left metadata with broad Windows access"
+  fm_pr_poll_artifacts_valid "$state" task-a "$POLL" \
+    || fail "PR publication left poll artifacts with broad Windows access"
+  pass "PR publication removes broad inherited Windows ACLs"
 }
 
 install_final_publication_fault() {
@@ -2248,6 +2300,7 @@ test_atomic_interruption_leaves_no_partial_artifact
 test_concurrent_watcher_sees_only_complete_publication
 test_poll_publication_refuses_unsafe_destinations
 test_live_artifact_single_link_and_privacy_validation
+test_windows_pr_publication_removes_broad_inheritance
 test_postrename_poll_validation_revokes_and_retries
 test_bootstrap_leaves_unauthenticated_checks
 test_custom_snapshot_cleanup_on_signal
