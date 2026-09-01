@@ -412,7 +412,7 @@ fm_pr_private_file_structure_valid() {  # <path> <device>
 }
 
 fm_pr_private_files_valid() {  # <device> <path> <mode> [<path> <mode> ...]
-  local device=$1 path mode
+  local device=$1 path mode index=0
   local -a windows_paths=()
   shift
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || return 1
@@ -426,7 +426,10 @@ fm_pr_private_files_valid() {  # <device> <path> <mode> [<path> <mode> ...]
       *) [ "$(fm_pr_file_mode "$path")" = "$mode" ] || return 1 ;;
     esac
   done
-  [ "${#windows_paths[@]}" -eq 0 ] || fm_pr_native_windows_private_paths_valid "${windows_paths[@]}"
+  while [ "$index" -lt "${#windows_paths[@]}" ]; do
+    fm_pr_native_windows_private_paths_valid "${windows_paths[@]:index:3}" || return 1
+    index=$((index + 3))
+  done
 }
 
 fm_pr_private_file_valid() {

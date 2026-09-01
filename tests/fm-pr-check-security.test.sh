@@ -948,7 +948,8 @@ test_live_artifact_single_link_and_privacy_validation() {
   dir=$(make_case single-link-custom-check-registration)
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "custom-ready\\n"\n' > "$state/custom.check.sh"
-  chmod 0700 "$state/custom.check.sh"
+  fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+    || fail "could not secure the custom check source"
   alias="$dir/custom-check.alias"
   ln "$state/custom.check.sh" "$alias"
   set +e
@@ -979,7 +980,8 @@ test_live_artifact_single_link_and_privacy_validation() {
   dir=$(make_case private-custom-check-source)
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "custom-ready\\n"\n' > "$state/custom.check.sh"
-  chmod 0700 "$state/custom.check.sh"
+  fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+    || fail "could not secure the custom check source"
   set_custom_check_privacy_fixture "$state/custom.check.sh" broad \
     || fail "could not make the custom check source non-private"
   set +e
@@ -1190,7 +1192,8 @@ test_custom_snapshot_cleanup_on_signal() {
   printf '%s\n' '#!/usr/bin/env bash' 'trap "" TERM' \
     'printf "%s\n" "$$" > "$FM_TEST_CUSTOM_CHILD_PID"' 'while :; do sleep 1; done' \
     > "$state/custom.check.sh"
-  chmod 0700 "$state/custom.check.sh"
+  fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+    || fail "could not secure the signal-cleanup custom check"
   cat > "$dir/fakebin/timeout" <<'SH'
 #!/usr/bin/env bash
 shift
@@ -1263,7 +1266,8 @@ printf '%s\n' "$!" > "$FM_TEST_DESCENDANT_PID"
 while [ ! -s "$FM_TEST_DESCENDANT_READY" ]; do sleep 0.01; done
 : > "$FM_TEST_DIRECT_DONE"
 SH
-    chmod 0700 "$state/custom.check.sh"
+    fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+      || fail "could not secure the $backend returned-descendant check"
     FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
       || fail "could not register $backend returned-descendant check"
     if [ "$backend" = installed-timeout ]; then
@@ -1564,7 +1568,8 @@ add_stop_custom_check() {
   local dir=$1 state register_output
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "stop-cycle\\n"\n' > "$state/z-stop.check.sh"
-  chmod 0700 "$state/z-stop.check.sh"
+  fm_pr_private_file_secure "$state/z-stop.check.sh" 700 \
+    || fail "could not secure the stop-cycle custom check"
   register_output=$(FM_HOME="$dir/home" "$REGISTER" z-stop 2>&1) \
     || fail "could not register stop-cycle custom check: ${register_output:-no diagnostic}"
 }
@@ -2194,7 +2199,8 @@ test_retirement_refuses_replacement_and_nonterminal_results() {
   dir=$(make_case custom-merged-not-retired)
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "merged\\n"\n' > "$state/custom.check.sh"
-  chmod 0700 "$state/custom.check.sh"
+  fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+    || fail "could not secure the merged custom check"
   FM_HOME="$dir/home" "$REGISTER" custom >/dev/null || fail "could not register merged custom check"
   set +e
   run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/custom.out" 2> "$dir/custom.err"
