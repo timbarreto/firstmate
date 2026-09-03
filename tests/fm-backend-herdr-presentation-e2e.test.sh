@@ -444,7 +444,7 @@ teardown_task() {  # <id> <home>
   local id=$1 home=$2
   PATH="$TEARDOWN_PATH" FM_GATE_REFUSE_BYPASS=1 FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
-    FM_CONFIG_OVERRIDE="$home/config" \
+    FM_CONFIG_OVERRIDE="$home/config" FM_SUPERVISION_MODEL=autoarm \
     "$ROOT/bin/fm-teardown.sh" "$id" --force
 }
 
