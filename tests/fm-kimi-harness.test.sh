@@ -564,13 +564,15 @@ exit 1
 SH
   chmod +x "$fakebin/ps"
 
-  FM_HOME="$home" PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" \
+  FM_HOME="$home" FM_PROC_ROOT_OVERRIDE="$fakebin/no-proc" \
+    PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" \
     || fail "fm-lock did not acquire from Kimi ancestry"
   case "$(cat "$home/state/.lock")" in
     ''|*[!0-9]*) fail "fm-lock did not record the Kimi harness ancestor" ;;
   esac
   printf '%s\n' "$$" > "$home/state/.lock"
-  out=$(FM_HOME="$home" PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" status)
+  out=$(FM_HOME="$home" FM_PROC_ROOT_OVERRIDE="$fakebin/no-proc" \
+    PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" status)
   assert_contains "$out" "lock: held by live harness pid" \
     "fm-lock did not recognize Kimi as a live holder"
   pass "fm-lock recognizes Kimi ancestry and live lock holders"

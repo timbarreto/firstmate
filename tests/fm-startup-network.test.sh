@@ -736,7 +736,8 @@ EOF
   next_owner=$!
   started=$(date +%s)
   rc=0
-  out=$(PATH="$root/bin:$PATH" FM_FAKE_HARNESS_PID="$next_owner" \
+  out=$(PATH="$root/bin:$PATH" FM_PROC_ROOT_OVERRIDE="$home/no-proc" \
+    FM_FAKE_HARNESS_PID="$next_owner" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$root/bin/fm-lock.sh" 2>&1) || rc=$?
   elapsed=$(( $(date +%s) - started ))
   [ "$rc" -ne 0 ] || fail "lock takeover succeeded while the prior sweep was mutating"
@@ -749,7 +750,8 @@ EOF
 
   touch "$release"
   run_stage "$home" "$root" wait 30 >/dev/null || fail "the leased sweep never settled"
-  out=$(PATH="$root/bin:$PATH" FM_FAKE_HARNESS_PID="$next_owner" \
+  out=$(PATH="$root/bin:$PATH" FM_PROC_ROOT_OVERRIDE="$home/no-proc" \
+    FM_FAKE_HARNESS_PID="$next_owner" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$root/bin/fm-lock.sh" 2>&1) \
     || fail "lock takeover still failed after the sweep released its lease"
   new_owner=$(cat "$home/state/.lock")

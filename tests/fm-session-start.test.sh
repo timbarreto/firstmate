@@ -2183,11 +2183,12 @@ EOF
 }
 
 test_runtime_bound_leaves_harness_ancestry_headroom() {
-  local rec root home fakebin nest out synthetic_proc='' ancestry_count=''
+  local rec root home fakebin nest out synthetic_proc ancestry_count=''
   rec=$(new_world runtime-bound-ancestry)
   IFS='|' read -r root home fakebin <<EOF
 $rec
 EOF
+  synthetic_proc="$home/no-proc"
   make_fake_toolchain "$fakebin"
 
   # Only ONE pid in the whole tree is the harness, and it sits at the very top.
