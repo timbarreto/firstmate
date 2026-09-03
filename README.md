@@ -211,10 +211,11 @@ Agent-only reference skills live under `.agents/skills/` and are loaded by first
 Firstmate's skills live in two separate places with different audiences:
 
 - `.agents/skills/` - agent-loaded skills (this section's table, plus firstmate's agent-only reference skills). Every one of these assumes a live firstmate home and is meaningless, or actively misleading, installed anywhere else, so each carries `metadata.internal: true` in its frontmatter. That flag hides them from installer discovery (tools like the [skills.sh](https://skills.sh) `npx skills add` installer) without affecting how firstmate itself loads them - frontmatter metadata is inert to the agent's own skill loader.
-- `skills/` - public, installer-facing skills meant to be installed standalone into any project, independent of firstmate.
-  Each one is a self-contained skill with no dependency on firstmate's paths, tools, or vocabulary.
-  Today that is `skills/stow`, a generic session-knowledge-sweep skill that routes findings by explicit instruction first, then existing local conventions, then a private `.stow-notes.md` fallback, and curates tiered entries through decay, local archival, and user-approved on-demand offload proposals.
+- `skills/` - public, installer-facing skills for external agents and never part of a live firstmate's loaded instruction surface.
+  Each one is self-contained and must not depend on a live firstmate home or private fleet state; a skill may be generic or may target maintenance of the Firstmate repository itself.
+  `skills/stow` is a generic session-knowledge-sweep skill that routes findings by explicit instruction first, then existing local conventions, then a private `.stow-notes.md` fallback, and curates tiered entries through decay, local archival, and user-approved on-demand offload proposals.
   It intentionally shares no code with the firstmate-internal `.agents/skills/stow` it is named after, so the two can evolve independently.
+  `skills/reconcile-firstmate-upstream` is an external-maintainer workflow for freezing one `kunchenguid/firstmate` revision, reconciling the `timbarreto/firstmate` fork, running changed-aware local validation, and opening an ordinary unmerged PR.
 
 ## Documentation
 
