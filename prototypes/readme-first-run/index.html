@@ -1,0 +1,905 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE.
+  Three README and first-run narrative variants, switchable via ?variant=A|B|C.
+  This artifact answers issue "Prototype the README and first-run narrative";
+  it is not production documentation and must not be copied into main as-is.
+-->
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Firstmate README + first-run narrative prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --canvas: #0d1117;
+      --canvas-subtle: #161b22;
+      --canvas-inset: #010409;
+      --border: #30363d;
+      --border-muted: #21262d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --link: #58a6ff;
+      --accent: #f78166;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --purple: #a371f7;
+      --shadow: 0 16px 48px rgba(1, 4, 9, 0.45);
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.5;
+    }
+    button, input, textarea { font: inherit; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: var(--mono); }
+    code {
+      padding: .16em .35em;
+      border-radius: 6px;
+      background: rgba(110, 118, 129, .2);
+      font-size: 88%;
+      overflow-wrap: anywhere;
+    }
+    pre {
+      position: relative;
+      margin: 0;
+      padding: 16px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--canvas-inset);
+      color: #f0f6fc;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    h1, h2, h3 { line-height: 1.25; }
+    h1 { margin: 0 0 12px; font-size: clamp(32px, 5vw, 54px); letter-spacing: -.035em; }
+    h2 {
+      margin: 36px 0 16px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border-muted);
+      font-size: 24px;
+    }
+    h3 { margin: 0 0 8px; font-size: 18px; }
+    p { margin: 0 0 16px; }
+    ul, ol { padding-left: 24px; }
+    li + li { margin-top: 6px; }
+    strong { color: #f0f6fc; }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-width: 0;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border-muted);
+      background: rgba(13, 17, 23, .92);
+      backdrop-filter: blur(14px);
+    }
+    .repo-identity {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .repo-identity svg { flex: 0 0 auto; }
+    .repo-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .prototype-badge, .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      padding: 3px 9px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--canvas-subtle);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.5;
+      white-space: normal;
+    }
+    .prototype-badge { border-color: rgba(247, 129, 102, .45); color: #ffa198; }
+    .badge.success { border-color: rgba(63, 185, 80, .4); color: #56d364; }
+    .badge.warning { border-color: rgba(210, 153, 34, .45); color: #e3b341; }
+    .badge.purple { border-color: rgba(163, 113, 247, .45); color: #d2a8ff; }
+
+    .repo-tabs {
+      display: flex;
+      gap: 20px;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .repo-tabs::-webkit-scrollbar { display: none; }
+    .repo-tab {
+      flex: 0 0 auto;
+      padding: 13px 4px 10px;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .repo-tab.active { border-color: #f78166; color: var(--text); font-weight: 600; }
+
+    .prototype-context {
+      width: min(1180px, calc(100% - 32px));
+      margin: 24px auto 0;
+      padding: 14px 16px;
+      border: 1px solid rgba(210, 153, 34, .42);
+      border-radius: 8px;
+      background: rgba(187, 128, 9, .1);
+      color: #e3b341;
+      font-size: 14px;
+    }
+    .prototype-context strong { color: #f2cc60; }
+
+    .page-shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 32px;
+      width: min(1180px, calc(100% - 32px));
+      margin: 24px auto 140px;
+      align-items: start;
+    }
+    .readme {
+      min-width: 0;
+      padding: clamp(20px, 4vw, 40px);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--canvas);
+      box-shadow: 0 1px 0 rgba(240, 246, 252, .04);
+    }
+    .review-sidebar {
+      position: sticky;
+      top: 114px;
+      min-width: 0;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--canvas-subtle);
+    }
+    .review-sidebar h2 {
+      margin: 0 0 12px;
+      padding: 0;
+      border: 0;
+      font-size: 16px;
+    }
+    .review-sidebar p, .review-sidebar li { color: var(--muted); font-size: 13px; }
+    .review-sidebar textarea {
+      width: 100%;
+      min-height: 110px;
+      resize: vertical;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      outline: none;
+      background: var(--canvas-inset);
+      color: var(--text);
+    }
+    .review-sidebar textarea:focus { border-color: var(--link); box-shadow: 0 0 0 3px rgba(88, 166, 255, .15); }
+    .review-summary {
+      min-height: 56px;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+    .review-choice {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin: 8px 0;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .hero {
+      display: grid;
+      gap: 22px;
+      margin-bottom: 30px;
+    }
+    .hero-copy { min-width: 0; }
+    .eyebrow {
+      margin-bottom: 10px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .lead {
+      max-width: 780px;
+      color: #b1bac4;
+      font-size: clamp(17px, 2vw, 21px);
+      line-height: 1.55;
+    }
+    .attribution {
+      padding: 12px 14px;
+      border-left: 3px solid var(--muted);
+      background: var(--canvas-subtle);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .banner {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 8px 15px;
+      border: 1px solid rgba(240, 246, 252, .1);
+      border-radius: 6px;
+      background: #238636;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: default;
+    }
+    .button.secondary { border-color: var(--border); background: var(--canvas-subtle); color: var(--text); }
+
+    .grid-2, .grid-3, .profile-grid, .proof-grid, .journey-grid {
+      display: grid;
+      gap: 16px;
+      min-width: 0;
+    }
+    .grid-2, .profile-grid, .journey-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3, .proof-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card {
+      min-width: 0;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--canvas-subtle);
+    }
+    .card p:last-child { margin-bottom: 0; }
+    .card .kicker {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .status-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .status-row {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr);
+      gap: 12px;
+      min-width: 0;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-muted);
+    }
+    .status-row:last-child { border-bottom: 0; }
+    .status-row > * { min-width: 0; }
+
+    .terminal {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--canvas-inset);
+      box-shadow: var(--shadow);
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 13px;
+      border-bottom: 1px solid var(--border);
+      background: var(--canvas-subtle);
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
+    .dot:nth-child(2) { background: var(--warning); }
+    .dot:nth-child(3) { background: var(--success); }
+    .terminal-title { margin-left: 8px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+    .terminal-body { padding: 18px; font-family: var(--mono); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+    .prompt { color: #79c0ff; }
+    .ok { color: #56d364; }
+    .dim { color: var(--muted); }
+    .captain { color: #d2a8ff; }
+
+    .timeline {
+      position: relative;
+      margin: 20px 0;
+      padding: 0 0 0 34px;
+      list-style: none;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 11px;
+      width: 2px;
+      background: linear-gradient(var(--link), var(--success));
+    }
+    .timeline li {
+      position: relative;
+      padding: 0 0 26px;
+    }
+    .timeline li::before {
+      content: attr(data-step);
+      position: absolute;
+      top: -2px;
+      left: -34px;
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--canvas);
+      border-radius: 50%;
+      background: var(--link);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .timeline li:last-child { padding-bottom: 0; }
+
+    .evidence-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      min-width: 0;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .evidence-header > * { min-width: 0; }
+    .health {
+      flex: 0 0 220px;
+      padding: 14px;
+      border: 1px solid rgba(63, 185, 80, .35);
+      border-radius: 8px;
+      background: rgba(46, 160, 67, .08);
+    }
+    .health strong { display: block; margin-bottom: 3px; color: #56d364; }
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 13px;
+    }
+    .matrix th, .matrix td {
+      padding: 11px 10px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    .matrix th { background: var(--canvas-subtle); text-align: left; }
+    .matrix th:nth-child(1) { width: 24%; }
+    .matrix th:nth-child(2) { width: 20%; }
+
+    .variant { display: none; }
+    .variant.active { display: block; }
+
+    .switcher {
+      position: fixed;
+      z-index: 50;
+      left: 50%;
+      bottom: 22px;
+      display: grid;
+      grid-template-columns: 42px minmax(180px, auto) 42px;
+      align-items: center;
+      overflow: hidden;
+      transform: translateX(-50%);
+      border: 1px solid #6e7681;
+      border-radius: 999px;
+      background: #f0f6fc;
+      color: #0d1117;
+      box-shadow: 0 18px 42px rgba(0, 0, 0, .5);
+    }
+    .switcher button {
+      height: 44px;
+      border: 0;
+      background: transparent;
+      color: #0d1117;
+      cursor: pointer;
+      font-size: 20px;
+    }
+    .switcher button:hover { background: #d8dee4; }
+    .variant-label {
+      padding: 0 14px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .variant-progress {
+      display: block;
+      color: #57606a;
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .callout {
+      padding: 14px 16px;
+      border: 1px solid rgba(88, 166, 255, .35);
+      border-radius: 8px;
+      background: rgba(56, 139, 253, .08);
+    }
+    .callout.warning { border-color: rgba(210, 153, 34, .4); background: rgba(187, 128, 9, .08); }
+    .callout p:last-child { margin-bottom: 0; }
+    .fine-print { color: var(--muted); font-size: 12px; }
+    .divider-label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 26px 0;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .divider-label::before, .divider-label::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: var(--border);
+    }
+
+    @media (max-width: 900px) {
+      .page-shell { grid-template-columns: minmax(0, 1fr); }
+      .review-sidebar { position: static; order: -1; }
+      .grid-3, .proof-grid { grid-template-columns: minmax(0, 1fr); }
+      .grid-2, .profile-grid, .journey-grid { grid-template-columns: minmax(0, 1fr); }
+      .evidence-header { display: grid; }
+      .health { width: 100%; }
+    }
+    @media (max-width: 600px) {
+      .site-header { padding: 10px 14px; }
+      .site-header .prototype-badge { display: none; }
+      .repo-tabs { padding: 0 14px; }
+      .prototype-context, .page-shell { width: min(100% - 20px, 1180px); }
+      .readme { padding: 20px 16px; }
+      .status-row { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+      .matrix { display: block; overflow-x: auto; table-layout: auto; }
+      .switcher { bottom: 12px; grid-template-columns: 40px minmax(150px, auto) 40px; max-width: calc(100% - 20px); }
+      .variant-label { overflow: hidden; text-overflow: ellipsis; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="repo-identity">
+      <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M8 0C3.58 0 0 3.64 0 8.13c0 3.59 2.29 6.63 5.47 7.71.4.08.55-.18.55-.39 0-.2-.01-.84-.01-1.52-2.01.38-2.53-.5-2.69-.96-.09-.23-.48-.96-.82-1.15-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.83.72 1.23 1.87.88 2.33.67.07-.53.28-.88.51-1.08-1.78-.21-3.64-.91-3.64-4.02 0-.89.31-1.62.82-2.19-.08-.2-.36-1.04.08-2.16 0 0 .67-.22 2.2.84A7.5 7.5 0 0 1 8 3.93c.68 0 1.36.09 2 .27 1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.96.08 2.16.51.57.82 1.3.82 2.19 0 3.12-1.87 3.81-3.65 4.02.29.25.54.74.54 1.51 0 1.09-.01 1.97-.01 2.25 0 .21.15.47.55.39A8.04 8.04 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z"/>
+      </svg>
+      <span class="repo-name"><span style="color:var(--muted)">timbarreto /</span> firstmate</span>
+      <span class="badge">Public fork</span>
+    </div>
+    <span class="prototype-badge">THROWAWAY REVIEW PROTOTYPE</span>
+  </header>
+
+  <nav class="repo-tabs" aria-label="Repository navigation">
+    <span class="repo-tab active">Code</span>
+    <span class="repo-tab">Issues</span>
+    <span class="repo-tab">Pull requests</span>
+    <span class="repo-tab">Actions</span>
+    <span class="repo-tab">Security</span>
+    <span class="repo-tab">Insights</span>
+  </nav>
+
+  <div class="prototype-context">
+    <strong>Decision under review:</strong> what should a prospective design partner see, understand, trust, and do from repository landing through a successful first run?
+    Use the bottom switcher or arrow keys to compare three intentionally different information hierarchies.
+  </div>
+
+  <main class="page-shell">
+    <article class="readme" aria-live="polite">
+      <section class="variant" data-variant="A" data-name="Promise first">
+        <div class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">Design-partner preview · Windows 11 x64</div>
+            <h1>Firstmate for Windows and Copilot CLI</h1>
+            <p class="lead">Run a supervised crew of coding agents from the GitHub Copilot CLI environment you already use—without changing operating system or primary harness.</p>
+            <div class="button-row">
+              <span class="button">Request a design-partner invite</span>
+              <span class="button secondary">Check the supported profile</span>
+            </div>
+          </div>
+          <img class="banner" src="firstmate-banner.png" alt="Firstmate coordinates several isolated crewmates across repositories">
+        </div>
+
+        <div class="attribution">
+          An independent community fork of Firstmate, based on <code>kunchenguid/firstmate</code>.
+          Compatibility status is published in <code>COMPATIBILITY.md</code>.
+          This project is not affiliated with or endorsed by the upstream Firstmate maintainers or GitHub.
+        </div>
+
+        <h2>One attended loop, end to end</h2>
+        <div class="grid-3">
+          <div class="card">
+            <div class="kicker">You stay in one conversation</div>
+            <h3>Ask the first mate</h3>
+            <p>Describe the outcome. The first mate breaks it into isolated work, delegates it, and returns only decisions and results.</p>
+          </div>
+          <div class="card">
+            <div class="kicker">The crew stays visible</div>
+            <h3>Watch real work happen</h3>
+            <p>Copilot workers run in Herdr sessions with separate Treehouse task copies, so parallel work does not collide.</p>
+          </div>
+          <div class="card">
+            <div class="kicker">You keep authority</div>
+            <h3>Review before anything lands</h3>
+            <p>The preview is attended: important decisions, merges, and risky actions remain explicitly human-controlled.</p>
+          </div>
+        </div>
+
+        <h2>Supported design-partner profile</h2>
+        <div class="profile-grid">
+          <div class="card">
+            <ul class="status-list">
+              <li class="status-row"><span class="badge success">Supported</span><span>Validated Windows 11 x64 build</span></li>
+              <li class="status-row"><span class="badge success">Supported</span><span>PowerShell 5.1 bootstrap and PowerShell 7 operation</span></li>
+              <li class="status-row"><span class="badge success">Supported</span><span>GitHub Copilot CLI as primary and default worker</span></li>
+              <li class="status-row"><span class="badge success">Supported</span><span>Herdr 0.8.0+ with Treehouse</span></li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Transparent boundaries</h3>
+            <p>Windows 10, Server, ARM, WSL-only use, other harnesses, and other session hosts are outside this preview.</p>
+            <p class="fine-print">Use real, non-critical repositories with active human supervision, normal review, and backups. This is not a production-readiness or unattended-operation claim.</p>
+          </div>
+        </div>
+
+        <h2>Your first run</h2>
+        <p>Start from PowerShell. The supported installer verifies the exact cohort toolchain and asks before changing external tools.</p>
+        <pre><span class="prompt">PS&gt;</span> git clone https://github.com/timbarreto/firstmate.git
+<span class="prompt">PS&gt;</span> cd firstmate
+<span class="prompt">PS&gt;</span> .\bin\fm-install-windows.ps1
+<span class="prompt">PS&gt;</span> copilot</pre>
+        <div class="divider-label">Then ask for a low-risk first mission</div>
+        <div class="callout">
+          <p><strong>Suggested first prompt</strong></p>
+          <p><code>Add my non-critical repository as a project, then send a scout to explain how its tests are organized. Do not change project files.</code></p>
+        </div>
+        <div class="grid-2" style="margin-top:16px">
+          <div class="card">
+            <h3>A successful first run means</h3>
+            <ol>
+              <li>The Firstmate session starts through Copilot CLI.</li>
+              <li>A visible isolated worker session appears.</li>
+              <li>The scout returns a useful report.</li>
+              <li>No project change lands without your approval.</li>
+              <li>You can share a credential-free environment receipt for support.</li>
+            </ol>
+          </div>
+          <div class="card">
+            <h3>If anything does not match</h3>
+            <p>Stop and compare your environment receipt with <code>COMPATIBILITY.md</code>. The cohort supports the current gated <code>main</code>, the latest checkpoint, and the previous checkpoint for 14 days.</p>
+            <p>Updates are announced but never installed automatically.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" data-variant="B" data-name="Journey first">
+        <div class="eyebrow">A 30-minute guided first voyage</div>
+        <h1>From Windows developer to Firstmate captain</h1>
+        <p class="lead">A design-partner path for developers who already use GitHub Copilot CLI and want one supervised conversation to coordinate multiple isolated coding agents.</p>
+
+        <div class="journey-grid" style="margin-top:28px">
+          <div>
+            <ol class="timeline">
+              <li data-step="1">
+                <h3>Check that this preview is for you</h3>
+                <p>Windows 11 x64, PowerShell, GitHub Copilot CLI, Herdr 0.8.0+, Treehouse, and a non-critical repository you can safely explore.</p>
+              </li>
+              <li data-step="2">
+                <h3>Install the validated profile</h3>
+                <p>Clone the community fork and run one PowerShell installer. It verifies pinned tools and asks before changing them.</p>
+              </li>
+              <li data-step="3">
+                <h3>Open Copilot CLI in the Firstmate home</h3>
+                <p>The repository's agent instructions instantiate your first mate. No separate Firstmate app or daemon becomes your primary interface.</p>
+              </li>
+              <li data-step="4">
+                <h3>Give the crew a safe first mission</h3>
+                <p>Ask for a read-only investigation in a non-critical repository. Watch the isolated worker appear and return its report.</p>
+              </li>
+              <li data-step="5">
+                <h3>Confirm the evidence</h3>
+                <p>Share the credential-free environment receipt and tell the cohort what felt clear, risky, or surprising.</p>
+              </li>
+            </ol>
+          </div>
+          <div class="terminal">
+            <div class="terminal-bar">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="terminal-title">PowerShell · GitHub Copilot CLI</span>
+            </div>
+            <div class="terminal-body">
+              <div><span class="prompt">PS&gt;</span> git clone https://github.com/timbarreto/firstmate.git</div>
+              <div><span class="prompt">PS&gt;</span> cd firstmate</div>
+              <div><span class="prompt">PS&gt;</span> .\bin\fm-install-windows.ps1</div>
+              <div class="dim">… validated cohort tools installed</div>
+              <div><span class="prompt">PS&gt;</span> copilot</div>
+              <br>
+              <div class="captain">You:</div>
+              <div>Add my sample repo and send a scout to explain its test layout. Do not change files.</div>
+              <br>
+              <div class="ok">Firstmate:</div>
+              <div>Captain, the investigation is under way in an isolated worker session.</div>
+              <br>
+              <div class="ok">Firstmate:</div>
+              <div>Captain, the scout found three test layers and documented the safest focused command.</div>
+            </div>
+          </div>
+        </div>
+
+        <h2>What you are joining</h2>
+        <div class="callout warning">
+          <p><strong>This is a design partnership, not a download claim.</strong></p>
+          <p>You may use real non-critical repositories under active supervision, but the preview does not claim production readiness, unattended operation, broad Windows support, or parity with every inherited harness and session host.</p>
+        </div>
+
+        <div class="grid-2" style="margin-top:16px">
+          <div class="card">
+            <div class="kicker">What the project commits to</div>
+            <h3>Evidence before confidence</h3>
+            <p>Every commit reaching the rolling supported channel must pass the real Windows/Copilot/Herdr/Treehouse profile gate. Named checkpoints follow a maintainer-and-canary rollout.</p>
+          </div>
+          <div class="card">
+            <div class="kicker">What you commit to</div>
+            <h3>Attended, candid use</h3>
+            <p>Use backups and normal review, keep risky work out of scope, update within the support window, and report the exact environment receipt when something breaks.</p>
+          </div>
+        </div>
+
+        <h2>Why this fork exists</h2>
+        <p><strong>Firstmate for Windows and Copilot CLI</strong> closes an access and compatibility gap while preserving Firstmate lineage and observable compatibility with one exact upstream baseline per release.</p>
+        <img class="banner" src="firstmate-banner.png" alt="Firstmate coordinates several isolated crewmates across repositories">
+        <p class="attribution" style="margin-top:16px">
+          Independent community fork of Firstmate, based on <code>kunchenguid/firstmate</code>.
+          Not affiliated with or endorsed by upstream maintainers or GitHub.
+        </p>
+
+        <h2>Ready to try the attended loop?</h2>
+        <p>The cohort is intentionally limited to 5–10 design partners. Check the supported profile, read the known gaps, and request an invitation through the cohort channel.</p>
+        <div class="button-row">
+          <span class="button">Check fit and request access</span>
+          <span class="button secondary">Read compatibility evidence</span>
+        </div>
+      </section>
+
+      <section class="variant" data-variant="C" data-name="Evidence first">
+        <div class="evidence-header">
+          <div>
+            <div class="eyebrow">Compatibility-first design-partner preview</div>
+            <h1>Firstmate for Windows and Copilot CLI</h1>
+            <p class="lead">Know exactly what was tested, what is supported, and what remains outside the promise before you run agent work against a repository.</p>
+          </div>
+          <aside class="health">
+            <strong>Rolling channel</strong>
+            <span>Supported only after the full Windows/Copilot profile gate passes.</span>
+          </aside>
+        </div>
+
+        <h2>Current support contract</h2>
+        <table class="matrix">
+          <thead>
+            <tr><th>Surface</th><th>Status</th><th>Design-partner contract</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Operating system</td><td><span class="badge success">Supported</span></td><td>Validated Windows 11 x64 builds recorded in <code>COMPATIBILITY.md</code>.</td></tr>
+            <tr><td>Primary + worker</td><td><span class="badge success">Supported</span></td><td>GitHub Copilot CLI with the exact tested version.</td></tr>
+            <tr><td>Session isolation</td><td><span class="badge success">Cohort supported</span></td><td>Herdr 0.8.0+ with Treehouse; Herdr remains product-level experimental.</td></tr>
+            <tr><td>Shell path</td><td><span class="badge success">Supported</span></td><td>PowerShell 5.1 bootstrap, PowerShell 7 operation, guarded Git for Windows Bash bridge.</td></tr>
+            <tr><td>Other Windows / WSL</td><td><span class="badge warning">Out of scope</span></td><td>Windows 10, Server, ARM, and WSL-only environments have no cohort support promise.</td></tr>
+            <tr><td>Other harnesses / hosts</td><td><span class="badge warning">Out of scope</span></td><td>The inherited matrix remains in the codebase but is not part of this launch profile.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="proof-grid" style="margin-top:18px">
+          <div class="card">
+            <div class="kicker">Baseline</div>
+            <h3>Exact SHAs</h3>
+            <p>Every supported state names the exact fork commit and exact validated upstream compatibility baseline.</p>
+          </div>
+          <div class="card">
+            <div class="kicker">Acceptance</div>
+            <h3>Real profile automation</h3>
+            <p>Clean Windows, authenticated Copilot CLI, real Herdr and Treehouse, and the actual PowerShell/Git Bash bridge.</p>
+          </div>
+          <div class="card">
+            <div class="kicker">Recovery</div>
+            <h3>Hold-aware updates</h3>
+            <p>Known-bad ranges are blocked; affected partners are offered a guarded rollback to the last-known-good checkpoint.</p>
+          </div>
+        </div>
+
+        <h2>Install only after the evidence matches</h2>
+        <div class="grid-2">
+          <div>
+            <pre><span class="prompt">PS&gt;</span> git clone https://github.com/timbarreto/firstmate.git
+<span class="prompt">PS&gt;</span> cd firstmate
+<span class="prompt">PS&gt;</span> .\bin\fm-install-windows.ps1
+<span class="prompt">PS&gt;</span> copilot</pre>
+          </div>
+          <div class="card">
+            <h3>The installer should prove</h3>
+            <ul>
+              <li>Your Windows build is in the supported tuple.</li>
+              <li>Required pinned tools are present or explicitly approved for installation.</li>
+              <li>No active compatibility hold affects the destination.</li>
+              <li>The resulting environment receipt contains no credentials or project data.</li>
+            </ul>
+          </div>
+        </div>
+
+        <h2>First success criterion</h2>
+        <div class="callout">
+          <p><strong>Do not define success as “the installer exited zero.”</strong></p>
+          <p>A successful first run starts Firstmate through Copilot CLI, delegates one read-only investigation to a visible isolated worker, handles the attended supervision loop, returns a useful result, and leaves the project unchanged.</p>
+        </div>
+
+        <h2>The preview boundary</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Reasonable cohort use</h3>
+            <ul>
+              <li>Real, non-critical repositories.</li>
+              <li>Active human supervision.</li>
+              <li>Normal review and merge approval.</li>
+              <li>Backups and a guarded rollback path.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Claims this project does not make</h3>
+            <ul>
+              <li>Production readiness.</li>
+              <li>Unattended operation.</li>
+              <li>Broad Windows or harness support.</li>
+              <li>Official upstream or GitHub endorsement.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="attribution" style="margin-top:24px">
+          <strong>A compatibility-first Firstmate fork for Windows and GitHub Copilot CLI.</strong><br>
+          Independent community fork based on <code>kunchenguid/firstmate</code>. Compatibility evidence lives in <code>COMPATIBILITY.md</code>.
+        </div>
+
+        <h2>Decision path</h2>
+        <div class="button-row">
+          <span class="button secondary">1. Verify the support tuple</span>
+          <span class="button secondary">2. Read known gaps</span>
+          <span class="button">3. Request cohort access</span>
+        </div>
+      </section>
+    </article>
+
+    <aside class="review-sidebar">
+      <h2>Review this narrative</h2>
+      <p>Pick a base, then identify elements worth stealing from the others. Your selections create a visible summary you can include with Lavish feedback.</p>
+
+      <strong style="font-size:13px">Preferred base</strong>
+      <label class="review-choice"><input type="radio" name="base" value="A — Promise first"> A — Promise first</label>
+      <label class="review-choice"><input type="radio" name="base" value="B — Journey first"> B — Journey first</label>
+      <label class="review-choice"><input type="radio" name="base" value="C — Evidence first"> C — Evidence first</label>
+
+      <strong style="display:block;margin-top:14px;font-size:13px">Elements to combine</strong>
+      <label class="review-choice"><input type="checkbox" name="element" value="prominent banner"> Prominent banner</label>
+      <label class="review-choice"><input type="checkbox" name="element" value="support matrix"> Support matrix</label>
+      <label class="review-choice"><input type="checkbox" name="element" value="30-minute journey"> 30-minute journey</label>
+      <label class="review-choice"><input type="checkbox" name="element" value="terminal example"> Terminal example</label>
+      <label class="review-choice"><input type="checkbox" name="element" value="trust boundaries"> Trust boundaries</label>
+
+      <label for="notes" style="display:block;margin:14px 0 6px;font-size:13px;font-weight:600">What should change?</label>
+      <textarea id="notes" placeholder="Example: Start with C's support table, then use B's first-run journey. Move the banner below the install path."></textarea>
+      <div class="review-summary" id="review-summary">No review choices yet.</div>
+      <p style="margin-top:12px">When ready, annotate specific copy or queue this summary through Lavish’s conversation panel.</p>
+    </aside>
+  </main>
+
+  <div class="switcher" role="group" aria-label="Prototype variant switcher">
+    <button type="button" id="prev" aria-label="Previous variant">←</button>
+    <div class="variant-label">
+      <span id="variant-label">A · Promise first</span>
+      <span class="variant-progress">Use ← → keys · shareable via ?variant=</span>
+    </div>
+    <button type="button" id="next" aria-label="Next variant">→</button>
+  </div>
+
+  <script>
+    (() => {
+      const variants = [
+        { key: "A", name: "Promise first" },
+        { key: "B", name: "Journey first" },
+        { key: "C", name: "Evidence first" }
+      ];
+      const params = new URLSearchParams(window.location.search);
+      let index = Math.max(0, variants.findIndex(v => v.key === (params.get("variant") || "A").toUpperCase()));
+      const label = document.getElementById("variant-label");
+
+      function renderVariant(nextIndex, replace = true) {
+        index = (nextIndex + variants.length) % variants.length;
+        const current = variants[index];
+        document.querySelectorAll(".variant").forEach(section => {
+          section.classList.toggle("active", section.dataset.variant === current.key);
+        });
+        label.textContent = `${current.key} · ${current.name}`;
+        document.title = `${current.key} — ${current.name} · Firstmate README prototype`;
+        const url = new URL(window.location.href);
+        url.searchParams.set("variant", current.key);
+        window.history[replace ? "replaceState" : "pushState"]({}, "", url);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      document.getElementById("prev").addEventListener("click", () => renderVariant(index - 1, false));
+      document.getElementById("next").addEventListener("click", () => renderVariant(index + 1, false));
+      window.addEventListener("keydown", event => {
+        const target = event.target;
+        if (target.matches("input, textarea, [contenteditable='true']")) return;
+        if (event.key === "ArrowLeft") renderVariant(index - 1, false);
+        if (event.key === "ArrowRight") renderVariant(index + 1, false);
+      });
+      window.addEventListener("popstate", () => {
+        const key = new URLSearchParams(window.location.search).get("variant") || "A";
+        const next = variants.findIndex(v => v.key === key.toUpperCase());
+        renderVariant(next < 0 ? 0 : next);
+      });
+
+      const inputs = [...document.querySelectorAll(".review-sidebar input, .review-sidebar textarea")];
+      const summary = document.getElementById("review-summary");
+      function updateSummary() {
+        const base = document.querySelector("input[name='base']:checked")?.value;
+        const elements = [...document.querySelectorAll("input[name='element']:checked")].map(input => input.value);
+        const notes = document.getElementById("notes").value.trim();
+        const parts = [];
+        if (base) parts.push(`Base: ${base}.`);
+        if (elements.length) parts.push(`Combine: ${elements.join(", ")}.`);
+        if (notes) parts.push(`Changes: ${notes}`);
+        summary.textContent = parts.join(" ") || "No review choices yet.";
+      }
+      inputs.forEach(input => input.addEventListener("input", updateSummary));
+      renderVariant(index);
+    })();
+  </script>
+</body>
+</html>
