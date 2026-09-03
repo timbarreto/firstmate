@@ -8,6 +8,11 @@ import {
   classifyFirstmateCurrentOperationalText,
   encodeFirstmateOperationalInput,
 } from "./lib/fm-operational-input.ts";
+import {
+  isPidInCurrentAncestry,
+  pidAlive,
+  shellVisibleProcessPid,
+} from "./lib/fm-process-ancestry.ts";
 
 let guardFollowupActive = false;
 
@@ -20,21 +25,7 @@ const fmHome = process.env.FM_HOME || process.env.FM_ROOT_OVERRIDE || root;
 const state = process.env.FM_STATE_OVERRIDE || `${fmHome}/state`;
 const marker = `${state}/.pi-turnend-extension-loaded`;
 const extensionVersion = `sha256:${createHash("sha256").update(readFileSync(extensionFile)).digest("hex")}`;
-
-function parentPid(pid: string): string {
-  const result = spawnSync("ps", ["-o", "ppid=", "-p", pid], { encoding: "utf8" });
-  if (result.status !== 0) return "";
-  return result.stdout.trim();
-}
-
-function pidAlive(pid: string): boolean {
-  try {
-    process.kill(Number(pid), 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const extensionProcessPid = shellVisibleProcessPid();
 
 function lockOwnership(): LockOwnership {
   let lockPid = "";
@@ -44,18 +35,13 @@ function lockOwnership(): LockOwnership {
     return "missing";
   }
   if (!/^[0-9]+$/.test(lockPid) || lockPid === "1") return "other";
-  let pid = String(process.pid);
-  for (let i = 0; i < 8; i += 1) {
-    if (pid === lockPid) return "owned";
-    pid = parentPid(pid);
-    if (!pid || pid === "1") break;
-  }
+  if (isPidInCurrentAncestry(lockPid)) return "owned";
   return pidAlive(lockPid) ? "other" : "missing";
 }
 
 function markLoaded(): void {
   if (!existsSync(state) || lockOwnership() === "other") return;
-  writeFileSync(marker, `${extensionVersion}\n${process.pid}\n`);
+  writeFileSync(marker, `${extensionVersion}\n${extensionProcessPid}\n`);
 }
 
 // Pi's session_start reasons are startup | reload | new | resume | fork, and a

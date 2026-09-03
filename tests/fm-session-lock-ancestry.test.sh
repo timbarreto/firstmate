@@ -311,11 +311,15 @@ run_fixture_tree() {  # <dir> <session-bin> [<daemon-bin>]
   case "$(uname -s 2>/dev/null)" in
     MINGW*|MSYS*|CYGWIN*) orphan_here=0 ;;
   esac
+  # This fixture creates a synthetic Claude ancestry. Do not let an outer
+  # Copilot CLI session's native-loader bridge replace that process tree.
   if [ -n "$daemon_bin" ]; then
-    FM_HOME="$dir" FM_SESSION_BIN="$session_bin" FM_FIXTURE_ORPHAN_HERE="$orphan_here" \
+    env -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+      FM_HOME="$dir" FM_SESSION_BIN="$session_bin" FM_FIXTURE_ORPHAN_HERE="$orphan_here" \
       bash -c '"$0" "$1" &' "$daemon_bin" "$dir/daemon.sh"
   else
-    FM_HOME="$dir" FM_FIXTURE_ORPHAN_HERE="$orphan_here" \
+    env -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+      FM_HOME="$dir" FM_FIXTURE_ORPHAN_HERE="$orphan_here" \
       bash -c '"$0" "$1" &' "$session_bin" "$dir/session.sh"
   fi
   i=0

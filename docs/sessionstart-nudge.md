@@ -47,7 +47,7 @@ The shared timeout owner falls back to a pure-Bash process-group watchdog when t
 Because the child streams into the native transport as it runs, everything emitted before the bound was hit is retained for delivery; the parent then prints a `STARTUP TRUNCATED` banner naming the stage that was current when the deadline expired and the stages that were therefore never emitted, and still exits 0.
 The named stage is a breadcrumb, not a measured bottleneck; `state/.session-start.timings` records per-stage elapsed times so a rerun can inspect what actually ran.
 The registered hook timeouts sit above that budget so the harness never preempts the banner.
-The deferred network stage deliberately runs in its own process group under its own deadline, so a truncated digest neither kills work it was not waiting for nor orphans unbounded network work.
+The deferred startup stage deliberately runs in its own process group under its own deadline, so a truncated digest neither kills the network checks and inactive-outcome scan it was not waiting for nor orphans unbounded network work.
 
 ## Shared wrapper and safety
 

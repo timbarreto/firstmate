@@ -24,11 +24,11 @@
 #   - composition: the script invokes the real fm-lock.sh/fm-bootstrap.sh/
 #     fm-wake-drain.sh (their real, distinctive output appears verbatim), it
 #     does not reimplement their logic
-#   - the deferred network stage: an unreachable host delays a reported check
-#     rather than the digest, the sweeps it defers still run and land, a result
-#     surfaces exactly once (inline or as a wake, never both), a read-only
-#     session declares the checks it skipped, and the tasks-axi compatibility
-#     verdict is paid for once per session start
+#   - the deferred startup stage: slow network and inactive current-state reads
+#     do not delay the digest, the work still runs and lands durable findings, a
+#     network result surfaces exactly once (inline or as a wake, never both), a
+#     read-only session declares the checks it skipped, and the tasks-axi
+#     compatibility verdict is paid for once per session start
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -38,6 +38,27 @@ set -u
 
 SESSION_START="$ROOT/bin/fm-session-start.sh"
 BASE_PATH=${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
+SESSION_START_TIMEOUT=120
+SESSION_START_NETWORK_TIMEOUT=120
+SESSION_START_NETWORK_WAIT=30
+SESSION_START_INACTIVE_BUDGET=10
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    SESSION_START_TIMEOUT=300
+    SESSION_START_NETWORK_TIMEOUT=240
+    SESSION_START_NETWORK_WAIT=270
+    SESSION_START_INACTIVE_BUDGET=30
+    ;;
+esac
+GIT_BIN=$(command -v git 2>/dev/null) || fail "git is required to run fm-session-start tests"
+JQ_BIN=$(command -v jq 2>/dev/null) || fail "jq is required to run fm-session-start tests"
+POWERSHELL_BIN=
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    POWERSHELL_BIN=$(command -v powershell.exe 2>/dev/null) \
+      || fail "powershell.exe is required to run Windows fm-session-start tests"
+    ;;
+esac
 TMP_ROOT=$(fm_test_tmproot fm-session-start-tests)
 SESSION_START_TEST_HARNESS_PID=$$
 SESSION_START_SECOND_MATE_ID="fmtest-sm-${TMP_ROOT##*.}"
@@ -69,10 +90,22 @@ new_world() {
 # make_fake_toolchain <fakebin>: every tool fm-bootstrap.sh detects, present
 # and compatible, so its own detect-only section stays quiet except where a
 # test deliberately breaks one. Mirrors fm-bootstrap.test.sh's fixture.
+install_host_tool_delegate() {  # <fakebin> <name> <executable>
+  local fakebin=$1 name=$2 executable=$3
+  cat > "$fakebin/$name" <<SH
+#!/usr/bin/env bash
+exec "$executable" "\$@"
+SH
+  chmod +x "$fakebin/$name"
+}
+
 make_fake_toolchain() {
   local fakebin=$1
   fm_fake_exit0 "$fakebin" tmux node chrome-devtools-axi
   fm_fake_version_tool "$fakebin" lavish-axi FM_FAKE_LAVISH_AXI_VERSION 0.1.46
+  install_host_tool_delegate "$fakebin" git "$GIT_BIN"
+  install_host_tool_delegate "$fakebin" jq "$JQ_BIN"
+  [ -z "$POWERSHELL_BIN" ] || install_host_tool_delegate "$fakebin" powershell.exe "$POWERSHELL_BIN"
   cat > "$fakebin/gh-axi" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = --version ]; then
@@ -246,7 +279,11 @@ case "$*" in
     ;;
   *"ppid="*)
     [ -n "${FM_FAKE_HARNESS_PID:-}" ] || exit 1
-    /bin/ps -o ppid= -p "$pid"
+    if [ "$pid" = "$FM_FAKE_HARNESS_PID" ]; then
+      printf '%s\n' 1
+    else
+      printf '%s\n' "$FM_FAKE_HARNESS_PID"
+    fi
     ;;
 esac
 exit 1
@@ -521,6 +558,8 @@ run_session_start() {
       -u HERDR_WORKSPACE_ID -u HERDR_SESSION -u HERDR_SOCKET_PATH \
       PI_CODING_AGENT=true FM_PI_HARNESS="$pi_harness" \
       FM_PROC_ROOT_OVERRIDE="${FM_PROC_ROOT_OVERRIDE:-$home/no-proc}" \
+      FM_SESSION_START_TIMEOUT="${FM_SESSION_START_TIMEOUT:-$SESSION_START_TIMEOUT}" \
+      FM_STARTUP_NETWORK_TIMEOUT="${FM_STARTUP_NETWORK_TIMEOUT:-$SESSION_START_NETWORK_TIMEOUT}" \
       FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
       "$SESSION_START"
   else
@@ -529,6 +568,8 @@ run_session_start() {
       -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_TAB_ID \
       -u HERDR_WORKSPACE_ID -u HERDR_SESSION -u HERDR_SOCKET_PATH \
       FM_PROC_ROOT_OVERRIDE="${FM_PROC_ROOT_OVERRIDE:-$home/no-proc}" \
+      FM_SESSION_START_TIMEOUT="${FM_SESSION_START_TIMEOUT:-$SESSION_START_TIMEOUT}" \
+      FM_STARTUP_NETWORK_TIMEOUT="${FM_STARTUP_NETWORK_TIMEOUT:-$SESSION_START_NETWORK_TIMEOUT}" \
       FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
       "$SESSION_START"
   fi
@@ -542,6 +583,8 @@ run_pi_session_start() {  # <home> <root> <path> [fm-session-start args...]
     -u HERDR_WORKSPACE_ID -u HERDR_SESSION -u HERDR_SOCKET_PATH \
     PI_CODING_AGENT=true FM_PI_HARNESS=pi \
     FM_PROC_ROOT_OVERRIDE="${FM_PROC_ROOT_OVERRIDE:-$home/no-proc}" \
+    FM_SESSION_START_TIMEOUT="${FM_SESSION_START_TIMEOUT:-$SESSION_START_TIMEOUT}" \
+    FM_STARTUP_NETWORK_TIMEOUT="${FM_STARTUP_NETWORK_TIMEOUT:-$SESSION_START_NETWORK_TIMEOUT}" \
     FM_FAKE_HARNESS_PID="$SESSION_START_TEST_HARNESS_PID" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
     "$SESSION_START" "$@"
@@ -555,6 +598,8 @@ run_named_harness_session_start() {  # <harness> <home> <root> <path> [fm-sessio
     -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_TAB_ID \
     -u HERDR_WORKSPACE_ID -u HERDR_SESSION -u HERDR_SOCKET_PATH \
     FM_PROC_ROOT_OVERRIDE="${FM_PROC_ROOT_OVERRIDE:-$home/no-proc}" \
+    FM_SESSION_START_TIMEOUT="${FM_SESSION_START_TIMEOUT:-$SESSION_START_TIMEOUT}" \
+    FM_STARTUP_NETWORK_TIMEOUT="${FM_STARTUP_NETWORK_TIMEOUT:-$SESSION_START_NETWORK_TIMEOUT}" \
     FM_FAKE_HARNESS="$harness" FM_FAKE_HARNESS_PID="$SESSION_START_TEST_HARNESS_PID" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
     "$SESSION_START" "$@"
@@ -656,7 +701,20 @@ run_session_start_herdr_secondmate() {
 # which is exactly why the sweeps it used to run inline have to be re-asserted
 # here instead of straight off the digest's own output.
 wait_for_network_stage() {
-  local home=$1 root=$2 limit=${3:-30}
+  local home=$1 root=$2 limit=${3:-$SESSION_START_NETWORK_WAIT} waited=0 state
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      while [ "$waited" -lt "$limit" ]; do
+        state=$(sed -n 's/^state=//p' "$home/state/.startup-network.status" 2>/dev/null | tail -1)
+        case "$state" in
+          done|timeout|failed) return 0 ;;
+        esac
+        sleep 1
+        waited=$((waited + 1))
+      done
+      return 1
+      ;;
+  esac
   FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
     "$ROOT/bin/fm-startup-network.sh" wait "$limit"
 }
@@ -689,14 +747,16 @@ hash_file_for_test() {
 
 install_pi_turnend_extension_fixture() {
   local root=$1
-  mkdir -p "$root/.pi/extensions"
+  mkdir -p "$root/.pi/extensions/lib"
   cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$root/.pi/extensions/fm-primary-turnend-guard.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$root/.pi/extensions/lib/fm-process-ancestry.ts"
 }
 
 install_pi_watch_extension_fixture() {
   local root=$1
-  mkdir -p "$root/.pi/extensions"
+  mkdir -p "$root/.pi/extensions/lib"
   cp "$ROOT/.pi/extensions/fm-primary-pi-watch.ts" "$root/.pi/extensions/fm-primary-pi-watch.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$root/.pi/extensions/lib/fm-process-ancestry.ts"
 }
 
 write_pi_watch_loaded_marker() {
@@ -736,8 +796,10 @@ EOF
 
   # Publication is launched off the blocking digest, so wait for the ledger
   # rather than requiring the refresh to finish before session start returns.
+  # Its own deadline is 60 seconds; leave margin for process startup and the
+  # best-effort diagnostic path on slower Windows runners.
   waited=0
-  while [ ! -s "$home/state/home-summary.json" ] && [ "$waited" -lt 100 ]; do
+  while [ ! -s "$home/state/home-summary.json" ] && [ "$waited" -lt 700 ]; do
     sleep 0.1
     waited=$((waited + 1))
   done
@@ -834,7 +896,7 @@ EOF
 }
 
 test_lock_write_failure_read_only_path() {
-  local rec root home fakebin out status
+  local rec root home fakebin out status real_mktemp
   rec=$(new_world lock-write-failure)
   IFS='|' read -r root home fakebin <<EOF
 $rec
@@ -842,11 +904,18 @@ EOF
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
   append_wake "$home/state" signal task-a "done: must remain queued" || fail "seed wake failed"
-  chmod 0500 "$home/state"
+  real_mktemp=$(command -v mktemp) || fail "lock failure fixture requires mktemp"
+  cat > "$fakebin/mktemp" <<SH
+#!/usr/bin/env bash
+case "\${1:-}" in
+  */.lock-write.XXXXXX) exit 1 ;;
+esac
+exec "$real_mktemp" "\$@"
+SH
+  chmod +x "$fakebin/mktemp"
 
   status=0
   out=$(run_session_start "$home" "$root" "$fakebin:$BASE_PATH") || status=$?
-  chmod 0700 "$home/state"
 
   expect_code 0 "$status" "fm-session-start.sh must exit 0 when lock publication fails"
   assert_contains "$out" "cannot write session lock" "lock publication failure was not surfaced"
@@ -893,7 +962,7 @@ EOF
 }
 
 test_session_lock_concurrent_single_winner() {
-  local rec root home fakebin ready completed winners pids i pid count
+  local rec root home fakebin ready completed winners process_env contenders pids i pid count
   rec=$(new_world lock-concurrency)
   IFS='|' read -r root home fakebin <<EOF
 $rec
@@ -903,53 +972,63 @@ EOF
   winners="$home/winners"
   mkdir -p "$ready" "$completed"
   : > "$winners"
-  cat > "$fakebin/ps" <<'SH'
-#!/usr/bin/env bash
-set -u
-pid=
-previous=
-for argument in "$@"; do
-  [ "$previous" = -p ] && pid=$argument
-  previous=$argument
-done
-case "$*" in
-  *"comm="*)
-    if [ -f "$FM_FAKE_LOCK_STATE/harness-$pid" ]; then
-      printf '%s\n' /usr/local/bin/claude
-    else
-      printf '%s\n' /bin/bash
-    fi
-    ;;
-  *"args="*)
-    if [ -f "$FM_FAKE_LOCK_STATE/harness-$pid" ]; then
-      printf '%s\n' claude
-    else
-      printf '%s\n' bash
-    fi
-    ;;
-  *"ppid="*) printf '%s\n' "$FM_FAKE_HARNESS_PID" ;;
-  *) exit 1 ;;
-esac
+  process_env="$home/fake-process-env"
+  cat > "$process_env" <<'SH'
+ps() {
+  local pid= previous= argument
+  for argument in "$@"; do
+    [ "$previous" = -p ] && pid=$argument
+    previous=$argument
+  done
+  case "$*" in
+    *"comm="*)
+      if [ -f "$FM_FAKE_LOCK_STATE/harness-$pid" ]; then
+        printf '%s\n' /usr/local/bin/claude
+      else
+        printf '%s\n' /bin/bash
+      fi
+      ;;
+    *"args="*)
+      if [ -f "$FM_FAKE_LOCK_STATE/harness-$pid" ]; then
+        printf '%s\n' claude
+      else
+        printf '%s\n' bash
+      fi
+      ;;
+    *"ppid="*) printf '%s\n' "$FM_FAKE_HARNESS_PID" ;;
+    *) return 1 ;;
+  esac
+}
 SH
-  chmod +x "$fakebin/ps"
+
+  contenders=40
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) contenders=8 ;;
+  esac
 
   pids=
   i=1
-  while [ "$i" -le 40 ]; do
+  while [ "$i" -le "$contenders" ]; do
     (
       harness_pid=$(sh -c 'printf "%s\n" "$PPID"')
       : > "$home/state/harness-$harness_pid"
       : > "$ready/$i"
-      while [ "$(find "$ready" -type f | wc -l | tr -d ' ')" -lt 40 ]; do
+      while :; do
+        set -- "$ready"/*
+        [ -e "$1" ] && [ "$#" -ge "$contenders" ] && break
         sleep 0.01
       done
-      if FM_HOME="$home" FM_FAKE_LOCK_STATE="$home/state" \
+      if env -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+        BASH_ENV="$process_env" FM_HOME="$home" FM_PROC_ROOT_OVERRIDE="$home/no-proc" \
+        FM_FAKE_LOCK_STATE="$home/state" \
         FM_FAKE_HARNESS_PID="$harness_pid" PATH="$fakebin:$BASE_PATH" \
         "$ROOT/bin/fm-lock.sh" >/dev/null 2>&1; then
         printf '%s\n' "$harness_pid" >> "$winners"
       fi
       : > "$completed/$i"
-      while [ "$(find "$completed" -type f | wc -l | tr -d ' ')" -lt 40 ]; do
+      while :; do
+        set -- "$completed"/*
+        [ -e "$1" ] && [ "$#" -ge "$contenders" ] && break
         sleep 0.01
       done
     ) &
@@ -1408,7 +1487,7 @@ EOF
   pass "fm-session-start.sh composes the real fm-lock.sh, fm-bootstrap.sh, and fm-wake-drain.sh output verbatim"
 }
 
-test_branch_outcome_replay_and_lease_sweep() {
+test_branch_outcome_replay_respects_captain_barrier_and_lease_sweep() {
   local rec root home fakebin out
   rec=$(new_world branch-recovery)
   IFS='|' read -r root home fakebin <<EOF
@@ -1417,9 +1496,12 @@ EOF
   make_fake_toolchain "$fakebin"
   make_fake_ps_harness "$fakebin" pi
 
-  # A crash window the locked start must close: the supervision branch stored
-  # an outcome durably that never reached main, plus one lease whose
+  # A crash window the locked start must preserve: the supervision branch
+  # stored a leading routine row and a captain row that never reached Pi, plus one lease whose
   # supervising process died and one still held by a live process.
+  FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append \
+    --task task-a --verdict routine --summary 'worker recovered automatically' >/dev/null \
+    || fail "could not seed the unread routine branch outcome"
   FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append \
     --task task-b --verdict captain --summary 'PR https://example.com/pr/b checks green' >/dev/null \
     || fail "could not seed the unread branch outcome"
@@ -1429,18 +1511,24 @@ EOF
 
   out=$(run_pi_session_start "$home" "$root" "$fakebin:$BASE_PATH")
   assert_contains "$out" "BRANCH OUTCOMES (handled by the supervision branch, not yet seen by this session):" \
-    "locked start did not replay the unread branch outcome"
-  assert_contains "$out" "https://example.com/pr/b" "replayed outcome lost its content"
+    "locked start did not replay the leading routine branch outcome"
+  assert_contains "$out" "worker recovered automatically" "replayed routine outcome lost its content"
+  assert_not_contains "$out" "https://example.com/pr/b" "locked start crossed the captain delivery barrier"
+  assert_contains "$(FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" unread)" \
+    "https://example.com/pr/b" "locked start marked the unrendered captain outcome read"
+  [ "$(cat "$home/state/.branch-outcomes-cursor")" = 1 ] || fail "locked start advanced past the captain row"
   [ ! -e "$home/state/.lease-task-dead" ] || fail "locked start left a provably dead lease in place"
   [ -e "$home/state/.lease-task-live" ] || fail "locked start swept a live lease"
 
-  # Replay is one-shot: presenting the digest is the delivery, so the next
-  # locked start stays silent about the same outcome.
+  # Routine replay is one-shot, while the captain row remains held for Pi's
+  # sequence-keyed visible-entry reconciliation.
   out=$(run_pi_session_start "$home" "$root" "$fakebin:$BASE_PATH")
   case "$out" in
     *"BRANCH OUTCOMES"*) fail "second start re-presented already-replayed branch outcomes" ;;
   esac
-  pass "locked Pi session start replays unread branch outcomes once and sweeps only dead leases"
+  assert_contains "$(FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" unread)" \
+    "https://example.com/pr/b" "second start consumed the captain row without a Pi entry"
+  pass "locked Pi session start replays leading routine outcomes, preserves the captain barrier, and sweeps only dead leases"
 }
 
 test_non_pi_session_start_leaves_branch_state_untouched() {
@@ -1469,16 +1557,19 @@ EOF
 
 # --- deferred network stage -------------------------------------------------
 
-# install_slow_gh <fakebin> <seconds>: one external-network call the digest used
-# to make directly. Making it pathologically slow is how a test stands in for an
-# unreachable host without touching one: if any part of the blocking path still
-# waits on the network, the digest cannot finish before this does.
+# install_slow_gh <fakebin> <seconds> [finished-marker] [release-marker]: one
+# external-network call the digest used to make directly. A release marker makes
+# the deferral assertion independent of host speed; without one, the fake sleeps.
 install_slow_gh() {
-  local fakebin=$1 seconds=$2 finished_marker=${3:-}
+  local fakebin=$1 seconds=$2 finished_marker=${3:-} release_marker=${4:-}
   cat > "$fakebin/gh" <<SH
 #!/usr/bin/env bash
 if [ "\${1:-}" = auth ]; then
-  sleep $seconds
+  if [ -n '$release_marker' ]; then
+    while [ ! -e '$release_marker' ]; do sleep 0.1; done
+  else
+    sleep $seconds
+  fi
   [ -z '$finished_marker' ] || : > '$finished_marker'
   exit 1
 fi
@@ -1487,25 +1578,112 @@ SH
   chmod +x "$fakebin/gh"
 }
 
+# The locked startup scan may need the same expensive current-state read that a
+# busy validation makes slow. It belongs to the detached startup worker, so the
+# digest must finish without making this delayed read; the answer then has to create
+# the ordinary durable inactive-outcome wake rather than disappear off-path.
+test_inactive_reconcile_never_blocks_the_digest() {
+  local rec root home fakebin world worktree crew_state calls out started elapsed blocking_limit=8 inactive_delay=8 waited=0
+  rec=$(new_world inactive-reconcile-deferred)
+  IFS='|' read -r root home fakebin <<EOF
+$rec
+EOF
+  world=${root%/root}
+  worktree="$world/child-worktree"
+  crew_state="$world/slow-crew-state.sh"
+  calls="$world/no-mistakes-state.calls"
+  ln -s "$ROOT/bin" "$root/bin"
+  make_fake_toolchain "$fakebin"
+  make_fake_ps_claude "$fakebin"
+  fm_git_init_commit "$worktree"
+
+  cat > "$fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+set -u
+if [ "${1:-}" = --version ]; then
+  printf '%s\n' 'no-mistakes version v1.46.0 (fake) 2026-06-27T00:02:18Z'
+  exit 0
+fi
+if [ "${1:-} ${2:-}" = 'axi status' ]; then
+  if [ "${FM_BOOTSTRAP_NETWORK:-}" = only ]; then
+    printf '%s\n' 'deferred' >> "${FM_FAKE_NM_CALLS:?}"
+  else
+    printf '%s\n' 'blocking' >> "${FM_FAKE_NM_CALLS:?}"
+  fi
+  sleep "${FM_FAKE_NM_SLEEP:-8}"
+  printf '%s\n' 'slow validation state answered'
+fi
+exit 0
+SH
+  cat > "$crew_state" <<'SH'
+#!/usr/bin/env bash
+set -u
+no-mistakes axi status >/dev/null
+printf '%s\n' 'state: done · source: run-step · passed'
+SH
+  chmod +x "$fakebin/no-mistakes" "$crew_state"
+
+  fm_write_meta "$home/state/slow-child.meta" \
+    'window=firstmate:fm-slow-child' "worktree=$worktree" 'project=firstmate' \
+    'harness=pi' 'kind=scout' 'mode=no-mistakes' 'yolo=off' 'spawn_gen=slow-child.1'
+  printf '%s\n' 'working: validating' > "$home/state/slow-child.status"
+  : > "$home/state/slow-child.turn-ended"
+  touch -t 202001010000 "$home/state/slow-child.meta" \
+    "$home/state/slow-child.status" "$home/state/slow-child.turn-ended"
+
+  started=$(date +%s)
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) inactive_delay=1 ;;
+  esac
+  out=$(FM_BACKEND=tmux FM_FAKE_HARNESS_PID="$SESSION_START_TEST_HARNESS_PID" \
+    FM_FAKE_NM_CALLS="$calls" FM_FAKE_NM_SLEEP="$inactive_delay" FM_INACTIVE_RECONCILE_SECS=60 \
+    FM_INACTIVE_RECONCILE_BUDGET_SECS="$SESSION_START_INACTIVE_BUDGET" \
+    FM_INACTIVE_CREW_STATE_BIN="$crew_state" \
+    run_session_start "$home" "$root" "$fakebin:$BASE_PATH")
+  elapsed=$(( $(date +%s) - started ))
+
+  assert_contains "$out" "SESSION START" "the digest did not complete"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) blocking_limit=180 ;;
+  esac
+  [ "$elapsed" -lt "$blocking_limit" ] \
+    || fail "the digest exceeded its ${blocking_limit}s blocking-path budget (${elapsed}s)"
+  [ "$(grep -c '^blocking$' "$calls" 2>/dev/null || true)" -eq 0 ] \
+    || fail "the digest called the slow state reader on its blocking path"
+
+  wait_for_network_stage "$home" "$root" \
+    || fail "the deferred inactive scan never settled: $(network_stage_report "$home" "$root")"
+  while ! grep -Fq $'\tcheck\tinactive-outcome:' "$home/state/.wake-queue" 2>/dev/null \
+    && [ "$waited" -lt 150 ]; do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  assert_grep 'check	inactive-outcome:' "$home/state/.wake-queue" \
+    "the deferred scan's terminal finding never reached the durable wake queue (calls=$(cat "$calls" 2>/dev/null), report=$(network_stage_report "$home" "$root" 2>/dev/null), queue=$(cat "$home/state/.wake-queue" 2>/dev/null))"
+  [ "$(grep -c '^deferred$' "$calls" 2>/dev/null || true)" -eq 1 ] \
+    || fail "the deferred scan did not make exactly one slow state read"
+  pass "session start: inactive reconciliation runs after the digest and retains its durable wake"
+}
+
 # The headline guarantee: an unreachable host delays a reported CHECK, never the
-# startup. The fake host hangs for 12s; the digest must be done long before that,
-# must say so rather than implying the checks passed, and the sweeps must still
-# run and land afterwards.
+# startup. The fake host stays blocked until the digest returns, which must say
+# so rather than implying the checks passed; the sweeps still land afterwards.
 test_unreachable_network_never_blocks_the_digest() {
-  local rec root home fakebin mate log spawned network_finished out started elapsed
+  local rec root home fakebin mate log spawned network_finished network_release out started elapsed
   rec=$(prepare_session_start_secondmate secondmate-slow-network)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
   network_finished="${root%/root}/network-finished"
-  install_slow_gh "$fakebin" 12 "$network_finished"
+network_release="${root%/root}/network-release"
+install_slow_gh "$fakebin" 12 "$network_finished" "$network_release"
 
   started=$(date +%s)
   out=$(run_session_start_secondmate "$root" "$home" "$fakebin" "$mate" "$log" "$spawned" missing)
   elapsed=$(( $(date +%s) - started ))
 
   [ ! -e "$network_finished" ] \
-    || fail "the digest waited for the 12s unreachable-host probe instead of returning from local state (${elapsed}s)"
+    || fail "the digest waited for the blocked unreachable-host probe instead of returning from local state (${elapsed}s)"
   assert_contains "$out" "SESSION START" "the digest did not complete"
   assert_contains "$out" "IN PROGRESS - the deferred network checks have not finished yet." \
     "the digest did not disclose that its network checks were still running"
@@ -1515,7 +1693,8 @@ EOF
     "the digest reported a GitHub-auth verdict it could not yet have"
 
   # ... and the work itself still happens, off the blocking path.
-  wait_for_network_stage "$home" "$root" 60 \
+  : > "$network_release"
+  wait_for_network_stage "$home" "$root" \
     || fail "the deferred stage never finished: $(network_stage_report "$home" "$root")"
   assert_contains "$(network_stage_report "$home" "$root")" "NEEDS_GH_AUTH" \
     "the deferred stage lost the GitHub-auth verdict it was deferring"
@@ -1529,16 +1708,18 @@ EOF
 # is asserted deterministically in tests/fm-startup-network.test.sh, where the
 # claim can be set up directly instead of raced against digest composition.
 test_deferred_result_reaches_the_agent_when_the_digest_cannot_print_it() {
-  local rec root home fakebin mate log spawned queue
+  local rec root home fakebin mate log spawned queue network_release
   rec=$(prepare_session_start_secondmate secondmate-wake-once)
   IFS='|' read -r root home fakebin mate log spawned <<EOF
 $rec
 EOF
-  install_slow_gh "$fakebin" 8
+  network_release="${root%/root}/network-release"
+  install_slow_gh "$fakebin" 8 '' "$network_release"
   queue="$home/state/.wake-queue"
 
   run_session_start_secondmate "$root" "$home" "$fakebin" "$mate" "$log" "$spawned" missing >/dev/null
-  wait_for_network_stage "$home" "$root" 60 || fail "the deferred stage never finished"
+  : > "$network_release"
+  wait_for_network_stage "$home" "$root" || fail "the deferred stage never finished"
   wait_for_network_wake "$home" 60 || fail "the deferred stage never settled wake delivery"
   assert_grep 'check	startup-network' "$queue" \
     "a result the digest could not print never reached the agent: $(cat "$queue" 2>/dev/null)"
@@ -2002,7 +2183,7 @@ EOF
 }
 
 test_runtime_bound_leaves_harness_ancestry_headroom() {
-  local rec root home fakebin nest out
+  local rec root home fakebin nest out synthetic_proc='' ancestry_count=''
   rec=$(new_world runtime-bound-ancestry)
   IFS='|' read -r root home fakebin <<EOF
 $rec
@@ -2031,7 +2212,20 @@ case "$*" in
     if [ "$pid" = "${FM_FAKE_HARNESS_PID:-}" ]; then printf '%s\n' claude
     else printf '%s\n' bash; fi
     ;;
-  *"ppid="*) /bin/ps -o ppid= -p "$pid" ;;
+  *"ppid="*)
+    if [ -n "${FM_FAKE_ANCESTRY_COUNT_FILE:-}" ]; then
+      count=$(cat "$FM_FAKE_ANCESTRY_COUNT_FILE" 2>/dev/null || printf '0')
+      count=$((count + 1))
+      printf '%s\n' "$count" > "$FM_FAKE_ANCESTRY_COUNT_FILE"
+      if [ "$count" -ge 10 ]; then
+        printf '%s\n' "$FM_FAKE_HARNESS_PID"
+      else
+        printf '%s\n' "$((900000 + count))"
+      fi
+    else
+      /bin/ps -o ppid= -p "$pid"
+    fi
+    ;;
   *) exit 1 ;;
 esac
 SH
@@ -2052,9 +2246,21 @@ exec "$@"
 SH
   chmod +x "$nest"
 
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+     # A nested fake `ps` cannot resolve another Git Bash process's MSYS PID.
+     # Model the eight fixture shells plus the timeout wrappers explicitly.
+     synthetic_proc="$home/proc"
+     ancestry_count="$home/ancestry-count"
+     mkdir -p "$synthetic_proc"
+     printf '0\n' > "$ancestry_count"
+     ;;
+  esac
+
   # shellcheck disable=SC2016 # $$ must expand in the launched shell, not here.
-  out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+  out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT -u HERDR_ENV \
     -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+    FM_PROC_ROOT_OVERRIDE="$synthetic_proc" FM_FAKE_ANCESTRY_COUNT_FILE="$ancestry_count" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
     bash -c 'export FM_FAKE_HARNESS_PID=$$; exec "$1" 8 "$2"' _ "$nest" "$SESSION_START")
 
@@ -2089,10 +2295,7 @@ EOF
     "the full startup fixture did not exercise a mutating sweep"
 
   append_wake "$home/state" signal task-r "done: queued after the re-emit too" || fail "seed second wake failed"
-  reemit=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_FAKE_HARNESS_PID=$$ PATH="$fakebin:$BASE_PATH" \
-    env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-    -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
-    "$SESSION_START" --reemit)
+  reemit=$(run_named_harness_session_start claude "$home" "$root" "$fakebin:$BASE_PATH" --reemit)
 
   assert_contains "$reemit" "SESSION START (CONTEXT RE-EMIT) - $home" "--reemit did not label itself"
   assert_not_contains "$reemit" "SECONDMATE_LIVENESS" "--reemit repeated a mutating sweep startup already ran"
@@ -2309,10 +2512,7 @@ EOF
   make_fake_ps_claude "$fakebin"
   git -C "$root" checkout -q -B fm/reemit-tangle
 
-  reemit=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
-    env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-    -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
-    "$SESSION_START" --reemit)
+  reemit=$(run_named_harness_session_start claude "$home" "$root" "$fakebin:$BASE_PATH" --reemit)
 
   # A re-emit skips the sweeps because it ALREADY ran them, not because it lacks
   # the lock, so it must still own repair rather than deferring to a lock holder.
@@ -2325,10 +2525,8 @@ EOF
   sleep 300 &
   holder_pid=$!
   printf '%s\n' "$holder_pid" > "$home/state/.lock"
-  readonly_out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
-    env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-    -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
-    "$SESSION_START" --reemit)
+  readonly_out=$(FM_FAKE_LIVE_HOLDER_PID="$holder_pid" \
+    run_named_harness_session_start claude "$home" "$root" "$fakebin:$BASE_PATH" --reemit)
   kill "$holder_pid" 2>/dev/null || true
   wait "$holder_pid" 2>/dev/null || true
 
@@ -2564,6 +2762,7 @@ test_read_once_contract_is_stated_once_before_its_subject
 test_herdr_backend_diagnostics_follow_real_session_start
 test_session_start_relaunches_missing_pi_secondmate
 test_deferred_relaunch_is_always_reported
+test_inactive_reconcile_never_blocks_the_digest
 test_unreachable_network_never_blocks_the_digest
 test_deferred_result_reaches_the_agent_when_the_digest_cannot_print_it
 test_read_only_session_declares_skipped_network_checks
@@ -2578,7 +2777,7 @@ test_orphan_status_logs_are_printed
 test_endpoint_liveness_tmux
 test_endpoint_liveness_herdr
 test_composition_invokes_real_scripts
-test_branch_outcome_replay_and_lease_sweep
+test_branch_outcome_replay_respects_captain_barrier_and_lease_sweep
 test_non_pi_session_start_leaves_branch_state_untouched
 test_backlog_compact_tasks_axi_omits_bodies_and_keeps_metadata
 test_backlog_queued_bound_discloses_its_remainder

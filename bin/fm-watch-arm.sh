@@ -71,9 +71,10 @@ BEAT="$STATE/.last-watcher-beat"
 GRACE=${FM_GUARD_GRACE:-300}
 # How long to wait for a freshly forked watcher to acquire the lock and beat.
 # Git Bash/MSYS pays a much higher fork cost while the watcher completes its
-# required pre-lock migration, so its bounded default covers that cold start.
+# required pre-lock migration and first poll setup, so its bounded default
+# covers a cold start under Windows process contention.
 case "${OSTYPE:-}" in
-  msys*|mingw*|cygwin*) ARM_CONFIRM_DEFAULT=30 ;;
+  msys*|mingw*|cygwin*) ARM_CONFIRM_DEFAULT=90 ;;
   *) ARM_CONFIRM_DEFAULT=10 ;;
 esac
 CONFIRM_TIMEOUT=${FM_ARM_CONFIRM_TIMEOUT:-$ARM_CONFIRM_DEFAULT}
@@ -385,9 +386,21 @@ handling_successor_generation() {
 mode=arm
 handling_generation=
 handling_watcher_pid=
+arm_owner_token=
 case "${1:-}" in
   ''|arm|--arm) mode=arm ;;
-  --restart) mode=restart ;;
+  --restart)
+    mode=restart
+    if [ "${2:-}" = --arm-owner-token ]; then
+      arm_owner_token=${3:-}
+      case "$arm_owner_token" in
+        ''|*[!A-Za-z0-9._-]*) echo "watcher: invalid arm owner token" >&2; exit 2 ;;
+      esac
+      [ "$#" -eq 3 ] || { echo "watcher: unexpected restart arguments" >&2; exit 2; }
+    else
+      [ "$#" -eq 1 ] || { echo "watcher: unexpected restart arguments" >&2; exit 2; }
+    fi
+    ;;
   --handling-delivered)
     mode=handling-delivered
     handling_generation=${2:-}
@@ -397,7 +410,7 @@ case "${1:-}" in
     case "$handling_watcher_pid" in ''|*[!0-9]*) echo "watcher: invalid successor watcher pid" >&2; exit 2 ;; esac
     [ "$#" -eq 4 ] || { echo "watcher: unexpected handling delivery arguments" >&2; exit 2; }
     ;;
-  *) echo "usage: $(basename "$0") [--restart | --handling-delivered GENERATION --watcher-pid PID]" >&2; exit 2 ;;
+  *) echo "usage: $(basename "$0") [--restart [--arm-owner-token TOKEN] | --handling-delivered GENERATION --watcher-pid PID]" >&2; exit 2 ;;
 esac
 
 if [ "$mode" = handling-delivered ]; then

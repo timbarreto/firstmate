@@ -20,6 +20,7 @@ TMP_ROOT=$(fm_test_tmproot fm-turnend-guard)
 fm_git_identity fmtest fmtest@example.invalid
 
 REQUIRED_REASON='watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn'
+AWAY_REQUIRED_REASON='Away mode owns watcher supervision'
 
 # --- PREDICATE: bin/fm-supervision-lib.sh -----------------------------------
 
@@ -219,6 +220,16 @@ record_watcher_lock() {
   printf '%s\n' "$identity" > "$dir/state/.watch.lock/pid-identity"
 }
 
+write_tool_proxy() {  # <fakebin> <tool>
+  local fakebin=$1 tool=$2 tool_path
+  tool_path=$(type -P "$tool") || return 1
+  cat > "$fakebin/$tool" <<EOF
+#!/bin/bash
+exec "$tool_path" "\$@"
+EOF
+  chmod +x "$fakebin/$tool"
+}
+
 test_hook_silent_when_no_work_in_flight() {
   local dir out status
   dir=$(make_primary_dir "$TMP_ROOT/hook-idle")
@@ -289,7 +300,9 @@ test_hook_non_claude_health_ignores_claude_budget_contention() {
   dir=$(make_primary_dir "$TMP_ROOT/hook-non-claude-budget-contention")
   home=$(cd "$dir" && pwd)
   : > "$dir/state/task1.meta"
-  sleep 60 &
+  # Seven sequential hook launches can exceed a minute under native Windows
+  # Git Bash startup load; keep both fixture owners alive for the whole matrix.
+  sleep 300 &
   pid=$!
   identity=$(watcher_identity "$dir" "$pid") || {
     kill "$pid" 2>/dev/null || true
@@ -301,7 +314,7 @@ test_hook_non_claude_health_ignores_claude_budget_contention() {
   printf 'session=claude-episode\ncount=3\nepoch=9\n' > "$dir/state/.turnend-claude-blocks"
   printf 'notice-state\n' > "$dir/state/.claude-autoarm-failure-notified"
   printf 'alarm-state\n' > "$dir/state/.claude-autoarm-failure-alarmed"
-  sleep 60 &
+  sleep 300 &
   holder=$!
   mkdir -p "$dir/state/.turnend-claude-blocks.lock"
   printf '%s\n' "$holder" > "$dir/state/.turnend-claude-blocks.lock/pid"
@@ -599,15 +612,15 @@ test_hook_silent_in_crewmate_worktree() {
 }
 
 test_hook_silent_without_jq() {
-  local dir out status fakebin tool tool_path
+  local dir out status fakebin tool real_bash
   dir=$(make_primary_dir "$TMP_ROOT/hook-nojq")
   : > "$dir/state/task1.meta"
   fakebin=$(fm_fakebin "$TMP_ROOT/hook-nojq-fake")
-  for tool in bash sh git cat printf date uname stat mkdir dirname; do
-    tool_path=$(command -v "$tool") || fail "test host must provide $tool"
-    ln -s "$tool_path" "$fakebin/$tool"
+  real_bash=$(type -P bash) || fail "test host must provide bash"
+  for tool in cat dirname; do
+    write_tool_proxy "$fakebin" "$tool" || fail "test host must provide $tool"
   done
-  out=$(printf '{"stop_hook_active":false}' | PATH="$fakebin" bash "$dir/bin/fm-turnend-guard.sh" 2>&1)
+  out=$(printf '{"stop_hook_active":false}' | PATH="$fakebin" "$real_bash" "$dir/bin/fm-turnend-guard.sh" 2>&1)
   status=$?
   expect_code 0 "$status" "hook must fail open (exit 0) when jq is unavailable"
   [ -z "$out" ] || fail "hook produced output without jq: $out"
@@ -625,14 +638,18 @@ test_hook_silent_without_stdin() {
 }
 
 test_hook_runs_fast() {
-  local dir start elapsed_s
+  local dir start elapsed_s limit=3
   dir=$(make_primary_dir "$TMP_ROOT/hook-timing")
   : > "$dir/state/task1.meta"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) limit=10 ;;
+  esac
   start=$SECONDS
   run_hook "$dir" false >/dev/null
   elapsed_s=$((SECONDS - start))
-  [ "$elapsed_s" -lt 3 ] || fail "hook took ${elapsed_s}s, expected well under a second (generous 3s CI margin)"
-  pass "fm-turnend-guard: runs well under the generous timing margin (${elapsed_s}s)"
+  [ "$elapsed_s" -lt "$limit" ] \
+    || fail "hook took ${elapsed_s}s, exceeded the ${limit}s platform timing margin"
+  pass "fm-turnend-guard: runs within the platform timing margin (${elapsed_s}s)"
 }
 
 test_grok_adapter_forces_one_resume_when_unhealthy() {
@@ -760,18 +777,16 @@ test_grok_adapter_invalid_inputs_start_neither_path() {
 }
 
 test_grok_adapter_missing_jq_and_no_supervision_allow() {
-  local dir fakebin log out status tool tool_path
+  local dir fakebin log out status real_bash
   dir=$(make_primary_dir "$TMP_ROOT/grok-nojq")
   : > "$dir/state/task1.meta"
   fakebin=$(fm_fakebin "$TMP_ROOT/grok-nojq-bin")
   log="$TMP_ROOT/grok-nojq.log"
-  for tool in bash cat printf; do
-    tool_path=$(command -v "$tool") || fail "test host must provide $tool"
-    ln -s "$tool_path" "$fakebin/$tool"
-  done
+  real_bash=$(type -P bash) || fail "test host must provide bash"
+  write_tool_proxy "$fakebin" cat || fail "test host must provide cat"
   printf '#!/usr/bin/env bash\nprintf called >> %q\n' "$log" > "$fakebin/grok"
   chmod +x "$fakebin/grok"
-  out=$(printf '%s' '{"sessionId":"x","stopHookActive":false}' | PATH="$fakebin" GROK_WORKSPACE_ROOT="$dir" bash "$dir/bin/fm-turnend-guard-grok.sh" 2>&1); status=$?
+  out=$(printf '%s' '{"sessionId":"x","stopHookActive":false}' | PATH="$fakebin" GROK_WORKSPACE_ROOT="$dir" "$real_bash" "$dir/bin/fm-turnend-guard-grok.sh" 2>&1); status=$?
   expect_code 0 "$status" "missing jq must conservatively allow"
   [ -z "$out" ] || fail "missing jq produced output: $out"
   [ ! -e "$log" ] || fail "missing jq started a resume process"
@@ -976,6 +991,60 @@ EOF
   pass ".opencode primary plugin: guard path is anchored to worktree, not directory"
 }
 
+test_opencode_pretool_plugins_execute_shell_owners() {
+  local spec plugin_name export_name script_name fixture plugin log out status
+  for spec in \
+    'fm-primary-pretool-check.js|FmPrimaryPretoolCheck|fm-arm-pretool-check.sh' \
+    'fm-primary-cd-check.js|FmPrimaryCdCheck|fm-cd-pretool-check.sh'; do
+    IFS='|' read -r plugin_name export_name script_name <<EOF
+$spec
+EOF
+    fixture="$TMP_ROOT/${plugin_name%.js}"
+    plugin="$ROOT/.opencode/plugins/$plugin_name"
+    log="$fixture/owner.log"
+    mkdir -p "$fixture/bin"
+    cat > "$fixture/bin/$script_name" <<'SH'
+#!/usr/bin/env bash
+printf 'first=%s\nsecond=%s\n' "${1:-}" "${2:-}" > "${FM_PRETOOL_LOG:?}"
+printf 'fixture denied\n' >&2
+exit 2
+SH
+    chmod +x "$fixture/bin/$script_name"
+
+    out=$(NODE_NO_WARNINGS=1 PLUGIN="$plugin" EXPORT_NAME="$export_name" \
+      WORKTREE="$fixture" FM_PRETOOL_LOG="$log" node --input-type=module 2>&1 <<'EOF'
+import { pathToFileURL } from "node:url";
+
+const mod = await import(pathToFileURL(process.env.PLUGIN).href);
+const hooks = await mod[process.env.EXPORT_NAME]({
+  directory: process.env.WORKTREE,
+  worktree: process.env.WORKTREE,
+});
+try {
+  await hooks["tool.execute.before"](
+    { tool: "bash" },
+    { args: { command: "echo fixture" } },
+  );
+} catch (error) {
+  if (error instanceof Error && error.message.includes("fixture denied")) {
+    process.exit(0);
+  }
+  console.error(error);
+  process.exit(1);
+}
+console.error("plugin allowed a command denied by its shell owner");
+process.exit(1);
+EOF
+)
+    status=$?
+    expect_code 0 "$status" "$plugin_name must execute its canonical shell owner"
+    [ -z "$out" ] || fail "$plugin_name shell-owner test printed output: $out"
+    assert_grep 'first=--command' "$log" "$plugin_name omitted the owner command flag"
+    assert_grep 'second=echo fixture' "$log" "$plugin_name changed the guarded command"
+  done
+  pass ".opencode pre-tool plugins execute their canonical shell owners"
+}
+
 test_pi_extension_injects_once_per_logical_agent_run() {
   local repo home ext log out status
   repo="$TMP_ROOT/pi-logical-run-root"
@@ -985,6 +1054,7 @@ test_pi_extension_injects_once_per_logical_agent_run() {
   mkdir -p "$repo/.pi/extensions/lib" "$repo/bin" "$home/state"
   cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$ext"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
   cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
   cat > "$repo/bin/fm-turnend-guard.sh" <<'SH'
 #!/usr/bin/env bash
@@ -1051,6 +1121,7 @@ test_pi_extension_retries_after_followup_delivery_failure() {
   mkdir -p "$repo/.pi/extensions/lib" "$repo/bin" "$home/state"
   cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$ext"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
   cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
   cat > "$repo/bin/fm-turnend-guard.sh" <<'SH'
 #!/usr/bin/env bash
@@ -1142,9 +1213,12 @@ run_integrated_autoarm() {
   home=$(cd "$dir" && pwd)
   # shellcheck disable=SC2016 # the fake harness expands FM_HOME inside its child shell.
   printf '{"session_id":"sess-claude-mode","stop_hook_active":false}\n' \
-    | FM_HOME="$home" "$dir/fake-claude" -c '
+    | env -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+      FM_HOME="$home" "$dir/fake-claude" -c '
         printf "%s\n" "$$" > "$FM_HOME/state/.lock"
         "$FM_HOME/bin/fm-claude-stop-autoarm.sh"
+        status=$?
+        exit "$status"
       ' 2>&1
 }
 
@@ -1758,6 +1832,156 @@ test_hook_claude_mode_secondmate_reblocks_like_primary() {
   pass "fm-turnend-guard --claude: secondmate home re-blocks unclaimed and allows auto-arm-claimed stops"
 }
 
+# --- AWAY MODE: the daemon owns supervision ----------------------------------
+#
+# While state/.afk exists, bin/fm-supervise-daemon.sh owns supervision and runs
+# bin/fm-watch.sh ONE-SHOT: the watcher exits on every wake and the daemon
+# starts its replacement, so a turn boundary regularly lands in a hand-off with
+# no watcher process holding the lock and nothing wrong. The guard must accept a
+# live identity-matched daemon there, and must keep blocking on every genuine
+# lapse - no daemon, a dead or pid-reused daemon, a stale beacon - and must not
+# accept a daemon at all when away mode is off.
+
+# Record a live away-mode daemon holding this home, the way the daemon does at
+# startup: its singleton lock names the daemon pid plus the process identity it
+# computed for itself (watcher_identity is that same fm_pid_identity read).
+record_daemon_lock() {  # <dir> <pid> [identity]
+  local dir=$1 pid=$2 identity=${3:-} lockdir
+  if [ -z "$identity" ]; then
+    identity=$(watcher_identity "$dir" "$pid") || return 1
+  fi
+  lockdir="$dir/state/.supervise-daemon.lock"
+  mkdir -p "$lockdir"
+  printf '%s\n' "$pid" > "$lockdir/pid"
+  printf '%s\n' "$identity" > "$lockdir/pid-identity"
+}
+
+# An away-mode home mid-watcher-cycle: away flag, work in flight, a fresh beacon
+# from the watcher that just exited, and NO watcher lock at all.
+make_away_home_between_cycles() {  # <dir-path>
+  local dir=$1
+  dir=$(make_primary_dir "$dir")
+  : > "$dir/state/task1.meta"
+  : > "$dir/state/.afk"
+  touch "$dir/state/.last-watcher-beat"
+  printf '%s\n' "$dir"
+}
+
+test_hook_away_daemon_allows_between_watcher_cycles() {
+  local dir pid out status
+  dir=$(make_away_home_between_cycles "$TMP_ROOT/hook-afk-daemon-live")
+  sleep 60 &
+  pid=$!
+  record_daemon_lock "$dir" "$pid" || {
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    fail "could not identify live away-mode daemon holder"
+  }
+  out=$(run_hook "$dir" false); status=$?
+  expect_code 0 "$status" "away mode with a live daemon must not block between watcher cycles"
+  [ -z "$out" ] || fail "away-mode daemon ownership still produced a block banner: $out"
+  out=$(FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=100 run_hook_claude "$dir" false); status=$?
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  expect_code 0 "$status" "--claude away mode with a live daemon must not block between watcher cycles"
+  [ -z "$out" ] || fail "--claude away-mode daemon ownership still produced a block banner: $out"
+  pass "fm-turnend-guard: a live away-mode daemon satisfies supervision with no watcher holding the lock"
+}
+
+test_hook_away_daemon_allows_over_dead_watcher_lock() {
+  local dir pid dead out status
+  dir=$(make_away_home_between_cycles "$TMP_ROOT/hook-afk-daemon-dead-watcher")
+  dead=$(nonexistent_pid)
+  record_watcher_lock "$dir" "$dead" "dead watcher identity"
+  sleep 60 &
+  pid=$!
+  record_daemon_lock "$dir" "$pid" || {
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    fail "could not identify live away-mode daemon holder"
+  }
+  out=$(run_hook "$dir" false); status=$?
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  expect_code 0 "$status" "a live away-mode daemon must outweigh a watcher lock its exited child left behind"
+  [ -z "$out" ] || fail "away-mode daemon ownership still produced a block banner: $out"
+  pass "fm-turnend-guard: away-mode daemon ownership survives a leftover dead watcher lock"
+}
+
+test_hook_away_mode_blocks_without_any_supervisor() {
+  local dir out status
+  dir=$(make_away_home_between_cycles "$TMP_ROOT/hook-afk-no-supervisor")
+  out=$(run_hook "$dir" false); status=$?
+  expect_code 2 "$status" "away mode with no daemon and no watcher must still block"
+  assert_contains "$out" "$AWAY_REQUIRED_REASON" "away-mode block must point at the daemon, not normal supervision"
+  pass "fm-turnend-guard: away mode with no daemon and no watcher still blocks"
+}
+
+test_hook_away_mode_blocks_on_dead_daemon() {
+  local dir dead out status
+  dir=$(make_away_home_between_cycles "$TMP_ROOT/hook-afk-dead-daemon")
+  dead=$(nonexistent_pid)
+  record_daemon_lock "$dir" "$dead" "dead daemon identity"
+  out=$(run_hook "$dir" false); status=$?
+  expect_code 2 "$status" "a daemon lock left by a dead daemon must not satisfy supervision"
+  assert_contains "$out" "$AWAY_REQUIRED_REASON" "away-mode block must point at the daemon, not normal supervision"
+  pass "fm-turnend-guard: away mode blocks on a dead away-mode daemon"
+}
+
+test_hook_away_mode_blocks_on_pid_reused_daemon() {
+  local dir pid out status
+  dir=$(make_away_home_between_cycles "$TMP_ROOT/hook-afk-reused-daemon")
+  sleep 60 &
+  pid=$!
+  # Same pid, an identity from some earlier process: exactly what a recycled pid
+  # looks like, and the reason a bare kill -0 is not ownership evidence.
+  record_daemon_lock "$dir" "$pid" "some other process identity"
+  out=$(run_hook "$dir" false); status=$?
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  expect_code 2 "$status" "a live pid whose recorded identity does not match must not satisfy supervision"
+  assert_contains "$out" "$AWAY_REQUIRED_REASON" "away-mode block must point at the daemon, not normal supervision"
+  pass "fm-turnend-guard: away mode blocks on a pid-reused away-mode daemon lock"
+}
+
+test_hook_away_mode_blocks_on_stale_beacon() {
+  local dir pid out status
+  dir=$(make_away_home_between_cycles "$TMP_ROOT/hook-afk-stale-beacon")
+  touch -t 202001010000 "$dir/state/.last-watcher-beat"
+  sleep 60 &
+  pid=$!
+  record_daemon_lock "$dir" "$pid" || {
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    fail "could not identify live away-mode daemon holder"
+  }
+  out=$(run_hook "$dir" false); status=$?
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  expect_code 2 "$status" "a live daemon that stopped restarting its watcher must block once the beacon goes stale"
+  assert_contains "$out" "$AWAY_REQUIRED_REASON" "away-mode block must point at the daemon, not normal supervision"
+  pass "fm-turnend-guard: away-mode daemon ownership never substitutes for a fresh beacon"
+}
+
+test_hook_daemon_lock_is_ignored_without_away_mode() {
+  local dir pid out status
+  dir=$(make_away_home_between_cycles "$TMP_ROOT/hook-no-afk-daemon-lock")
+  rm -f "$dir/state/.afk"
+  sleep 60 &
+  pid=$!
+  record_daemon_lock "$dir" "$pid" || {
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    fail "could not identify live daemon holder"
+  }
+  out=$(run_hook "$dir" false); status=$?
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  expect_code 2 "$status" "with away mode off the strict watcher predicate must be unchanged"
+  assert_contains "$out" "$REQUIRED_REASON" "block reason must contain the exact required instruction"
+  pass "fm-turnend-guard: a daemon lock proves nothing while away mode is off"
+}
+
 test_predicate_healthy_no_inflight
 test_predicate_unhealthy_no_beacon
 test_predicate_unhealthy_stale_beacon
@@ -1802,6 +2026,7 @@ test_tracked_claude_entries_inert_under_grok
 test_codex_hook_uses_process_pwd_when_payload_cwd_is_outside_root
 test_codex_hook_ignores_nested_git_root_guard
 test_opencode_plugin_anchors_guard_to_worktree
+test_opencode_pretool_plugins_execute_shell_owners
 test_pi_extension_injects_once_per_logical_agent_run
 test_pi_extension_retries_after_followup_delivery_failure
 test_hook_claude_mode_reblocks_stop_hook_active_when_unhealthy
@@ -1828,3 +2053,10 @@ test_hook_claude_mode_away_mode_never_uses_stop_autoarm_fail_open
 test_hook_claude_mode_allow_resets_budget
 test_hook_claude_mode_waits_for_late_claim
 test_hook_claude_mode_secondmate_reblocks_like_primary
+test_hook_away_daemon_allows_between_watcher_cycles
+test_hook_away_daemon_allows_over_dead_watcher_lock
+test_hook_away_mode_blocks_without_any_supervisor
+test_hook_away_mode_blocks_on_dead_daemon
+test_hook_away_mode_blocks_on_pid_reused_daemon
+test_hook_away_mode_blocks_on_stale_beacon
+test_hook_daemon_lock_is_ignored_without_away_mode
