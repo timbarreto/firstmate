@@ -220,6 +220,16 @@ record_watcher_lock() {
   printf '%s\n' "$identity" > "$dir/state/.watch.lock/pid-identity"
 }
 
+write_tool_proxy() {  # <fakebin> <tool>
+  local fakebin=$1 tool=$2 tool_path
+  tool_path=$(type -P "$tool") || return 1
+  cat > "$fakebin/$tool" <<EOF
+#!/bin/bash
+exec "$tool_path" "\$@"
+EOF
+  chmod +x "$fakebin/$tool"
+}
+
 test_hook_silent_when_no_work_in_flight() {
   local dir out status
   dir=$(make_primary_dir "$TMP_ROOT/hook-idle")
@@ -290,7 +300,9 @@ test_hook_non_claude_health_ignores_claude_budget_contention() {
   dir=$(make_primary_dir "$TMP_ROOT/hook-non-claude-budget-contention")
   home=$(cd "$dir" && pwd)
   : > "$dir/state/task1.meta"
-  sleep 60 &
+  # Seven sequential hook launches can exceed a minute under native Windows
+  # Git Bash startup load; keep both fixture owners alive for the whole matrix.
+  sleep 300 &
   pid=$!
   identity=$(watcher_identity "$dir" "$pid") || {
     kill "$pid" 2>/dev/null || true
@@ -302,7 +314,7 @@ test_hook_non_claude_health_ignores_claude_budget_contention() {
   printf 'session=claude-episode\ncount=3\nepoch=9\n' > "$dir/state/.turnend-claude-blocks"
   printf 'notice-state\n' > "$dir/state/.claude-autoarm-failure-notified"
   printf 'alarm-state\n' > "$dir/state/.claude-autoarm-failure-alarmed"
-  sleep 60 &
+  sleep 300 &
   holder=$!
   mkdir -p "$dir/state/.turnend-claude-blocks.lock"
   printf '%s\n' "$holder" > "$dir/state/.turnend-claude-blocks.lock/pid"
@@ -600,15 +612,15 @@ test_hook_silent_in_crewmate_worktree() {
 }
 
 test_hook_silent_without_jq() {
-  local dir out status fakebin tool tool_path
+  local dir out status fakebin tool real_bash
   dir=$(make_primary_dir "$TMP_ROOT/hook-nojq")
   : > "$dir/state/task1.meta"
   fakebin=$(fm_fakebin "$TMP_ROOT/hook-nojq-fake")
-  for tool in bash sh git cat printf date uname stat mkdir dirname; do
-    tool_path=$(command -v "$tool") || fail "test host must provide $tool"
-    ln -s "$tool_path" "$fakebin/$tool"
+  real_bash=$(type -P bash) || fail "test host must provide bash"
+  for tool in cat dirname; do
+    write_tool_proxy "$fakebin" "$tool" || fail "test host must provide $tool"
   done
-  out=$(printf '{"stop_hook_active":false}' | PATH="$fakebin" bash "$dir/bin/fm-turnend-guard.sh" 2>&1)
+  out=$(printf '{"stop_hook_active":false}' | PATH="$fakebin" "$real_bash" "$dir/bin/fm-turnend-guard.sh" 2>&1)
   status=$?
   expect_code 0 "$status" "hook must fail open (exit 0) when jq is unavailable"
   [ -z "$out" ] || fail "hook produced output without jq: $out"
@@ -626,14 +638,18 @@ test_hook_silent_without_stdin() {
 }
 
 test_hook_runs_fast() {
-  local dir start elapsed_s
+  local dir start elapsed_s limit=3
   dir=$(make_primary_dir "$TMP_ROOT/hook-timing")
   : > "$dir/state/task1.meta"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) limit=10 ;;
+  esac
   start=$SECONDS
   run_hook "$dir" false >/dev/null
   elapsed_s=$((SECONDS - start))
-  [ "$elapsed_s" -lt 3 ] || fail "hook took ${elapsed_s}s, expected well under a second (generous 3s CI margin)"
-  pass "fm-turnend-guard: runs well under the generous timing margin (${elapsed_s}s)"
+  [ "$elapsed_s" -lt "$limit" ] \
+    || fail "hook took ${elapsed_s}s, exceeded the ${limit}s platform timing margin"
+  pass "fm-turnend-guard: runs within the platform timing margin (${elapsed_s}s)"
 }
 
 test_grok_adapter_forces_one_resume_when_unhealthy() {
@@ -761,18 +777,16 @@ test_grok_adapter_invalid_inputs_start_neither_path() {
 }
 
 test_grok_adapter_missing_jq_and_no_supervision_allow() {
-  local dir fakebin log out status tool tool_path
+  local dir fakebin log out status real_bash
   dir=$(make_primary_dir "$TMP_ROOT/grok-nojq")
   : > "$dir/state/task1.meta"
   fakebin=$(fm_fakebin "$TMP_ROOT/grok-nojq-bin")
   log="$TMP_ROOT/grok-nojq.log"
-  for tool in bash cat printf; do
-    tool_path=$(command -v "$tool") || fail "test host must provide $tool"
-    ln -s "$tool_path" "$fakebin/$tool"
-  done
+  real_bash=$(type -P bash) || fail "test host must provide bash"
+  write_tool_proxy "$fakebin" cat || fail "test host must provide cat"
   printf '#!/usr/bin/env bash\nprintf called >> %q\n' "$log" > "$fakebin/grok"
   chmod +x "$fakebin/grok"
-  out=$(printf '%s' '{"sessionId":"x","stopHookActive":false}' | PATH="$fakebin" GROK_WORKSPACE_ROOT="$dir" bash "$dir/bin/fm-turnend-guard-grok.sh" 2>&1); status=$?
+  out=$(printf '%s' '{"sessionId":"x","stopHookActive":false}' | PATH="$fakebin" GROK_WORKSPACE_ROOT="$dir" "$real_bash" "$dir/bin/fm-turnend-guard-grok.sh" 2>&1); status=$?
   expect_code 0 "$status" "missing jq must conservatively allow"
   [ -z "$out" ] || fail "missing jq produced output: $out"
   [ ! -e "$log" ] || fail "missing jq started a resume process"
@@ -977,6 +991,60 @@ EOF
   pass ".opencode primary plugin: guard path is anchored to worktree, not directory"
 }
 
+test_opencode_pretool_plugins_execute_shell_owners() {
+  local spec plugin_name export_name script_name fixture plugin log out status
+  for spec in \
+    'fm-primary-pretool-check.js|FmPrimaryPretoolCheck|fm-arm-pretool-check.sh' \
+    'fm-primary-cd-check.js|FmPrimaryCdCheck|fm-cd-pretool-check.sh'; do
+    IFS='|' read -r plugin_name export_name script_name <<EOF
+$spec
+EOF
+    fixture="$TMP_ROOT/${plugin_name%.js}"
+    plugin="$ROOT/.opencode/plugins/$plugin_name"
+    log="$fixture/owner.log"
+    mkdir -p "$fixture/bin"
+    cat > "$fixture/bin/$script_name" <<'SH'
+#!/usr/bin/env bash
+printf 'first=%s\nsecond=%s\n' "${1:-}" "${2:-}" > "${FM_PRETOOL_LOG:?}"
+printf 'fixture denied\n' >&2
+exit 2
+SH
+    chmod +x "$fixture/bin/$script_name"
+
+    out=$(NODE_NO_WARNINGS=1 PLUGIN="$plugin" EXPORT_NAME="$export_name" \
+      WORKTREE="$fixture" FM_PRETOOL_LOG="$log" node --input-type=module 2>&1 <<'EOF'
+import { pathToFileURL } from "node:url";
+
+const mod = await import(pathToFileURL(process.env.PLUGIN).href);
+const hooks = await mod[process.env.EXPORT_NAME]({
+  directory: process.env.WORKTREE,
+  worktree: process.env.WORKTREE,
+});
+try {
+  await hooks["tool.execute.before"](
+    { tool: "bash" },
+    { args: { command: "echo fixture" } },
+  );
+} catch (error) {
+  if (error instanceof Error && error.message.includes("fixture denied")) {
+    process.exit(0);
+  }
+  console.error(error);
+  process.exit(1);
+}
+console.error("plugin allowed a command denied by its shell owner");
+process.exit(1);
+EOF
+)
+    status=$?
+    expect_code 0 "$status" "$plugin_name must execute its canonical shell owner"
+    [ -z "$out" ] || fail "$plugin_name shell-owner test printed output: $out"
+    assert_grep 'first=--command' "$log" "$plugin_name omitted the owner command flag"
+    assert_grep 'second=echo fixture' "$log" "$plugin_name changed the guarded command"
+  done
+  pass ".opencode pre-tool plugins execute their canonical shell owners"
+}
+
 test_pi_extension_injects_once_per_logical_agent_run() {
   local repo home ext log out status
   repo="$TMP_ROOT/pi-logical-run-root"
@@ -1143,9 +1211,12 @@ run_integrated_autoarm() {
   home=$(cd "$dir" && pwd)
   # shellcheck disable=SC2016 # the fake harness expands FM_HOME inside its child shell.
   printf '{"session_id":"sess-claude-mode","stop_hook_active":false}\n' \
-    | FM_HOME="$home" "$dir/fake-claude" -c '
+    | env -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+      FM_HOME="$home" "$dir/fake-claude" -c '
         printf "%s\n" "$$" > "$FM_HOME/state/.lock"
         "$FM_HOME/bin/fm-claude-stop-autoarm.sh"
+        status=$?
+        exit "$status"
       ' 2>&1
 }
 
@@ -1953,6 +2024,7 @@ test_tracked_claude_entries_inert_under_grok
 test_codex_hook_uses_process_pwd_when_payload_cwd_is_outside_root
 test_codex_hook_ignores_nested_git_root_guard
 test_opencode_plugin_anchors_guard_to_worktree
+test_opencode_pretool_plugins_execute_shell_owners
 test_pi_extension_injects_once_per_logical_agent_run
 test_pi_extension_retries_after_followup_delivery_failure
 test_hook_claude_mode_reblocks_stop_hook_active_when_unhealthy
