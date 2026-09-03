@@ -477,6 +477,10 @@
       "audience": "operator-current"
     },
     {
+      "path": "skills/reconcile-firstmate-upstream/SKILL.md",
+      "audience": "public-product"
+    },
+    {
       "path": "skills/stow/SKILL.md",
       "audience": "public-product"
     }
