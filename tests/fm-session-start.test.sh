@@ -747,14 +747,16 @@ hash_file_for_test() {
 
 install_pi_turnend_extension_fixture() {
   local root=$1
-  mkdir -p "$root/.pi/extensions"
+  mkdir -p "$root/.pi/extensions/lib"
   cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$root/.pi/extensions/fm-primary-turnend-guard.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$root/.pi/extensions/lib/fm-process-ancestry.ts"
 }
 
 install_pi_watch_extension_fixture() {
   local root=$1
-  mkdir -p "$root/.pi/extensions"
+  mkdir -p "$root/.pi/extensions/lib"
   cp "$ROOT/.pi/extensions/fm-primary-pi-watch.ts" "$root/.pi/extensions/fm-primary-pi-watch.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$root/.pi/extensions/lib/fm-process-ancestry.ts"
 }
 
 write_pi_watch_loaded_marker() {
@@ -1408,7 +1410,7 @@ EOF
 
   out=$(network_stage_report "$home" "$root")
   assert_not_contains "$out" "SECONDMATE_LIVENESS:" "successful Herdr husk recovery should stay non-actionable"
-  assert_contains "$(cat "$log")" "tab close t-old" "session start did not replace the confirmed Herdr husk tab"
+  assert_contains "$(cat "$log")" "pane close p-old" "session start did not close the confirmed Herdr husk"
   assert_contains "$(cat "$log")" "tab create" "session start did not relaunch the Herdr secondmate"
   assert_grep 'herdr_pane_id=p-new' "$home/state/$SESSION_START_HERDR_SECOND_MATE_ID.meta" \
     "the real respawn path did not record the replacement Herdr pane"

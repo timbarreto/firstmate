@@ -107,6 +107,11 @@ import {
   classifyFirstmateOperationalText,
   encodeFirstmateOperationalInput,
 } from "./lib/fm-operational-input.ts";
+import {
+  isPidInCurrentAncestry,
+  pidAlive,
+  shellVisibleProcessPid,
+} from "./lib/fm-process-ancestry.ts";
 
 const extensionFile = fileURLToPath(import.meta.url);
 const extensionDir = dirname(extensionFile);
@@ -126,6 +131,7 @@ const wakeGrantScript = join(fmRoot, "bin", "fm-wake-grant.sh");
 const loadedMarker = join(state, ".pi-branch-extension-loaded");
 const modelPinFile = join(config, "supervision-branch-model");
 const effortPinFile = join(config, "supervision-branch-effort");
+const extensionProcessPid = shellVisibleProcessPid();
 
 // Same tool set in the same order on every request (part of the cached
 // prefix). "bash" resolves to the customTools override below, which injects
@@ -301,21 +307,6 @@ function modelLabel(model: { provider: string; id: string }): string {
   return `${model.provider}/${model.id}`;
 }
 
-function parentPid(pid: string): string {
-  const result = spawnSync("ps", ["-o", "ppid=", "-p", pid], { encoding: "utf8" });
-  if (result.status !== 0) return "";
-  return result.stdout.trim();
-}
-
-function pidAlive(pid: string): boolean {
-  try {
-    process.kill(Number(pid), 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 let ownedLockPid = "";
 
 // Same ownership read as the watcher extension's lockOwnership(): the lock
@@ -330,14 +321,9 @@ function lockOwnership(): LockOwnership {
     return "missing";
   }
   if (!/^[0-9]+$/.test(lockPid) || lockPid === "1") return "other";
-  let pid = String(process.pid);
-  for (let i = 0; i < 8; i += 1) {
-    if (pid === lockPid) {
-      ownedLockPid = lockPid;
-      return "owned";
-    }
-    pid = parentPid(pid);
-    if (!pid || pid === "1") break;
+  if (isPidInCurrentAncestry(lockPid)) {
+    ownedLockPid = lockPid;
+    return "owned";
   }
   return pidAlive(lockPid) ? "other" : "missing";
 }
@@ -674,7 +660,7 @@ export default function (pi: ExtensionAPI) {
   function markLoaded(): void {
     try {
       mkdirSync(state, { recursive: true });
-      writeFileSync(loadedMarker, `${process.pid}\n`);
+      writeFileSync(loadedMarker, `${extensionProcessPid}\n`);
     } catch {
       // Diagnostic marker only; never block activation on it.
     }
@@ -706,9 +692,9 @@ export default function (pi: ExtensionAPI) {
     if (activatedGeneration !== expectedGeneration) {
       if (!releaseBranchLeases(expectedGeneration)) return false;
       if (!generationOwnsLock(expectedGeneration)) return false;
-      if (!activateEligibleRowsOwner(state, wakeGrantScript, process.pid, String(expectedGeneration))) return false;
+      if (!activateEligibleRowsOwner(state, wakeGrantScript, extensionProcessPid, String(expectedGeneration))) return false;
       if (!generationOwnsLock(expectedGeneration)) {
-        deactivateEligibleRowsOwner(state, wakeGrantScript, process.pid, String(expectedGeneration));
+        deactivateEligibleRowsOwner(state, wakeGrantScript, extensionProcessPid, String(expectedGeneration));
         return false;
       }
       markLoaded();
@@ -1389,7 +1375,7 @@ ${context.command}
   });
 
   pi.on?.("session_shutdown", () => {
-    deactivateEligibleRowsOwner(state, wakeGrantScript, process.pid, String(generation));
+    deactivateEligibleRowsOwner(state, wakeGrantScript, extensionProcessPid, String(generation));
     shuttingDown = true;
     generation += 1;
     processing = null;

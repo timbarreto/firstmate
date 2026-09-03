@@ -25,25 +25,70 @@ set -u
 TMP_ROOT=$(fm_test_tmproot fm-startup-network-tests)
 DRAIN="$ROOT/bin/fm-wake-drain.sh"
 FM_TEST_CLEANUP_DIRS+=("$TMP_ROOT")
-trap fm_test_cleanup EXIT
-CLAIMANT_LIFETIME=10
+STARTUP_WORKER_REGISTRY="$TMP_ROOT/.startup-workers"
 HARVEST_HOLDER_WAIT_TENTHS=50
 HARVEST_LOCK_BUDGET=8
 INACTIVE_RECONCILE_BUDGET=10
 LOCK_TAKEOVER_BUDGET=4
 PARTIAL_TIMING_TIMEOUT=1
 PARTIAL_TIMING_SLEEP=20
+SWEEP_START_WAIT_TENTHS=50
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*)
-    CLAIMANT_LIFETIME=60
     HARVEST_HOLDER_WAIT_TENTHS=300
     HARVEST_LOCK_BUDGET=18
     INACTIVE_RECONCILE_BUDGET=30
     LOCK_TAKEOVER_BUDGET=15
-    PARTIAL_TIMING_TIMEOUT=15
-    PARTIAL_TIMING_SLEEP=30
+    PARTIAL_TIMING_TIMEOUT=30
+    PARTIAL_TIMING_SLEEP=90
+    SWEEP_START_WAIT_TENTHS=300
     ;;
 esac
+
+startup_worker_matches_fixture() {  # <pid> <root>
+  local pid=$1 root=$2 identity worker worker_hex
+  identity=$(fm_test_pid_identity "$pid" 2>/dev/null) || return 1
+  worker="$root/bin/fm-startup-network.sh"
+  case "$identity" in
+    *"$worker"*) return 0 ;;
+  esac
+  worker_hex=$(printf '%s' "$worker" | od -An -v -tx1 | tr -d '[:space:]')
+  case "$identity" in
+    *cmdline-hex=*"${worker_hex}"*) return 0 ;;
+  esac
+  return 1
+}
+
+stop_startup_workers() {
+  local pid root seen=' '
+  [ -f "$STARTUP_WORKER_REGISTRY" ] || return 0
+  while IFS=$'\t' read -r pid root; do
+    case "$pid" in ''|*[!0-9]*) continue ;; esac
+    case "$seen" in *" $pid "*) continue ;; esac
+    seen="${seen}${pid} "
+    startup_worker_matches_fixture "$pid" "$root" || continue
+    kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+  done < "$STARTUP_WORKER_REGISTRY"
+
+  sleep 0.2
+  seen=' '
+  while IFS=$'\t' read -r pid root; do
+    case "$pid" in ''|*[!0-9]*) continue ;; esac
+    case "$seen" in *" $pid "*) continue ;; esac
+    seen="${seen}${pid} "
+    startup_worker_matches_fixture "$pid" "$root" || continue
+    kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+  done < "$STARTUP_WORKER_REGISTRY"
+}
+
+startup_network_test_cleanup() {
+  stop_startup_workers
+  fm_test_cleanup
+}
+
+trap startup_network_test_cleanup EXIT
+trap 'startup_network_test_cleanup; exit 130' INT
+trap 'startup_network_test_cleanup; exit 143' TERM
 
 # new_world <name>: an FM_HOME plus a fake code root whose bin/ is a real
 # firstmate bin/ except for fm-bootstrap.sh, which is replaced by a scriptable
@@ -135,6 +180,12 @@ await_worker_record() {  # <home>
   [ -s "$home/state/.startup-network.status" ] || fail "the detached worker never recorded itself"
 }
 
+start_live_claimant() {  # <home>
+  local home=$1
+  ( while [ -d "$home" ]; do sleep 1; done ) &
+  FM_TEST_CLAIMANT_PID=$!
+}
+
 await_terminal_record() {  # <home> <seconds>
   local home=$1 limit=$2 waited=0 state
   while [ "$waited" -lt "$limit" ]; do
@@ -163,7 +214,7 @@ EOF
 }
 
 run_stage() {  # <home> <root> <args...>
-  local home=$1 root=$2
+  local home=$1 root=$2 command=${3:-} rc pid
   shift 2
   PATH="$root/bin:$PATH" env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS \
     -u GROK_AGENT -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
@@ -173,6 +224,15 @@ run_stage() {  # <home> <root> <args...>
     FM_PROC_ROOT_OVERRIDE="$home/no-proc" \
     FM_FAKE_HARNESS_PID="${FM_FAKE_HARNESS_PID_OVERRIDE:-$$}" \
     FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$root/bin/fm-startup-network.sh" "$@"
+  rc=$?
+  if [ "$rc" -eq 0 ] && [ "$command" = start ]; then
+    pid=$(sed -n 's/^pid=//p' "$home/state/.startup-network.status" 2>/dev/null | tail -1)
+    case "$pid" in
+      ''|*[!0-9]*) ;;
+      *) printf '%s\t%s\n' "$pid" "$root" >> "$STARTUP_WORKER_REGISTRY" ;;
+    esac
+  fi
+  return "$rc"
 }
 
 wait_for_startup_network_wake() {  # <home> [tenths]
@@ -236,8 +296,8 @@ $rec
 EOF
   printf '%s\n' $$ > "$home/state/.lock"
 
-  sleep 30 &
-  claimant=$!
+  start_live_claimant "$home"
+  claimant=$FM_TEST_CLAIMANT_PID
   FM_SESSION_START_TIMEOUT=15 FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_OUT='acknowledged result' \
     run_stage "$home" "$root" start --locked 0 --harvest-pid "$claimant"
   run_stage "$home" "$root" wait 30 >/dev/null || fail "the claimed worker never published"
@@ -285,8 +345,8 @@ test_a_claimant_crash_after_publish_still_queues_the_wake() {
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
-  sleep "$CLAIMANT_LIFETIME" &
-  claimant=$!
+  start_live_claimant "$home"
+  claimant=$FM_TEST_CLAIMANT_PID
   # Actionable output: a clean success in this same crash window must stay
   # silent (test_a_successful_result_never_queues_a_wake owns that case).
   FM_SESSION_START_TIMEOUT=4 FM_FAKE_BOOTSTRAP_LOG="$log" \
@@ -321,8 +381,8 @@ esac
 exec "${FM_TEST_REAL_MV:?}" "$@"
 SH
   chmod +x "$root/bin/mv"
-  sleep "$CLAIMANT_LIFETIME" &
-  claimant=$!
+  start_live_claimant "$home"
+  claimant=$FM_TEST_CLAIMANT_PID
 
   FM_TEST_REAL_MV="$real_mv" FM_SESSION_START_TIMEOUT=4 \
     FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_OUT='unpublishable result' \
@@ -359,8 +419,8 @@ test_a_successful_result_never_queues_a_wake() {
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
-  sleep "$CLAIMANT_LIFETIME" &
-  claimant=$!
+  start_live_claimant "$home"
+  claimant=$FM_TEST_CLAIMANT_PID
   FM_SESSION_START_TIMEOUT=4 FM_FAKE_BOOTSTRAP_LOG="$log" \
     run_stage "$home" "$root" start --locked 0 --harvest-pid "$claimant"
   run_stage "$home" "$root" wait 30 >/dev/null || fail "the unclaimed successful worker never published"
@@ -400,8 +460,8 @@ test_an_actionable_successful_result_still_queues_a_wake() {
   IFS='|' read -r home root log <<EOF
 $rec
 EOF
-  sleep "$CLAIMANT_LIFETIME" &
-  claimant=$!
+  start_live_claimant "$home"
+  claimant=$FM_TEST_CLAIMANT_PID
   FM_SESSION_START_TIMEOUT=4 FM_FAKE_BOOTSTRAP_LOG="$log" \
     FM_FAKE_BOOTSTRAP_OUT='MISSING: some-tool (install: brew install some-tool)' \
     run_stage "$home" "$root" start --locked 0 --harvest-pid "$claimant"
@@ -666,7 +726,7 @@ EOF
   printf '%s\n' $$ > "$home/state/.lock"
   FM_FAKE_BOOTSTRAP_LOG="$log" FM_FAKE_BOOTSTRAP_WAIT_FILE="$release" \
     run_stage "$home" "$root" start --locked 1 --harvest-pid $$
-  while [ ! -s "$log" ] && [ "$waited" -lt 50 ]; do
+  while [ ! -s "$log" ] && [ "$waited" -lt "$SWEEP_START_WAIT_TENTHS" ]; do
     sleep 0.1
     waited=$((waited + 1))
   done
@@ -860,8 +920,8 @@ EOF
   printf '%s\n' $$ > "$home/state/.lock"
   flag="$home/state/.test-lock-held"
   release="$home/release-test-lock"
-  sleep 30 &
-  claimant=$!
+  start_live_claimant "$home"
+  claimant=$FM_TEST_CLAIMANT_PID
   FM_SESSION_START_TIMEOUT=15 FM_FAKE_BOOTSTRAP_LOG="$log" \
     FM_FAKE_BOOTSTRAP_OUT='ack-loop harvest result' \
     run_stage "$home" "$root" start --locked 0 --harvest-pid "$claimant"

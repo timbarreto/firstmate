@@ -22,6 +22,7 @@ install_pi_watch_extension_fixture() {
   cp "$ROOT/.pi/extensions/lib/fm-branch-dispatch.ts" "$repo/.pi/extensions/lib/fm-branch-dispatch.ts"
   cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$repo/.pi/extensions/lib/fm-calm-visibility.ts"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
   cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
   chmod +x "$repo/bin/fm-operational-input.sh"
   cat > "$repo/node_modules/@earendil-works/pi-coding-agent/package.json" <<'JSON'
@@ -86,6 +87,7 @@ exec "$ROOT/bin/fm-watch-arm.sh" "\$@"
 SH
   chmod +x "$repo/bin/fm-watch-arm.sh"
   : > "$home/state/seed.meta"
+  printf 'epoch=%s\ncursor=\n' "$(date +%s)" > "$home/state/.inactive-outcome-reconcile"
   printf 'pending:downtime:seed.1.aaa\n' > "$home/state/.watcher-down"
   chmod 600 "$home/state/.watcher-down"
   printf '%s\t1\tcheck\tseed\tcheck: seed recovery\n' "$(date +%s)" > "$home/state/.wake-queue"
@@ -94,6 +96,7 @@ SH
       FM_STATE_OVERRIDE="$home/state" PATH="$fakebin:$PATH" \
       FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
       node --input-type=module 2>&1 <<'EOF'
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -110,11 +113,12 @@ const pi = {
   },
 };
 writeFileSync(`${process.env.FM_HOME}/state/.lock`, `${process.pid}\n`);
+const { pidAlive } = await import(new URL("./lib/fm-process-ancestry.ts", pathToFileURL(process.env.PLUGIN)));
 const mod = await import(pathToFileURL(process.env.PLUGIN).href);
 mod.default(pi);
 if (!tool) throw new Error("Pi watch tool was not registered");
 await tool.execute("tool-call-t1", {}, undefined, undefined, {});
-const deadline = Date.now() + 75000;
+const deadline = Date.now() + (process.platform === "win32" ? 180000 : 75000);
 let firstAt = 0;
 while (Date.now() < deadline) {
   const rearm = prompts.filter((message) => message.includes("check: rearm-resurface"));
@@ -129,13 +133,14 @@ const rearm = prompts.filter((message) => message.includes("check: rearm-resurfa
 if (rearm.length !== 1) {
   throw new Error(`expected exactly one recovery follow-up, got ${rearm.length}: ${prompts.join(" || ")}`);
 }
-const lockPid = existsSync(`${process.env.FM_HOME}/state/.watch.lock/pid`)
-  ? readFileSync(`${process.env.FM_HOME}/state/.watch.lock/pid`, "utf8").trim()
-  : "";
+const lockRead = spawnSync(
+  "bash",
+  ["-c", 'cat "$1/pid" 2>/dev/null', "_", `${process.env.FM_HOME}/state/.watch.lock`],
+  { encoding: "utf8" },
+);
+const lockPid = lockRead.status === 0 ? lockRead.stdout.trim() : "";
 if (!/^[0-9]+$/.test(lockPid)) throw new Error("successor watcher lock pid missing");
-try {
-  process.kill(Number(lockPid), 0);
-} catch {
+if (!pidAlive(lockPid)) {
   throw new Error(`successor watcher ${lockPid} is not alive`);
 }
 const marker = readFileSync(`${process.env.FM_HOME}/state/.watcher-down`, "utf8").trim();
@@ -167,13 +172,14 @@ EOF
 # pre-loop wait that refreshes the liveness beacon and then exits with a
 # synthetic rearm-resurface.
 test_handling_successor_does_not_go_blind() {
-  local dir home state fakebin child event_start now out
+  local dir home state fakebin child event_start now out lock_pid line signal_seen event_attempts=20
   dir=$(make_case recovery-gap-successor)
   home="$dir/home"
   state="$dir/state"
   fakebin="$dir/fakebin"
   mkdir -p "$home/data"
   : > "$state/crew.meta"
+  printf 'epoch=%s\ncursor=\n' "$(date +%s)" > "$state/.inactive-outcome-reconcile"
   printf 'pending:downtime:gap.1.aaa\n' > "$state/.watcher-down"
   chmod 600 "$state/.watcher-down"
   out="$dir/watch.out"
@@ -183,20 +189,29 @@ test_handling_successor_does_not_go_blind() {
   child=$!
   now=0
   while [ "$now" -lt 40 ]; do
-    [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$child" ] && break
+    lock_pid=
+    if [ -r "$state/.watch.lock/pid" ]; then
+      IFS= read -r lock_pid < "$state/.watch.lock/pid" || true
+    fi
+    [ "$lock_pid" = "$child" ] && break
     sleep 0.1
     now=$((now + 1))
   done
-  [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$child" ] \
+  [ "$lock_pid" = "$child" ] \
     || { kill -TERM "$child" 2>/dev/null || true; fail "handling successor did not take the watcher lock"; }
   sleep 0.4
   printf 'done: crew finished its task\n' >> "$state/crew.status"
   event_start=$(date +%s)
+  case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*) event_attempts=120 ;;
+  esac
   now=0
-  while [ "$now" -lt 20 ]; do
-    if grep -q '^signal:' "$out" 2>/dev/null; then
-      break
-    fi
+  while [ "$now" -lt "$event_attempts" ]; do
+    signal_seen=0
+    while IFS= read -r line; do
+      case "$line" in signal:*) signal_seen=1; break ;; esac
+    done < "$out"
+    [ "$signal_seen" -eq 1 ] && break
     sleep 0.5
     now=$((now + 1))
   done

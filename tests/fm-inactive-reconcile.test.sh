@@ -9,9 +9,23 @@ RECON="$ROOT/bin/fm-inactive-reconcile.sh"
 DRAIN="$ROOT/bin/fm-wake-drain.sh"
 WATCH="$ROOT/bin/fm-watch.sh"
 TMP_ROOT=$(fm_test_tmproot fm-inactive-reconcile)
+BOUNDED_SCAN_BUDGET=1
+BOUNDED_STATE_MAX_ELAPSED=3
+BOUNDED_WAKE_MAX_ELAPSED=4
+BLOCKING_FIXTURE_SECS=30
 INACTIVE_RECONCILE_BUDGET=10
+LOCK_ORDER_WAIT_STEPS=40
+PROCESS_START_WAIT_STEPS=40
 case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*) INACTIVE_RECONCILE_BUDGET=30 ;;
+  MINGW*|MSYS*|CYGWIN*)
+    BOUNDED_SCAN_BUDGET=30
+    BOUNDED_STATE_MAX_ELAPSED=33
+    BOUNDED_WAKE_MAX_ELAPSED=34
+    BLOCKING_FIXTURE_SECS=90
+    INACTIVE_RECONCILE_BUDGET=30
+    LOCK_ORDER_WAIT_STEPS=400
+    PROCESS_START_WAIT_STEPS=400
+    ;;
 esac
 
 set_mtime() { # <epoch> <path>
@@ -213,7 +227,10 @@ test_busy_child_does_not_starve_later_ledger_outcomes() {
   ' _ "$ROOT" "$WORLD" &
   holder=$!
   i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$WORLD/busy-lock-held" ]; do sleep 0.05; i=$((i + 1)); done
+  while [ "$i" -lt "$PROCESS_START_WAIT_STEPS" ] && [ ! -e "$WORLD/busy-lock-held" ]; do
+    sleep 0.05
+    i=$((i + 1))
+  done
   if [ -e "$WORLD/busy-lock-held" ]; then
     FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
     grep -Fq 'child-outcome-b-ready-done' "$MAIN/state/mate.status" 2>/dev/null && delivered=1
@@ -414,13 +431,16 @@ test_report_avoids_scan_meta_lock_inversion() {
   ' _ "$ROOT" "$WORLD" &
   holder=$!
   i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$WORLD/meta-held" ]; do sleep 0.05; i=$((i + 1)); done
+  while [ "$i" -lt "$LOCK_ORDER_WAIT_STEPS" ] && [ ! -e "$WORLD/meta-held" ]; do
+    sleep 0.05
+    i=$((i + 1))
+  done
   [ -e "$WORLD/meta-held" ] || { reap "$holder"; fail "metadata lock holder did not start"; }
 
   FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE" --startup &
   scan_pid=$!
   i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$MATE/state/.inactive-outcome-reconcile.lock" ]; do
+  while [ "$i" -lt "$LOCK_ORDER_WAIT_STEPS" ] && [ ! -e "$MATE/state/.inactive-outcome-reconcile.lock" ]; do
     sleep 0.05
     i=$((i + 1))
   done
@@ -430,7 +450,10 @@ test_report_avoids_scan_meta_lock_inversion() {
   (run_report "$MATE" child && : > "$WORLD/report-complete") &
   report_pid=$!
   i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$WORLD/report-complete" ]; do sleep 0.05; i=$((i + 1)); done
+  while [ "$i" -lt "$LOCK_ORDER_WAIT_STEPS" ] && [ ! -e "$WORLD/report-complete" ]; do
+    sleep 0.05
+    i=$((i + 1))
+  done
   [ -e "$WORLD/report-complete" ] && completed=1
   : > "$WORLD/release-meta"
   reap "$holder"
@@ -469,7 +492,7 @@ test_invalid_secondmate_marker_blocks_routing() {
     else
       target="$WORLD/marker-target"
       printf 'mate\n' > "$target"
-      ln -s "$target" "$MATE/.fm-secondmate-home"
+      fm_test_make_symlink "$target" "$MATE/.fm-secondmate-home"
     fi
 
     out=$(FM_FAKE_CREW_STATE='failed' run_reconcile "$MATE" --startup)
@@ -557,7 +580,10 @@ SH
   FM_RACE_WORLD="$WORLD" run_reconcile "$MATE" --startup &
   recon_pid=$!
   i=0
-  while [ "$i" -lt 40 ] && [ ! -e "$WORLD/state-started" ]; do sleep 0.05; i=$((i + 1)); done
+  while [ "$i" -lt "$PROCESS_START_WAIT_STEPS" ] && [ ! -e "$WORLD/state-started" ]; do
+    sleep 0.05
+    i=$((i + 1))
+  done
   [ -e "$WORLD/state-started" ] || fail "reconciliation did not begin its state snapshot"
 
   FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" bash -c '
@@ -629,6 +655,7 @@ test_watcher_hook_and_idle_secondmate_exemption() {
   out="$WORLD/watch.out"
   PATH="$WORLD/fakebin:$PATH" FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" \
     FM_INACTIVE_RECONCILE_SECS=60 FM_INACTIVE_CREW_STATE_BIN="$WORLD/fakebin/fm-crew-state.sh" \
+    FM_INACTIVE_RECONCILE_BUDGET_SECS="$INACTIVE_RECONCILE_BUDGET" \
     FM_FORGE_LOG="$WORLD/forge.log" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
     FM_FAKE_CREW_STATE='done' "$WATCH" > "$out" 2>&1 &
   pid=$!
@@ -644,6 +671,7 @@ test_watcher_hook_and_idle_secondmate_exemption() {
 
   make_world idle-secondmate; bind_secondmate local; write_mate_meta; prime_seen "$MAIN/state" "$MAIN/state/mate.status"
   PATH="$WORLD/fakebin:$PATH" FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_INACTIVE_RECONCILE_BUDGET_SECS="$INACTIVE_RECONCILE_BUDGET" \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$WORLD/idle.out" 2>&1 &
   pid=$!; sleep 2; kill -0 "$pid" 2>/dev/null || fail "idle secondmate watcher exited unexpectedly"; reap "$pid"
   grep -F 'stale:' "$WORLD/idle.out" >/dev/null && fail "idle secondmate was treated as a wedge"
@@ -661,6 +689,7 @@ test_watcher_poll_delivers_child_ledger_line_to_parent() {
   prime_seen "$MATE/state" "$MATE/state/child.status"
   PATH="$WORLD/fakebin:$PATH" FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" FM_DATA_OVERRIDE="$MATE/data" \
     FM_CONFIG_OVERRIDE="$MATE/config" FM_INACTIVE_RECONCILE_SECS=60 \
+    FM_INACTIVE_RECONCILE_BUDGET_SECS="$INACTIVE_RECONCILE_BUDGET" \
     FM_INACTIVE_CREW_STATE_BIN="$WORLD/fakebin/fm-crew-state.sh" FM_FORGE_LOG="$WORLD/forge.log" \
     FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
     FM_FAKE_CREW_STATE='unknown' "$WATCH" > "$WORLD/mate-watch.out" 2>&1 &
@@ -687,10 +716,10 @@ test_stalled_state_read_is_bounded_and_scan_progresses() {
   local started elapsed
   make_world bounded
   write_child "$MAIN" a 'working: state read will stall'
-  cat > "$WORLD/fakebin/fm-crew-state.sh" <<'SH'
+  cat > "$WORLD/fakebin/fm-crew-state.sh" <<SH
 #!/usr/bin/env bash
-if [ "$1" = a ]; then
-  sleep 30
+if [ "\$1" = a ]; then
+  sleep "$BLOCKING_FIXTURE_SECS"
 else
   printf 'state: done · source: fake\n'
 fi
@@ -698,12 +727,13 @@ SH
   chmod +x "$WORLD/fakebin/fm-crew-state.sh"
 
   started=$(date +%s)
-  FM_INACTIVE_RECONCILE_BUDGET_SECS=1 run_reconcile "$MAIN" --startup
+  FM_INACTIVE_RECONCILE_BUDGET_SECS="$BOUNDED_SCAN_BUDGET" run_reconcile "$MAIN" --startup
   elapsed=$(( $(date +%s) - started ))
-  [ "$elapsed" -le 3 ] || fail "stalled state read exceeded aggregate scan budget (${elapsed}s)"
+  [ "$elapsed" -le "$BOUNDED_STATE_MAX_ELAPSED" ] \
+    || fail "stalled state read exceeded aggregate scan budget (${elapsed}s)"
 
   write_child "$MAIN" b 'done: green'
-  FM_INACTIVE_RECONCILE_BUDGET_SECS=1 run_reconcile "$MAIN" --startup
+  FM_INACTIVE_RECONCILE_BUDGET_SECS="$BOUNDED_SCAN_BUDGET" run_reconcile "$MAIN" --startup
   grep -Fq 'child=b state=done' "$MAIN/state/.wake-queue" \
     || fail "next bounded scan did not resume with the following child"
   pass "stalled state reads are bounded without starving later children"
@@ -716,21 +746,26 @@ test_full_scan_budget_includes_wake_lock_wait() {
     . "$1/bin/fm-wake-lib.sh"
     fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"
     : > "$2"
-    sleep 30
-  ' _ "$ROOT" "$WORLD/lock-ready" &
+    sleep "$3"
+  ' _ "$ROOT" "$WORLD/lock-ready" "$BLOCKING_FIXTURE_SECS" &
   holder=$!
   i=0
-  while [ "$i" -lt 30 ] && [ ! -e "$WORLD/lock-ready" ]; do sleep 0.1; i=$((i + 1)); done
+  while [ "$i" -lt "$PROCESS_START_WAIT_STEPS" ] && [ ! -e "$WORLD/lock-ready" ]; do
+    sleep 0.1
+    i=$((i + 1))
+  done
   [ -e "$WORLD/lock-ready" ] || fail "wake lock holder did not start"
 
   started=$(date +%s)
-  FM_INACTIVE_RECONCILE_BUDGET_SECS=1 FM_FAKE_CREW_STATE='done' run_reconcile "$MAIN" --startup
+  FM_INACTIVE_RECONCILE_BUDGET_SECS="$BOUNDED_SCAN_BUDGET" \
+    FM_FAKE_CREW_STATE='done' run_reconcile "$MAIN" --startup
   elapsed=$(( $(date +%s) - started ))
   reap "$holder"
   # The unbounded wake-lock wait is ended by the process-group backstop, which
   # fires one second after the budget; the bound proves the scan cannot ride
-  # the 30-second lock hold.
-  [ "$elapsed" -le 4 ] || fail "wake lock wait exceeded aggregate scan budget (${elapsed}s)"
+  # the longer fixture lock hold.
+  [ "$elapsed" -le "$BOUNDED_WAKE_MAX_ELAPSED" ] \
+    || fail "wake lock wait exceeded aggregate scan budget (${elapsed}s)"
   pass "aggregate scan budget includes durable wake operations"
 }
 

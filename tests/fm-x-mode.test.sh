@@ -864,8 +864,12 @@ exit 0
 SH
   chmod +x "$fakebin/gh-axi"
   for tool in dirname grep tail; do
-    tool_path=$(command -v "$tool") || fail "test host must provide $tool"
-    ln -s "$tool_path" "$fakebin/$tool"
+    tool_path=$(type -P "$tool") || fail "test host must provide $tool"
+    cat > "$fakebin/$tool" <<EOF
+#!/bin/bash
+exec "$tool_path" "\$@"
+EOF
+    chmod +x "$fakebin/$tool"
   done
   cat > "$fakebin/gh" <<'SH'
 #!/usr/bin/env bash
@@ -1028,7 +1032,8 @@ test_bootstrap_opt_out_cleanup() {
   assert_present "$home/config/x-mode.env" "opt-in must create the cadence config"
   # Opt out: empty the token, re-run bootstrap -> artifacts removed + one off line.
   printf 'FMX_PAIRING_TOKEN=\n' > "$home/.env"
-  out=$(CLAUDECODE=1 FM_HOME="$home" "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null)
+  out=$(env -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+    CLAUDECODE=1 FM_HOME="$home" "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null)
   assert_contains "$out" "FMX: X mode off" "opt-out must announce X mode off when it removed artifacts"
   assert_contains "$out" "watcher supervision needs Stop-owned automatic recovery" "opt-out remediation must use neutral automatic-recovery guidance"
   assert_not_contains "$out" "is broken" "opt-out remediation claimed an unverified mechanism failure"
@@ -1462,12 +1467,16 @@ test_reply_image_live_streams_payload_file() {
 }
 
 test_reply_image_thread_dry_run_records_compact_marker() {
-  local home fakebin log out rc img bytes
+  local home fakebin log out rc img expected_path bytes
   home="$TMP_ROOT/reply-image-thread-dry"; mkdir -p "$home"
   fakebin=$(make_fake_curl "$home")
   log="$home/curl.log"
   img="$home/illustration.webp"
   make_sample_image "$img"
+  expected_path=$img
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) expected_path=$(cygpath -m "$img") ;;
+  esac
   bytes=$(wc -c < "$img" | tr -d '[:space:]')
   out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$home" FMX_DRY_RUN=1 FMX_X_REPLY_MAX_CHARS=50 \
     FAKE_CURL_LOG="$log" \
@@ -1484,7 +1493,7 @@ test_reply_image_thread_dry_run_records_compact_marker() {
     || fail "image dry-run marker must hold media_type"
   [ "$(jq -r '.image.bytes' "$home/state/x-outbox/req-img-dry.json")" = "$bytes" ] \
     || fail "image dry-run marker must hold byte count"
-  [ "$(jq -r '.image.source_path' "$home/state/x-outbox/req-img-dry.json")" = "$img" ] \
+  [ "$(jq -r '.image.source_path' "$home/state/x-outbox/req-img-dry.json")" = "$expected_path" ] \
     || fail "image dry-run marker must hold source_path"
   jq -e '.image | has("data_base64") | not' "$home/state/x-outbox/req-img-dry.json" >/dev/null \
     || fail "image dry-run marker must not include base64 bytes"
@@ -2618,7 +2627,7 @@ test_meta_helpers_refuse_a_symlinked_task_record() {
 
   printf '%s\n' 'window=w' 'kind=ship' 'mode=no-mistakes' 'yolo=off' > "$target"
   cp "$target" "$original"
-  ln -s "$target" "$meta"
+  fm_test_make_symlink "$target" "$meta"
   FM_HOME="$home" FMX_NOW_OVERRIDE=1700000000 \
     "$ROOT/bin/fm-x-link.sh" sym-task req-sym >/dev/null 2>&1; rc=$?
   [ "$rc" -ne 0 ] || fail "link through a symlink record should refuse"
@@ -2630,7 +2639,7 @@ test_meta_helpers_refuse_a_symlinked_task_record() {
     'x_platform=x' 'x_reply_max_chars=280' > "$target"
   cp "$target" "$original"
   rm -f "$meta"
-  ln -s "$target" "$meta"
+  fm_test_make_symlink "$target" "$meta"
 
   FM_HOME="$home" "$ROOT/bin/fm-x-followup.sh" --clear sym-task >/dev/null 2>&1; rc=$?
   [ "$rc" -ne 0 ] || fail "clear through a symlink record should refuse"
@@ -2638,7 +2647,7 @@ test_meta_helpers_refuse_a_symlinked_task_record() {
   assert_symlink_untouched "clear"
 
   rm -f "$meta" "$target"
-  ln -s "$target" "$meta"
+  fm_test_make_symlink "$target" "$meta"
   FM_HOME="$home" STATE="$home/state" ROOT="$ROOT" META="$meta" bash -c '
     . "$ROOT/bin/fm-x-lib.sh"
     . "$ROOT/bin/fm-wake-lib.sh"
