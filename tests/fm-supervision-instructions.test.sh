@@ -19,6 +19,30 @@ test_selected_harness_block_only() {
   pass "renderer prints exactly the selected harness block"
 }
 
+test_copilot_primary_protocol() {
+  local out ordinary
+  out=$("$RENDER" --harness copilot)
+  assert_contains "$out" "primary harness: copilot" "copilot heading missing"
+  assert_contains "$out" "Mode: GitHub Copilot CLI tracked asynchronous shell supervision." \
+    "copilot supervision protocol missing"
+  assert_contains "$out" "stops at seven" "copilot protocol lost its bounded continuation contract"
+  ordinary=$(printf '%s\n' "$out" | grep -F -- '- Ordinary wake:')
+  assert_contains "$ordinary" "completed asynchronous watcher task delivered this turn" \
+    "copilot ordinary wake does not identify the completed asynchronous task"
+  assert_contains "$ordinary" "start the next tracked asynchronous watcher task" \
+    "copilot ordinary wake does not preserve watcher continuity"
+  out=$("$RENDER" --harness copilot --repair-line)
+  assert_contains "$out" "Copilot-tracked asynchronous shell task" \
+    "copilot repair line lost asynchronous task ownership"
+  assert_contains "$out" "bin/fm-watch-arm.sh" \
+    "copilot repair line lost the portable watcher command"
+  assert_contains "$out" "./bin/fm-watch-arm.ps1" \
+    "copilot repair line lost the native Windows watcher command"
+  assert_contains "$out" "never a shell ampersand" \
+    "copilot repair line lost its duplicate-watcher prohibition"
+  pass "renderer exposes Copilot's asynchronous bounded primary supervision protocol"
+}
+
 test_unknown_fallback() {
   local out
   out=$("$RENDER" --harness not-real)
@@ -179,6 +203,7 @@ test_pi_snippet_uses_effective_extension_path() {
 }
 
 test_selected_harness_block_only
+test_copilot_primary_protocol
 test_unknown_fallback
 test_conditional_stanzas
 test_repair_lines

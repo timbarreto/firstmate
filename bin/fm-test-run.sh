@@ -185,6 +185,54 @@ log() {
   printf 'fm-test-run: %s\n' "$*" >&2
 }
 
+native_windows_private_directory_valid() {
+  local dir=$1 native
+  command -v cygpath >/dev/null 2>&1 || return 1
+  command -v powershell.exe >/dev/null 2>&1 || return 1
+  native=$(cygpath -w "$dir" 2>/dev/null) || return 1
+  [ -n "$native" ] || return 1
+  # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+  FM_TEST_WORKER_NATIVE=$native powershell.exe -NoProfile -NonInteractive -Command '
+    $ErrorActionPreference = "Stop"
+    $item = [IO.DirectoryInfo]::new($env:FM_TEST_WORKER_NATIVE)
+    if (-not $item.Exists) { exit 1 }
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { exit 1 }
+    $acl = $item.GetAccessControl()
+    $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $currentSid) { exit 1 }
+    $descriptor = $acl.GetSecurityDescriptorBinaryForm()
+    $raw = [Security.AccessControl.RawSecurityDescriptor]::new($descriptor, 0)
+    if ($null -eq $raw.DiscretionaryAcl) { exit 1 }
+    $allowed = @($currentSid, "S-1-5-18", "S-1-5-32-544")
+    $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
+    foreach ($rule in $rules) {
+      if (
+        $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+        $allowed -notcontains $rule.IdentityReference.Value
+      ) {
+        exit 1
+      }
+    }
+    exit 0
+  ' >/dev/null 2>&1
+}
+
+worker_directory_private() {
+  local dir=$1 mode
+  [ -d "$dir" ] && [ ! -L "$dir" ] || return 1
+  case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+      native_windows_private_directory_valid "$dir"
+      return
+      ;;
+  esac
+  mode=$(stat -c %a "$dir" 2>/dev/null || stat -f %Lp "$dir" 2>/dev/null) || return 1
+  case "$mode" in
+    700|0700) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 now_iso() {
   date -u +%Y-%m-%dT%H:%M:%SZ
 }
@@ -210,7 +258,8 @@ family_for_basename() {
     fm-classify-decision-key.test.sh|\
     fm-composer-ghost.test.sh|fm-composer-lib.test.sh|\
     fm-crew-state.test.sh|fm-captain-hold-lifecycle.test.sh|\
-    fm-documentation-audiences.test.sh|fm-ensure-agents-md.test.sh|fm-grok-harness.test.sh|\
+    fm-copilot-harness.test.sh|fm-documentation-audiences.test.sh|\
+    fm-ensure-agents-md.test.sh|fm-grok-harness.test.sh|\
     fm-kimi-harness.test.sh|fm-muse-harness.test.sh|fm-herdr-lab.test.sh|fm-lint.test.sh|\
     fm-lint-workflows.test.sh|\
     fm-operational-input.test.sh|fm-pi-primary-types.test.sh|\
@@ -257,13 +306,14 @@ family_for_basename() {
     fm-backlog-atomicity.test.sh|\
     fm-bootstrap.test.sh|fm-bootstrap-network-parallel.test.sh|fm-fleet-sync.test.sh|fm-gate-refuse.test.sh|fm-gotmp.test.sh|\
     fm-session-start.test.sh|fm-sessionstart-nudge.test.sh|fm-startup-network.test.sh|\
-    fm-tangle-guard.test.sh|fm-update.test.sh)
+    fm-tangle-guard.test.sh|fm-update.test.sh|fm-update-windows.test.sh)
       printf '%s\n' session-bootstrap
       ;;
     fm-afk-pi-herdr-return-e2e.test.sh|\
     fm-cmux-claude-composer-live-e2e.test.sh|\
     fm-composer-matrix-live-e2e.test.sh|\
     fm-codex-continuity-live-e2e.test.sh|fm-grok-continuity-live-e2e.test.sh|\
+    fm-copilot-hooks-live-e2e.test.sh|\
     fm-cursor-primary-live-e2e.test.sh|\
     fm-grok-stop-live-e2e.test.sh|fm-harness-adapter-instructions-live-e2e.test.sh|\
     fm-harness-liveness-drift-live-e2e.test.sh|\
@@ -387,6 +437,10 @@ tests/fm-x-mode.test.sh
 EOF
 }
 
+# Membership checks run for every repository test when deriving portable lanes.
+# Cache this static list once to avoid a process substitution per test on Git Bash.
+PROVEN_ISOLATED_LIST=$(list_proven_isolated)
+
 # Portable parallel shard 1: LPT balance of the proven-isolated set using the
 # current concurrent-proof durations in docs/fm-test-isolation-proof.json.
 # Execution order is longest first so wall-clock stays near the balanced sum.
@@ -470,11 +524,11 @@ script_allows_concurrency() {
 }
 
 is_proven_isolated_script() {
-  local want=$1 line
-  while IFS= read -r line; do
-    [ "$line" = "$want" ] && return 0
-  done < <(list_proven_isolated)
-  return 1
+  local want=$1
+  case $'\n'"$PROVEN_ISOLATED_LIST"$'\n' in
+    *$'\n'"$want"$'\n'*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 # The portable serial remainder: every tests/*.test.sh that is neither
@@ -539,6 +593,7 @@ tests/fm-codex-continuity-live-e2e.test.sh 21
 tests/fm-composer-matrix-live-e2e.test.sh 23
 tests/fm-control-relaunch.test.sh 48210
 tests/fm-control.test.sh 37798
+tests/fm-copilot-hooks-live-e2e.test.sh 20
 tests/fm-cursor-harness.test.sh 30103
 tests/fm-cursor-primary-live-e2e.test.sh 21
 tests/fm-cursor-primary.test.sh 54947
@@ -565,7 +620,6 @@ tests/fm-kimi-harness.test.sh 18015
 tests/fm-lint-workflows.test.sh 855
 tests/fm-muse-harness.test.sh 55572
 tests/fm-muse-signals-live-e2e.test.sh 23
-tests/fm-no-mistakes-required.test.sh 370
 tests/fm-on.test.sh 11692
 tests/fm-opencode-primary-live-e2e.test.sh 21
 tests/fm-operational-input.test.sh 231
@@ -657,19 +711,21 @@ portable_serial_unhinted() {
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-unhinted.XXXXXX") || return 1
   portable_serial_weight_hints | awk 'NF { print $1 }' | LC_ALL=C sort -u >"$tmp/hinted"
   list_portable_serial | LC_ALL=C sort -u >"$tmp/serial"
-  comm -23 "$tmp/serial" "$tmp/hinted"
+  LC_ALL=C comm -23 "$tmp/serial" "$tmp/hinted"
   rm -rf "$tmp"
 }
 
-portable_serial_weight_for() {
-  local want=$1 path ms
-  while read -r path ms; do
-    if [ "$path" = "$want" ]; then
-      printf '%s\n' "$ms"
-      return 0
-    fi
-  done < <(portable_serial_weight_hints)
-  printf '%s\n' "$PORTABLE_SERIAL_DEFAULT_WEIGHT_MS"
+portable_serial_weighted_paths() {
+  awk -v default_weight="$PORTABLE_SERIAL_DEFAULT_WEIGHT_MS" '
+    FNR == NR {
+      weights[$1] = $2
+      next
+    }
+    NF {
+      weight = ($1 in weights) ? weights[$1] : default_weight
+      print weight "\t" $1
+    }
+  ' <(portable_serial_weight_hints) -
 }
 
 # Longest-processing-time assignment of the serial remainder to
@@ -699,10 +755,9 @@ portable_serial_assignments() {
     loads[best]=$((best_load + ms))
     printf '%s\t%s\n' "$best" "$script"
   done < <(
-    while IFS= read -r script; do
-      [ -n "$script" ] || continue
-      printf '%s\t%s\n' "$(portable_serial_weight_for "$script")" "$script"
-    done < <(list_portable_serial) | LC_ALL=C sort -t$'\t' -k1,1nr -k2,2
+    list_portable_serial |
+      portable_serial_weighted_paths |
+      LC_ALL=C sort -t$'\t' -k1,1nr -k2,2
   )
 }
 
@@ -805,8 +860,8 @@ run_coverage_guard() {
     return 1
   fi
   cat "$tmp/s1" "$tmp/s2" | LC_ALL=C sort -u >"$tmp/shards_union"
-  missing=$(comm -23 "$tmp/proven" "$tmp/shards_union" || true)
-  extra=$(comm -13 "$tmp/proven" "$tmp/shards_union" || true)
+  missing=$(LC_ALL=C comm -23 "$tmp/proven" "$tmp/shards_union" || true)
+  extra=$(LC_ALL=C comm -13 "$tmp/proven" "$tmp/shards_union" || true)
   if [ -n "$missing" ] || [ -n "$extra" ]; then
     log "coverage guard: portable shards must equal the proven-isolated set"
     [ -z "$missing" ] || { log "missing from shards:"; printf '%s\n' "$missing" >&2; }
@@ -850,8 +905,8 @@ run_coverage_guard() {
     return 1
   fi
   LC_ALL=C sort -u "$tmp/serial_shards_raw" >"$tmp/serial_shards"
-  missing=$(comm -23 "$tmp/serial" "$tmp/serial_shards" || true)
-  extra=$(comm -13 "$tmp/serial" "$tmp/serial_shards" || true)
+  missing=$(LC_ALL=C comm -23 "$tmp/serial" "$tmp/serial_shards" || true)
+  extra=$(LC_ALL=C comm -13 "$tmp/serial" "$tmp/serial_shards" || true)
   if [ -n "$missing" ] || [ -n "$extra" ]; then
     log "coverage guard: portable serial shards must equal the portable serial lane"
     [ -z "$missing" ] || { log "missing from serial shards:"; printf '%s\n' "$missing" >&2; }
@@ -863,7 +918,7 @@ run_coverage_guard() {
   for pair in "shards_union:serial" "shards_union:herdr" "serial:herdr"; do
     a=${pair%%:*}
     b=${pair#*:}
-    comm -12 "$tmp/$a" "$tmp/$b" >"$tmp/overlap"
+    LC_ALL=C comm -12 "$tmp/$a" "$tmp/$b" >"$tmp/overlap"
     if [ -s "$tmp/overlap" ]; then
       log "coverage guard: overlap between $a and $b:"
       cat "$tmp/overlap" >&2
@@ -881,8 +936,8 @@ run_coverage_guard() {
     return 1
   fi
   LC_ALL=C sort -u "$tmp/union_raw" >"$tmp/union"
-  missing=$(comm -23 "$tmp/all" "$tmp/union" || true)
-  extra=$(comm -13 "$tmp/all" "$tmp/union" || true)
+  missing=$(LC_ALL=C comm -23 "$tmp/all" "$tmp/union" || true)
+  extra=$(LC_ALL=C comm -13 "$tmp/all" "$tmp/union" || true)
   if [ -n "$missing" ] || [ -n "$extra" ]; then
     log "coverage guard: union of portable shards + portable serial + Herdr must equal tests/*.test.sh"
     [ -z "$missing" ] || { log "missing from union:"; printf '%s\n' "$missing" >&2; }
@@ -912,7 +967,7 @@ run_coverage_guard() {
     "$ROOT/bin/fm-test-isolation-proof.sh" --list | LC_ALL=C sort -u >"$tmp/proof_list"
     if ! cmp -s "$tmp/proven" "$tmp/proof_list"; then
       log "coverage guard: embedded proven-isolated set diverges from bin/fm-test-isolation-proof.sh --list"
-      comm -3 "$tmp/proven" "$tmp/proof_list" >&2 || true
+      LC_ALL=C comm -3 "$tmp/proven" "$tmp/proof_list" >&2 || true
       rm -rf "$tmp"
       return 1
     fi
@@ -1191,7 +1246,7 @@ families_for_changed_path() {
     bin/fm-stow-cascade.sh)
       printf '%s\n' secondmate
       ;;
-    bin/fm-session-start.sh|bin/fm-bootstrap.sh|bin/fm-fleet-sync.sh|\
+    bin/fm-install-windows.ps1|bin/fm-session-start.sh|bin/fm-bootstrap.sh|bin/fm-fleet-sync.sh|\
     bin/fm-sessionstart-nudge.sh|bin/fm-startup-network.sh|bin/fm-tangle*|bin/fm-update.sh|\
     bin/fm-gate-refuse*|bin/fm-lock*)
       printf '%s\n' session-bootstrap
@@ -1314,7 +1369,7 @@ families_for_changed_path() {
     docs/configuration.md|docs/supervision-protocols/*)
       printf '%s\n' pure-contract-unit
       ;;
-    tests/lib.sh|tests/*-helpers.sh|tests/fixtures.sh)
+    tests/lib.sh|tests/*-helpers.sh|tests/fixtures.sh|tests/assets/*)
       families_for_test_reference "$(basename "$path")" \
         || printf '%s\n' "__unmapped__:$path"
       ;;
@@ -1787,9 +1842,10 @@ if [ -n "$FAIL_ON_GATE_SKIP" ]; then
 fi
 if [ "$LIST_ONLY" -eq 1 ] || [ "$LIST_SCHEDULED" -eq 1 ]; then
   if [ "$LIST_SCHEDULED" -eq 1 ]; then
-    for s in "${SCRIPTS[@]+"${SCRIPTS[@]}"}"; do
-      printf '%s\t%s\n' "$(portable_serial_weight_for "$s")" "$s"
-    done | LC_ALL=C sort -t"$(printf '\t')" -k1,1nr -k2,2 | cut -f2-
+    printf '%s\n' "${SCRIPTS[@]+"${SCRIPTS[@]}"}" |
+      portable_serial_weighted_paths |
+      LC_ALL=C sort -t"$(printf '\t')" -k1,1nr -k2,2 |
+      cut -f2-
   else
     for s in "${SCRIPTS[@]+"${SCRIPTS[@]}"}"; do
       printf '%s\n' "$s"
@@ -1897,7 +1953,7 @@ if [ "$JOBS" -gt 1 ]; then
       # longest last strands it running alone at the tail. Measured over the
       # watcher family, alphabetical order finished in 395s where the balanced
       # four-worker sum was 205s.
-      printf '%s\t%s\n' "$(portable_serial_weight_for "$s")" "$s" >>"$SCHEDULE_TMP"
+      printf '%s\n' "$s" >>"$SCHEDULE_TMP"
     else
       SERIAL_TAIL_SCRIPTS+=("$s")
     fi
@@ -1905,7 +1961,10 @@ if [ "$JOBS" -gt 1 ]; then
   while IFS=$'\t' read -r _weight s; do
     [ -n "$s" ] || continue
     CONCURRENT_SCRIPTS+=("$s")
-  done < <(LC_ALL=C sort -t"$(printf '\t')" -k1,1nr -k2,2 "$SCHEDULE_TMP")
+  done < <(
+    portable_serial_weighted_paths <"$SCHEDULE_TMP" |
+      LC_ALL=C sort -t"$(printf '\t')" -k1,1nr -k2,2
+  )
   rm -f "$SCHEDULE_TMP"
 fi
 
@@ -2099,14 +2158,11 @@ else
     if [ -s "$out" ]; then
       cat "$out"
     fi
-    mode=$(stat -c %a "$work" 2>/dev/null || stat -f %Lp "$work" 2>/dev/null || echo unknown)
-    case "$mode" in
-      700|0700) ;;
-      *)
-        log "isolation failure: worker root mode is $mode, expected 0700 ($work)"
-        rc=1
-        ;;
-    esac
+    if ! worker_directory_private "$work"; then
+      mode=$(stat -c %a "$work" 2>/dev/null || stat -f %Lp "$work" 2>/dev/null || echo unknown)
+      log "isolation failure: worker root is not private (reported mode $mode; $work)"
+      rc=1
+    fi
     record_script_result "$script" "$rc" "$duration" "$out" "$end_iso"
   }
 

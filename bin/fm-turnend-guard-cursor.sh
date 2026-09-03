@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cursor `stop` hook adapter for a firstmate PRIMARY session: the park model.
+# Synchronous stop-hook park for Cursor primaries.
 #
 # Registered in tracked .cursor/hooks.json. Cursor runs this hook SYNCHRONOUSLY
 # and awaits it at every turn boundary, so one script owns both halves of Cursor
@@ -58,6 +58,11 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+case "${1:-}" in
+  '') ;;
+  --copilot) exec "$SCRIPT_DIR/fm-copilot-stop.sh" ;;
+  *) exit 0 ;;
+esac
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
@@ -94,8 +99,6 @@ PAYLOAD=$(cat 2>/dev/null || true)
 [ -n "$PAYLOAD" ] || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
 
-# A malformed payload is uncertainty, not a reason to park: fail open and let
-# the pull guard report the problem on the next fleet command.
 LOOP_COUNT=$(printf '%s' "$PAYLOAD" | jq -r '
   if type != "object" then error("payload")
   elif has("loop_count") then
@@ -103,8 +106,8 @@ LOOP_COUNT=$(printf '%s' "$PAYLOAD" | jq -r '
   else 0
   end
 ' 2>/dev/null) || exit 0
-case "$LOOP_COUNT" in ''|*[!0-9]*) exit 0 ;; esac
 SESSION_ID=$(printf '%s' "$PAYLOAD" | jq -r '.session_id // "unknown"' 2>/dev/null || printf 'unknown')
+case "$LOOP_COUNT" in ''|*[!0-9]*) exit 0 ;; esac
 case "$SESSION_ID" in ''|*[!A-Za-z0-9._-]*) SESSION_ID=unknown ;; esac
 
 fm_primary_scope_matches "$FM_ROOT" "$STATE" || exit 0
@@ -127,7 +130,7 @@ lock_acquire_bounded() {  # <lock>
   return 1
 }
 
-# Emit exactly one follow-up object and stop. jq owns the JSON escaping so an
+# Emit exactly one continuation object and stop. jq owns the JSON escaping so an
 # embedded quote, newline, or the U+2063 prefix cannot corrupt the response.
 emit_followup() {  # <kind> <body> [reset-budget]
   local kind=$1 body=$2 reset_budget=${3-} encoded response
@@ -266,8 +269,9 @@ case "$OWNER_ID" in ''|*[!0-9]*) exit 0 ;; esac
 PARK_SEQ=
 claim_park || exit 0
 
-# Cursor's own loop_limit is the outer ceiling; this inner one bites first so the
-# session is told once, loudly, instead of supervision going quiet unannounced.
+# Cursor's inner ceiling bites before the configured outer loop_limit so
+# supervision never disappears without one final handling turn explaining that
+# it stopped.
 if [ "$LOOP_COUNT" -ge "$LOOP_CEILING" ]; then
   [ "$LOOP_COUNT" -eq "$LOOP_CEILING" ] || exit 0
   fm_supervision_needed "$STATE" "$GRACE" || exit 0
@@ -374,8 +378,7 @@ fi
 # The park could not establish supervision. Ask the SHARED predicate whether
 # this turn would genuinely end blind, rather than deciding that here a second
 # time: bin/fm-turnend-guard.sh owns the block decision and its banner for every
-# harness, and --cursor tells it this is Cursor's own registration rather than
-# the Claude-settings duplicate.
+# harness.
 GUARD_ERR=$(mktemp "${TMPDIR:-/tmp}/fm-turnend-cursor.XXXXXX") || exit 0
 printf '%s' "$PAYLOAD" | "$SCRIPT_DIR/fm-turnend-guard.sh" --cursor 2>"$GUARD_ERR"
 GUARD_RC=$?

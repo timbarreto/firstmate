@@ -177,7 +177,8 @@ EOF
 # behaves, plus the home directories the digest reads. The deliberately bare
 # PATH keeps every bootstrap probe fast and hermetic - it reports missing tools
 # instead of reaching the host's real gh/tmux/tasks-axi.
-RUN_PATH=${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
+GIT_BIN=$(command -v git) || fail "session-start nudge tests need git"
+RUN_PATH=${FM_TEST_BASE_PATH:-$(dirname "$GIT_BIN"):/usr/bin:/bin:/usr/sbin:/sbin}
 
 make_run_primary() {
   local dir=$1
@@ -191,13 +192,20 @@ run_hook() {  # <root> [args...]
   local root=$1
   shift
   env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+    -u TMUX -u HERDR_ENV -u HERDR_SOCKET_PATH -u HERDR_PANE_ID \
+    -u CMUX_WORKSPACE_ID -u CMUX_SURFACE_ID -u CMUX_SOCKET_PATH \
+    -u CMUX_TAB_ID -u CMUX_PANEL_ID \
     FM_GATE_REFUSE_BYPASS=0 FM_ROOT_OVERRIDE="$root" FM_HOME="$root" PATH="$RUN_PATH" "$RUN" "$@"
 }
 
 run_hook_pi() {  # <root> [args...]
   local root=$1
   shift
-  env -u CLAUDECODE -u GROK_AGENT PI_CODING_AGENT=true FM_PI_HARNESS=pi \
+  env -u CLAUDECODE -u GROK_AGENT \
+    -u TMUX -u HERDR_ENV -u HERDR_SOCKET_PATH -u HERDR_PANE_ID \
+    -u CMUX_WORKSPACE_ID -u CMUX_SURFACE_ID -u CMUX_SOCKET_PATH \
+    -u CMUX_TAB_ID -u CMUX_PANEL_ID \
+    PI_CODING_AGENT=true FM_PI_HARNESS=pi \
     FM_GATE_REFUSE_BYPASS=0 FM_ROOT_OVERRIDE="$root" FM_HOME="$root" PATH="$RUN_PATH" "$RUN" "$@"
 }
 
@@ -604,8 +612,11 @@ await waitFor(() => existsSync(`${state}/completed-2`), "proven generation never
 const provenResult = await providerCall(proven, "proven prompt");
 assert(provenResult?.message?.content.includes("GENERATION_DIGEST_2"), "proven path lost startup context");
 assert(!provenResult.message.content.includes("Run `bin/fm-session-start.sh`"), "proven path used manual fallback");
+const supervisedPlatform = process.platform !== "win32";
 const provenSupervisor = supervisorFor(2);
-assert(alive(provenSupervisor), "completed generation lost its stable supervisor owner");
+if (supervisedPlatform) {
+  assert(alive(provenSupervisor), "completed generation lost its stable supervisor owner");
+}
 const originalKill = process.kill;
 let ownedGroupSignalCount = 0;
 process.kill = (pid, signal) => {
@@ -618,7 +629,11 @@ process.kill = (pid, signal) => {
 plan(3, "slow");
 const interrupted = begin("new", "session-interrupted");
 process.kill = originalKill;
-assert(ownedGroupSignalCount > 0, "replacement did not retire the completed generation's stable owner");
+if (supervisedPlatform) {
+  assert(ownedGroupSignalCount > 0, "replacement did not retire the completed generation's stable owner");
+} else {
+  assert(ownedGroupSignalCount === 0, "Windows tried to signal a nonexistent supervisor process group");
+}
 await waitFor(() => existsSync(`${state}/started-3`) && existsSync(`${state}/grandchild-3`),
   "interrupted generation never started its process tree");
 const interruptedCall = handlers.get("before_agent_start")({ prompt: "interrupted" }, interrupted);
@@ -806,6 +821,7 @@ const waitFor = async (predicate, message) => {
 };
 const alive = (pid) => {
   try { process.kill(Number(pid), 0); } catch { return false; }
+  if (process.platform === "win32") return true;
   const status = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" });
   return status.status === 0 && !status.stdout.trim().startsWith("Z");
 };
@@ -844,17 +860,25 @@ for (let instance = 1; instance <= 2; instance += 1) {
     const grandchild = Number(readFileSync(`${state}/grandchild-${launchIndex}`, "utf8").trim());
     if (launchIndex === 3) {
       await waitFor(() => !alive(child), "leader did not close before process-exit cleanup");
-      assert(alive(grandchild), "TERM-resistant descendant exited with its leader");
-      assert(alive(supervisor), "leader close lost the stable supervisor owner");
       assert(process.listenerCount("exit") === baselineCount + 1,
         "leader close removed the active instance exit listener");
-      const ownedListener = process.listeners("exit").find(
-        (listener) => !baselineListeners.includes(listener)
-      );
-      assert(ownedListener, "active reload had no process-exit cleanup listener");
-      ownedListener(0);
-      await waitFor(() => !alive(grandchild),
-        "active process-exit cleanup left the leaderless process group alive");
+      if (process.platform === "win32") {
+        assert(supervisor === 0, "Windows unexpectedly published a Unix process-group supervisor");
+        if (alive(grandchild)) {
+          process.kill(grandchild, "SIGKILL");
+          await waitFor(() => !alive(grandchild), "Windows fixture cleanup left the leaderless descendant alive");
+        }
+      } else {
+        assert(alive(grandchild), "TERM-resistant descendant exited with its leader");
+        assert(alive(supervisor), "leader close lost the stable supervisor owner");
+        const ownedListener = process.listeners("exit").find(
+          (listener) => !baselineListeners.includes(listener)
+        );
+        assert(ownedListener, "active reload had no process-exit cleanup listener");
+        ownedListener(0);
+        await waitFor(() => !alive(grandchild),
+          "active process-exit cleanup left the leaderless process group alive");
+      }
     }
     await handlers.get("session_shutdown")({ reason: "reload" }, current);
     assert(process.listenerCount("exit") === baselineCount,
@@ -1006,9 +1030,57 @@ test_run_gate_and_scope_are_silent() {
 test_run_reports_a_failed_session_start_as_digest_text() {
   local root="$TMP_ROOT/run-unwritable" out status=0
   make_run_primary "$root"
-  chmod 0500 "$root/state"
+  case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+      command -v cygpath >/dev/null 2>&1 || fail "cygpath is required for the Windows lock-failure fixture"
+      command -v powershell.exe >/dev/null 2>&1 || fail "PowerShell is required for the Windows lock-failure fixture"
+      FM_TEST_STATE_NATIVE=$(cygpath -w "$root/state") \
+        || fail "could not resolve the Windows lock-failure fixture"
+      export FM_TEST_STATE_NATIVE
+      # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+      powershell.exe -NoProfile -NonInteractive -Command '
+        $ErrorActionPreference = "Stop"
+        $item = [IO.DirectoryInfo]::new($env:FM_TEST_STATE_NATIVE)
+        $acl = $item.GetAccessControl()
+        $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+        $rights = [Security.AccessControl.FileSystemRights]"CreateFiles, CreateDirectories"
+        $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+          $sid,
+          $rights,
+          [Security.AccessControl.InheritanceFlags]::None,
+          [Security.AccessControl.PropagationFlags]::None,
+          [Security.AccessControl.AccessControlType]::Deny
+        )
+        [void]$acl.AddAccessRule($rule)
+        $item.SetAccessControl($acl)
+      ' >/dev/null 2>&1 || fail "could not make the Windows lock-failure fixture unwritable"
+      ;;
+    *) chmod 0500 "$root/state" ;;
+  esac
   out=$(run_hook "$root" --source startup </dev/null) || status=$?
-  chmod 0700 "$root/state"
+  case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+      # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+      powershell.exe -NoProfile -NonInteractive -Command '
+        $ErrorActionPreference = "Stop"
+        $item = [IO.DirectoryInfo]::new($env:FM_TEST_STATE_NATIVE)
+        $acl = $item.GetAccessControl()
+        $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+        $rights = [Security.AccessControl.FileSystemRights]"CreateFiles, CreateDirectories"
+        $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+          $sid,
+          $rights,
+          [Security.AccessControl.InheritanceFlags]::None,
+          [Security.AccessControl.PropagationFlags]::None,
+          [Security.AccessControl.AccessControlType]::Deny
+        )
+        [void]$acl.RemoveAccessRuleSpecific($rule)
+        $item.SetAccessControl($acl)
+      ' >/dev/null 2>&1 || fail "could not restore the Windows lock-failure fixture"
+      unset FM_TEST_STATE_NATIVE
+      ;;
+    *) chmod 0700 "$root/state" ;;
+  esac
   expect_code 0 "$status" "run wrapper with an unwritable state directory"
   assert_contains "$out" "READ-ONLY SESSION" "a failed lock did not reach the agent as digest text"
   pass "run wrapper: a session start that cannot take the lock still opens the session and says so"

@@ -63,6 +63,17 @@ The crewmate-only Muse Code 0.1.0-R708.1 adapter was verified separately on 2026
 Its installed `muse-bin-0.1.0-R708.1` foreground identity classified `alive`, while `musescore`, `amuse`, `muse-binary`, and `muse-bind` remained ambiguous in the portable regression.
 [`muse.md`](muse.md#process-identity) owns the artifact identity and launcher evidence for that verification.
 
+GitHub Copilot CLI 1.0.81-7 was verified separately on 2026-08-21 under Git for Windows.
+Its native process is `copilot.exe`, while the Git Bash child can terminate at `PPID=1` before reaching that process.
+The adapter therefore accepts `COPILOT_LOADER_PID` only when `ps -W` proves that exact Windows PID is live and named `copilot.exe`; the portable tmux classifier accepts both `copilot` and `copilot.exe`.
+`tests/fm-copilot-harness.test.sh` pins the Windows ownership bridge, and `tests/fm-harness-liveness-drift-live-e2e.test.sh` includes Copilot in the installed-binary drift guard.
+The same Copilot release ignored dot-prefixed repository hook files and loaded visible hook configurations in descending filename order.
+`tests/fm-copilot-hooks-live-e2e.test.sh` refreshes that discovery and ordering evidence against the installed CLI.
+The native Windows Bearings command path was verified on 2026-08-27 against GitHub Copilot CLI 1.0.81.
+The regression puts a twelve-second non-Git `bash.exe` first on `PATH`, preserves native Copilot process markers, invokes the canonical local-only snapshot through `bin/fm-windows-git-bash.ps1`, and requires the expected schema and `FM_HOME` within eight seconds.
+The exact command was `. .\bin\fm-windows-git-bash.ps1; $bash = Resolve-FirstmateGitBash; & $bash .\tests\fm-copilot-harness.test.sh` from PowerShell.
+Its relevant output was `ok - Copilot Windows bearings transport bypasses a hanging ambient bash`, followed by `all fm-copilot-harness tests passed`.
+
 Bounded observed output:
 
 ```text
@@ -202,7 +213,7 @@ ok - fm-teardown: dedicated-socket invalid cleanup preserves target/control and 
 The dedicated tmux cell removed ambient tmux variables, required a socket-bound wrapper, kept one target and one independent control window, and proved the wrapper was not called for invalid metadata or a direct empty target.
 Valid cleanup removed only the exact task-bound target and left the control window live.
 The metadata-only validation covers tmux, Herdr, Zellij, Orca, and cmux before backend dispatch.
-Claude, Codex, OpenCode, Pi, pi-signed, Grok, Kimi, Cursor, and Muse share that backend cleanup boundary; their harness-specific hook files, tokens, transcript bindings, and session-log sidecars are cleaned only after it, so no harness needs a separate endpoint parser.
+Claude, Codex, Copilot, OpenCode, Pi, pi-signed, Grok, Kimi, Cursor, and Muse share that backend cleanup boundary; their harness-specific hook files, tokens, transcript bindings, and session-log sidecars are cleaned only after it, so no harness needs a separate endpoint parser.
 
 ## Composer classification matrix
 
@@ -235,6 +246,9 @@ Kimi was not installed on the verification machine; its bordered shape is pinned
 This guard is the refresh command after an upgrade to any matrix-covered harness; rerun it and update the versions above rather than trusting this table across releases.
 Known staleness: on 2026-08-23 the steering-inbox doorbell run observed grok 1.0.5's idle composer classifying `unknown` (and sometimes pending-family), never `empty`, so the grok row above is stale for 1.0.5 and owes a refresh; steering is unaffected because the send path's composer check is advisory, but empty-requiring consumers (away-daemon injection, spawn readiness) should not trust the 1.0.0 grok result.
 Cursor is deliberately outside this cursor-anchored empty-composer matrix because its terminal cursor is parked outside the composer; tmux's Cursor-specific, process-identity-gated cursorless fallback is covered by the [Cursor Agent CLI](#cursor-agent-cli) section's separate live evidence and drift guard.
+Copilot is also deliberately outside this screen-shape matrix.
+Its generated `userPromptSubmitted` hook advances a per-task acknowledgement after the semantic busy transition succeeds, and `fm-send` accepts that changed token as submission proof even when the backend composer verdict is unstructured.
+`tests/fm-send-strict.test.sh` pins both the positive acknowledgement and the no-acknowledgement refusal.
 
 `zellij action dump-screen --pane-id <id> --ansi` was verified at zellij 0.44.0 to preserve ANSI styling (real Claude Code rendered inside a zellij pane dumped `ESC[m` `❯` U+00A0 for its idle composer row), which is the capability the zellij composer classifier reads.
 
@@ -267,7 +281,7 @@ This guard is the refresh command after any harness upgrade; it spends a small n
 ## Herdr
 
 The compatibility floor is protocol 14.
-The whole real-Herdr lane's latest active verification uses both Herdr 0.7.4 protocol 16 and Herdr 0.8.0 protocol 19 on macOS aarch64, while focused Herdr 0.7.5 protocol 17, earlier protocol-16, protocol-14, and 0.7.3 evidence is retained where it defines current behavior or fallbacks.
+The whole real-Herdr lane's latest active verification uses Herdr 0.8.2 protocol 20 on native Windows and retains Herdr 0.7.4 protocol 16 and Herdr 0.8.0 protocol 19 on macOS aarch64, while focused Herdr 0.7.5 protocol 17, earlier protocol-16, protocol-14, and 0.7.3 evidence remains where it defines current behavior or fallbacks.
 Protocol 17 keeps every protocol-16 feature gate satisfied; the event and workspace-move floors remain 16.
 Default-on presentation projection has its own floor at Herdr 0.8.0, protocol 19, verified below.
 
@@ -301,6 +315,62 @@ The CLI matrix was checked directly:
 
 All destructive verification used `bin/fm-herdr-lab.sh` with a non-default `fm-lab-` name and a byte-identical default-session tripwire.
 No ambient `herdr server stop` command is a supported test operation.
+
+### Windows presentation-lock namespace
+
+The native Windows namespace proof was verified on 2026-08-27 against Herdr 0.8.2, Git for Windows 2.55.0, and Windows PowerShell 5.1.26100.9168.
+The existing NTFS directory remained current-user-owned while Git Bash continued reporting synthetic mode `0755` after `chmod 700`.
+The adapter accepted that directory only after its Windows DACL allowed the current identity, SYSTEM, and built-in Administrators, while the executable regression also replaced the fixture DACL with an explicit Everyone read grant and required rejection.
+
+```sh
+source bin/backends/herdr.sh
+d=/tmp/firstmate-herdr-presentation
+printf 'mode=%s\nnamespace_uid=%s\ncurrent_uid=%s\n' \
+  "$(fm_backend_herdr_presentation_lock_namespace_mode "$d")" \
+  "$(fm_backend_herdr_presentation_lock_namespace_uid "$d")" \
+  "$(id -u)"
+fm_backend_herdr_presentation_lock_namespace_windows_acl_valid "$d"
+printf 'acl_exit=%s\n' "$?"
+fm_backend_herdr_presentation_lock_namespace_valid "$d"
+printf 'namespace_exit=%s\n' "$?"
+```
+
+Observed output:
+
+```text
+mode=755
+namespace_uid=4096
+current_uid=4096
+acl_exit=0
+namespace_exit=0
+```
+
+`tests/fm-backend-herdr.test.sh` pins the synthetic-mode acceptance, unsafe-ACL refusal, wrong-owner refusal, non-directory refusal, and unchanged Linux and macOS mode `0700` requirement through the adapter's executable lock-path behavior.
+
+### Native Windows projected-workspace ordering
+
+The native Windows transport and projected ordering proof was verified on 2026-08-31 against Herdr 0.8.2 protocol 20 and Python 3.13.
+Herdr's Windows `herdr.sock` path was a server-ownership marker, while the supported `interprocess` endpoint was the namespaced pipe derived from that same path.
+The mover connected through the Win32 named-pipe API, placed each projected worker immediately after the exact Firstmate workspace and its existing child block, and preserved every pre-existing workspace's relative order.
+The active workspace and active tab remained unchanged across create, move, final-label rename, and forced move failure.
+A successfully ordered worker published a version 2 restart binding.
+A forced transport failure left the task pane alive with the top-level `fm-<id> · pending p:<token>` label, retained only the version 1 attempt journal, and printed the concrete ordering warning rather than implying the unrelated preceding workspace was its parent.
+
+```sh
+HERDR_LAB_HELPER=/c/src/firstmate/bin/fm-herdr-lab.sh \
+HERDR_LAB_NAME_SEED=fix-herdr-windows-order-0831 \
+FM_HERDR_PRESENTATION_ORDERING_ONLY=1 \
+tests/fm-backend-herdr-presentation-e2e.test.sh
+```
+
+Observed proof:
+
+```text
+ok - real Herdr lab: every projected create, task-tab create, seeded prune, and move preserves active workspace and tab
+ok - real Herdr lab: concurrent primary workers form one stable contiguous block without active workspace/tab drift
+ok - real Herdr lab: failed workspace.move stays explicit and cannot imply the wrong parent
+ok - real Herdr ordering validation completed on Herdr 0.8.2 with the default-session tripwire intact
+```
 
 ### Submit confirmation
 
@@ -361,6 +431,116 @@ HERDR_WORKSPACE_ID=w1
 
 This complete injection shape is verified only for Herdr 0.7.5.
 Firstmate requires both `HERDR_PANE_ID` and `HERDR_SOCKET_PATH` before accepting claimed launcher ancestry.
+
+Windows launcher identity was verified on 2026-08-26 against Herdr 0.8.2 under Git for Windows.
+The live pane supplied a native Windows drive socket path, the adapter canonicalized it to a Unix-absolute path, and exact pane, tab, and workspace resolution succeeded.
+
+```sh
+source bin/backends/herdr.sh
+session=$(fm_backend_herdr_session)
+case "$HERDR_SOCKET_PATH" in [A-Za-z]:[\\/]*) socket_style=windows-drive;; *) socket_style=other;; esac
+canonical=$(fm_backend_herdr_canonical_socket_path "$HERDR_SOCKET_PATH")
+case "$canonical" in /*) canonical_style=unix-absolute;; *) canonical_style=other;; esac
+fm_backend_herdr_launcher_identity "$session"
+rc=$?
+printf 'herdr_version=%s\nsession=%s\nsocket_style=%s\ncanonical_style=%s\nlauncher_identity_exit=%s\npane=%s\ntab=%s\nworkspace=%s\n' "$(herdr --version)" "$session" "$socket_style" "$canonical_style" "$rc" "$FM_BACKEND_HERDR_LAUNCHER_PANE_ID" "$FM_BACKEND_HERDR_LAUNCHER_TAB_ID" "$FM_BACKEND_HERDR_LAUNCHER_WORKSPACE_ID"
+```
+
+```text
+herdr_version=herdr 0.8.2
+session=default
+socket_style=windows-drive
+canonical_style=unix-absolute
+launcher_identity_exit=0
+pane=w5:p1
+tab=w5:t1
+workspace=w5
+```
+
+### Windows live task cwd
+
+The native Windows current-path fallback was verified on 2026-08-26 against Herdr 0.8.2 under Git for Windows.
+The guarded lab changed a pane to the Firstmate repository, confirmed that `pane get` omitted `foreground_cwd`, and confirmed that the adapter returned the cwd of the exact process whose pid matched `foreground_process_group_id`.
+
+```sh
+ROOT=/c/src/firstmate
+HELPER="$ROOT/bin/fm-herdr-lab.sh"
+LAB=$("$HELPER" name cwd-win)
+cleanup() {
+  if "$HELPER" teardown "$LAB" >/dev/null; then
+    printf 'teardown=pass\n'
+  else
+    printf 'teardown=fail\n'
+    return 1
+  fi
+}
+trap cleanup EXIT
+"$HELPER" provision "$LAB"
+CREATE=$("$HELPER" run "$LAB" workspace create --cwd /tmp --label cwd-probe --no-focus)
+PANE=$(printf '%s' "$CREATE" | jq -er '.result.root_pane.pane_id')
+"$HELPER" run "$LAB" pane run "$PANE" 'cd C:\src\firstmate' >/dev/null
+. "$ROOT/bin/backends/herdr.sh"
+ADAPTER_PATH=
+for _ in $(seq 1 50); do
+  ADAPTER_PATH=$(fm_backend_herdr_current_path "$LAB:$PANE" || true)
+  [ -n "$ADAPTER_PATH" ] && break
+  sleep 0.1
+done
+PANE_GET=$("$HELPER" run "$LAB" pane get "$PANE")
+PROCESS_INFO=$("$HELPER" run "$LAB" pane process-info --pane "$PANE")
+GROUP_ID=$(printf '%s' "$PROCESS_INFO" | jq -r '.result.process_info.foreground_process_group_id')
+NORMALIZED_PATH=$(cygpath -u "$ADAPTER_PATH")
+EXPECTED_PATH=$(cd "$ROOT" && pwd -P)
+[ "$NORMALIZED_PATH" = "$EXPECTED_PATH" ]
+printf 'herdr_version=%s\n' "$(herdr --version)"
+printf 'session=%s\npane=%s\n' "$LAB" "$PANE"
+printf 'pane_foreground_cwd_present=%s\n' "$(printf '%s' "$PANE_GET" | jq -r '(.result.pane | has("foreground_cwd")) and ((.result.pane.foreground_cwd // "") != "")')"
+printf 'foreground_process_group_id=%s\n' "$GROUP_ID"
+printf 'leader_pid=%s\n' "$(printf '%s' "$PROCESS_INFO" | jq -r --arg gid "$GROUP_ID" '.result.process_info.foreground_processes[] | select((.pid | tostring) == $gid) | .pid')"
+printf 'leader_cwd=%s\n' "$(printf '%s' "$PROCESS_INFO" | jq -r --arg gid "$GROUP_ID" '.result.process_info.foreground_processes[] | select((.pid | tostring) == $gid) | .cwd')"
+printf 'adapter_path=%s\n' "$ADAPTER_PATH"
+printf 'normalized_adapter_path=%s\n' "$NORMALIZED_PATH"
+printf 'expected_path=%s\nresult=pass\n' "$EXPECTED_PATH"
+```
+
+```text
+herdr_version=herdr 0.8.2
+session=fm-lab-cwd-win-950-32594
+pane=w1:p1
+pane_foreground_cwd_present=false
+foreground_process_group_id=43376
+leader_pid=43376
+leader_cwd=C:\src\firstmate\
+adapter_path=C:\src\firstmate\
+normalized_adapter_path=/c/src/firstmate
+expected_path=/c/src/firstmate
+result=pass
+teardown=pass
+```
+
+### Windows Treehouse task acquisition
+
+The full native Windows spawn path was verified on 2026-08-26 against Herdr 0.8.2 and Treehouse 2.1.1 under Git for Windows.
+The opt-in test creates a temporary local project and isolated named Herdr lab, drives `bin/fm-spawn.sh`, proves a POSIX-only launch runs through Git Bash with its task environment, proves the recorded copy equals the exact foreground PowerShell leader cwd, then stops the lab and returns the clean lease.
+
+```sh
+FM_HERDR_WINDOWS_TREEHOUSE_LIVE=1 \
+  tests/fm-backend-herdr-windows-treehouse-live-e2e.test.sh
+```
+
+```text
+herdr_version=herdr 0.8.2
+treehouse_version=v2.1.1
+treehouse_mode=lease
+launch_proof=bridge-ok|/tmp/fm-windows-treehouse-live/gotmp
+target=fm-lab-windows-treehous-1913-894:w1:p2
+worktree=/c/Users/v-tibarreto/.treehouse/project-5272b4/1/project
+adapter_path=C:\Users\v-tibarreto\.treehouse\project-5272b4\1\project\
+leader_name=powershell.exe
+leader_cwd=C:\Users\v-tibarreto\.treehouse\project-5272b4\1\project\
+cleanup=guarded-lab-and-treehouse-return
+result=pass
+```
 
 `pane get` reports the pane's current owning tab and workspace, which is what placement resolves from; the injected `HERDR_TAB_ID` and `HERDR_WORKSPACE_ID` are creation-time snapshots and are not read as current identity:
 

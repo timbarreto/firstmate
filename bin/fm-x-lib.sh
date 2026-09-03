@@ -49,6 +49,7 @@
 # Callers must have FM_HOME set before calling fmx_load_config.
 
 _FM_X_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_FM_X_UNAME=$(uname -s 2>/dev/null || echo unknown)
 if ! command -v fm_backlog_atomic_transition >/dev/null 2>&1; then
   # shellcheck source=bin/fm-tasks-axi-lib.sh
   . "$_FM_X_LIB_DIR/fm-tasks-axi-lib.sh"
@@ -99,10 +100,147 @@ fmx_single_link_file_valid() {
   [ -z "$expected_device" ] || [ "$device" = "$expected_device" ]
 }
 
+fmx_native_windows() {
+  case "$_FM_X_UNAME" in
+    MSYS*|MINGW*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Git Bash exposes synthetic POSIX modes on NTFS. Apply or verify the native
+# DACL instead: only the current identity, SYSTEM, and Administrators may have
+# allow entries, and the current identity must own the non-reparse path.
+fmx_native_windows_private_path_acl() {  # <path> <secure|validate>
+  local path=$1 action=$2 native
+  fmx_native_windows || return 1
+  case "$action" in
+    secure|validate) ;;
+    *) return 1 ;;
+  esac
+  { [ -f "$path" ] || [ -d "$path" ]; } && [ ! -L "$path" ] || return 1
+  command -v cygpath >/dev/null 2>&1 || return 1
+  command -v powershell.exe >/dev/null 2>&1 || return 1
+  native=$(cygpath -w "$path" 2>/dev/null) || return 1
+  [ -n "$native" ] || return 1
+  for _ in 1 2 3; do
+    # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+    if FMX_PRIVATE_NATIVE=$native FMX_PRIVATE_ACTION=$action \
+      powershell.exe -NoProfile -NonInteractive -Command '
+        $ErrorActionPreference = "Stop"
+        $item = Get-Item -LiteralPath $env:FMX_PRIVATE_NATIVE -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { exit 1 }
+        $current = [Security.Principal.WindowsIdentity]::GetCurrent().User
+        $security = $item.GetAccessControl()
+        if (
+          $security.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne
+          $current.Value
+        ) {
+          exit 1
+        }
+        if ($env:FMX_PRIVATE_ACTION -eq "secure") {
+          $security.SetAccessRuleProtection($true, $false)
+          $rules = @(
+            $security.GetAccessRules(
+              $true,
+              $false,
+              [Security.Principal.SecurityIdentifier]
+            )
+          )
+          foreach ($rule in $rules) {
+            [void]$security.RemoveAccessRuleSpecific($rule)
+          }
+          if ($item.PSIsContainer) {
+            $inheritance = (
+              [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+              [Security.AccessControl.InheritanceFlags]::ObjectInherit
+            )
+          } else {
+            $inheritance = [Security.AccessControl.InheritanceFlags]::None
+          }
+          foreach ($sid in @($current.Value, "S-1-5-18", "S-1-5-32-544")) {
+            $identity = [Security.Principal.SecurityIdentifier]::new($sid)
+            $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+              $identity,
+              [Security.AccessControl.FileSystemRights]::FullControl,
+              $inheritance,
+              [Security.AccessControl.PropagationFlags]::None,
+              [Security.AccessControl.AccessControlType]::Allow
+            )
+            [void]$security.AddAccessRule($rule)
+          }
+          $item.SetAccessControl($security)
+          $security = $item.GetAccessControl()
+        }
+        if (
+          $security.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne
+          $current.Value
+        ) {
+          exit 1
+        }
+        $descriptor = $security.GetSecurityDescriptorBinaryForm()
+        $raw = [Security.AccessControl.RawSecurityDescriptor]::new($descriptor, 0)
+        if ($null -eq $raw.DiscretionaryAcl) { exit 1 }
+        $allowed = @($current.Value, "S-1-5-18", "S-1-5-32-544")
+        $currentFullControl = $false
+        $rules = $security.GetAccessRules(
+          $true,
+          $true,
+          [Security.Principal.SecurityIdentifier]
+        )
+        foreach ($rule in $rules) {
+          if ($rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) {
+            continue
+          }
+          if ($allowed -notcontains $rule.IdentityReference.Value) { exit 1 }
+          if (
+            $rule.IdentityReference.Value -eq $current.Value -and
+            ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq
+            [Security.AccessControl.FileSystemRights]::FullControl
+          ) {
+            $currentFullControl = $true
+          }
+        }
+        if (-not $currentFullControl) { exit 1 }
+        exit 0
+      ' >/dev/null 2>&1; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+fmx_private_path_secure() {  # <file-or-directory> <600|700>
+  local path=$1 mode=$2 actual
+  case "$mode" in
+    600) [ -f "$path" ] && [ ! -L "$path" ] || return 1 ;;
+    700) { [ -f "$path" ] || [ -d "$path" ]; } && [ ! -L "$path" ] || return 1 ;;
+    *) return 1 ;;
+  esac
+  chmod "$mode" "$path" 2>/dev/null || return 1
+  if fmx_native_windows; then
+    fmx_native_windows_private_path_acl "$path" secure
+    return
+  fi
+  if [ "$_FM_X_UNAME" = Darwin ]; then
+    actual=$(stat -f %Lp "$path" 2>/dev/null) || return 1
+  else
+    actual=$(stat -c %a "$path" 2>/dev/null) || return 1
+  fi
+  [ "$actual" = "$mode" ]
+}
+
 fmx_single_link_file_mode_valid() {
   local file=$1 expected_mode=$2 expected_device=${3-} mode
   fmx_single_link_file_valid "$file" "$expected_device" || return 1
-  if [ "$(uname)" = Darwin ]; then
+  case "$expected_mode" in
+    600|700) ;;
+    *) return 1 ;;
+  esac
+  if fmx_native_windows; then
+    fmx_native_windows_private_path_acl "$file" validate
+    return
+  fi
+  if [ "$_FM_X_UNAME" = Darwin ]; then
     mode=$(stat -f %Lp "$file" 2>/dev/null) || return 1
   else
     mode=$(stat -c %a "$file" 2>/dev/null) || return 1
@@ -113,19 +251,23 @@ fmx_single_link_file_mode_valid() {
 fmx_private_artifact_dir_device() {
   local dir=$1 mode device
   [ -d "$dir" ] && [ ! -L "$dir" ] || return 1
-  if [ "$(uname)" = Darwin ]; then
+  if [ "$_FM_X_UNAME" = Darwin ]; then
     mode=$(stat -f %Lp "$dir" 2>/dev/null) || return 1
     device=$(stat -f %d "$dir" 2>/dev/null) || return 1
   else
     mode=$(stat -c %a "$dir" 2>/dev/null) || return 1
     device=$(stat -c %d "$dir" 2>/dev/null) || return 1
   fi
-  [ "$mode" = 700 ] || return 1
+  if fmx_native_windows; then
+    fmx_native_windows_private_path_acl "$dir" validate || return 1
+  else
+    [ "$mode" = 700 ] || return 1
+  fi
   printf '%s\n' "$device"
 }
 
 fmx_private_artifact_dir_prepare() {
-  local dir=$1 parent
+  local dir=$1 parent created=0
   parent=${dir%/*}
   if [ "$parent" != "$dir" ]; then
     if [ -e "$parent" ] || [ -L "$parent" ]; then
@@ -139,7 +281,9 @@ fmx_private_artifact_dir_prepare() {
     [ -d "$dir" ] && [ ! -L "$dir" ] || return 1
   else
     (umask 077; mkdir -p "$dir" 2>/dev/null) || return 1
+    created=1
   fi
+  [ "$created" -eq 0 ] || fmx_private_path_secure "$dir" 700 || return 1
   fmx_private_artifact_dir_device "$dir"
 }
 
@@ -156,7 +300,7 @@ fmx_private_artifact_publish_stdin() {
   dest="$dir/$base"
   tmp=$(umask 077; mktemp "$dir/.${base}.fm-x.XXXXXX" 2>/dev/null) || return 1
   if ! cat > "$tmp" \
-    || ! chmod "$mode" "$tmp" 2>/dev/null \
+    || ! fmx_private_path_secure "$tmp" "$mode" \
     || ! fmx_single_link_file_mode_valid "$tmp" "$mode" "$device"; then
     rm -f -- "$tmp"
     return 1
@@ -194,7 +338,7 @@ fmx_private_artifact_publish_stdin_once() {
   dest="$dir/$base"
   tmp=$(umask 077; mktemp "$dir/.${base}.fm-x.XXXXXX" 2>/dev/null) || return 2
   if ! cat > "$tmp" \
-    || ! chmod "$mode" "$tmp" 2>/dev/null \
+    || ! fmx_private_path_secure "$tmp" "$mode" \
     || ! fmx_single_link_file_mode_valid "$tmp" "$mode" "$device"; then
     rm -f -- "$tmp"
     return 2
@@ -728,7 +872,7 @@ fmx_auth_header_file() {
     *$'\n'*|*$'\r'*) return 1 ;;
   esac
   file=$(umask 077; mktemp "${TMPDIR:-/tmp}/fm-x-auth.XXXXXX") || return 1
-  chmod 600 "$file" 2>/dev/null || { rm -f "$file"; return 1; }
+  fmx_private_path_secure "$file" 600 || { rm -f "$file"; return 1; }
   printf 'Authorization: Bearer %s\n' "$FMX_TOKEN" > "$file" || { rm -f "$file"; return 1; }
   printf '%s\n' "$file"
 }

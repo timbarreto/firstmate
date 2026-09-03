@@ -252,10 +252,11 @@ function runSessionstartHook(generation: SessionstartGeneration): Promise<Sessio
     };
     const supervised = process.platform !== "win32";
     const runner = `${root}/bin/fm-sessionstart-run.sh`;
+    const executable = supervised ? "node" : process.platform === "win32" ? "bash" : runner;
     let child: ChildProcess;
     try {
       child = spawn(
-        supervised ? "node" : runner,
+        executable,
         supervised
           ? [
               `${extensionDir}/lib/fm-sessionstart-supervisor.mjs`,
@@ -264,7 +265,12 @@ function runSessionstartHook(generation: SessionstartGeneration): Promise<Sessio
               generation.source,
               "--pi-prerequisite",
             ]
-          : ["--source", generation.source, "--pi-prerequisite"],
+          : [
+              ...(process.platform === "win32" ? [runner] : []),
+              "--source",
+              generation.source,
+              "--pi-prerequisite",
+            ],
         {
           detached: supervised,
           stdio: supervised
@@ -440,9 +446,12 @@ async function claimSessionstartMessage(
 
 function runGuard(): Promise<{ code: number; stderr: string }> {
   return new Promise((resolveResult) => {
-    const child = spawn(`${root}/bin/fm-turnend-guard.sh`, {
-      stdio: ["pipe", "ignore", "pipe"],
-    });
+    const script = `${root}/bin/fm-turnend-guard.sh`;
+    const child = spawn(
+      process.platform === "win32" ? "bash" : script,
+      process.platform === "win32" ? [script] : [],
+      { stdio: ["pipe", "ignore", "pipe"] },
+    );
     let stderr = "";
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
@@ -462,9 +471,12 @@ function runGuard(): Promise<{ code: number; stderr: string }> {
 // script owns its own decision and is inert outside the real primary checkout.
 function runChecker(script: string, command: string): Promise<{ code: number; stderr: string }> {
   return new Promise((resolveResult) => {
-    const child = spawn(`${root}/bin/${script}`, ["--command", command], {
-      stdio: ["ignore", "ignore", "pipe"],
-    });
+    const path = `${root}/bin/${script}`;
+    const child = spawn(process.platform === "win32" ? "bash" : path, [
+      ...(process.platform === "win32" ? [path] : []),
+      "--command",
+      command,
+    ], { stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();

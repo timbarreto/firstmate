@@ -58,7 +58,7 @@ Full detail on every feature lives in [docs/architecture.md](docs/architecture.m
 
 ### Requirements
 
-- A verified primary agent harness: Claude Code, Grok, Pi, `pi-signed`, Codex, OpenCode, or Cursor Agent CLI.
+- A verified primary agent harness: Claude Code, GitHub Copilot CLI, Grok, Pi, `pi-signed`, Codex, OpenCode, or Cursor Agent CLI.
 - Git and the GitHub CLI, authenticated through `gh auth login`.
 - The CLI and dependencies for your selected runtime backend; tmux is the reference default.
 
@@ -75,6 +75,11 @@ Pick whichever one matches your subscription and workflow.
 Codex and OpenCode are also verified and supported as primary harnesses; Codex uses bounded foreground checkpoints, and OpenCode uses a TUI plugin, so both carry more harness-specific supervision tradeoffs than the three co-primaries.
 Cursor Agent CLI is verified as a primary too, using a tracked project-scope `.cursor/hooks.json` whose `stop` hook parks on the watcher between turns, closest in shape to Claude Code's.
 Launch it with `--trust`, or none of its project hooks load; it also has no turn-end hook in headless `cursor-agent -p`, so run the primary session interactively.
+GitHub Copilot CLI is verified for primary and worker use through tracked `.github/hooks/firstmate.json`.
+It runs the watcher as a tracked asynchronous shell task, so captain input remains available while supervision waits.
+Shell-completion notifications deliver actionable watcher results, while a short nonblocking `agentStop` hook requests a replacement asynchronous arm only when supervision is missing.
+Native Windows runs use a guarded PowerShell bridge to Git for Windows Bash.
+Copilot primary support does not yet include away-mode escalation injection because its interactive composer has no structurally verified empty shape; attended supervision, session start, and asynchronous watcher supervision are unaffected.
 
 ### Install and launch
 
@@ -84,7 +89,15 @@ git clone https://github.com/kunchenguid/firstmate
 cd firstmate
 ```
 
-Then launch one of the co-primary harnesses; AGENTS.md takes over from there:
+On Windows, install Firstmate's required tools from PowerShell:
+
+```powershell
+.\bin\fm-install-windows.ps1
+```
+
+The Windows installer also installs Git for Windows and Python 3.13, configures the AXI integration hooks, and disables this repository's Claude project hooks by renaming `.claude/settings.json` to `.claude/settings.json.disabled`.
+
+Then launch a verified primary harness; AGENTS.md takes over from there:
 
 **Claude Code**
 
@@ -96,6 +109,12 @@ claude
 
 ```sh
 grok --trust
+```
+
+**GitHub Copilot CLI**
+
+```sh
+copilot
 ```
 
 **Pi**
@@ -216,7 +235,7 @@ Firstmate's skills live in two separate places with different audiences:
 - [docs/gitlab-merge-watch.md](docs/gitlab-merge-watch.md) - maintainer verification for watching and merging GitLab merge requests on arbitrary instances.
 - [docs/turnend-guard.md](docs/turnend-guard.md) - the primary session's current "no turn ends blind" backstop, scope, loop safety, and compatibility limits.
 - [docs/verification/supervision.md](docs/verification/supervision.md) - active maintainer verification for session-start, guard, continuity, and wedge integrations.
-- [docs/supervision-protocols/](docs/supervision-protocols/) - rendered primary-harness watcher protocols for Claude, Codex, OpenCode, Pi and `pi-signed`, Grok, Cursor, and unknown harness fallback.
+- [docs/supervision-protocols/](docs/supervision-protocols/) - rendered primary-harness watcher protocols for Claude, Codex, GitHub Copilot CLI, OpenCode, Pi and `pi-signed`, Grok, Cursor, and unknown harness fallback.
 - [docs/scripts.md](docs/scripts.md) - the `bin/` toolbelt reference.
 - [docs/documentation-audiences.md](docs/documentation-audiences.md) - documentation audiences and the machine-checked placement boundary.
 - [`AGENTS.md`](AGENTS.md) - the distro's always-loaded operating contract and routing index for conditional procedures.
