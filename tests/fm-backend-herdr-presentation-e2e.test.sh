@@ -469,6 +469,14 @@ normalize_meta() {  # <meta>
 
 log_line_count() { wc -l < "$HERDR_CALL_LOG" | tr -d '[:space:]'; }
 
+file_size_or_zero() {
+  if [ -f "$1" ]; then
+    wc -c < "$1" | tr -d '[:space:]'
+  else
+    printf '0'
+  fi
+}
+
 projection_labels_from_log() {  # <start-line>
   local start=$1
   sed -n "$((start + 1)),\$p" "$HERDR_CALL_LOG" | awk -F '\t' '
@@ -784,8 +792,7 @@ lab tab focus "$ACTIVE_CLEANUP_DEFERRED_TAB" >/dev/null \
   || fail "could not focus the completed deferred presentation"
 ACTIVE_CLEANUP_DEFERRED_FOCUS="$ACTIVE_CLEANUP_DEFERRED_WSID/$ACTIVE_CLEANUP_DEFERRED_TAB"
 assert_focus_is "$ACTIVE_CLEANUP_DEFERRED_FOCUS" "active cleanup deferred fixture"
-ACTIVE_CLEANUP_DEFERRED_STATUS_SIZE=$(wc -c < "$HOME_DIR/state/active-cleanup-deferred.status" 2>/dev/null || printf 0)
-ACTIVE_CLEANUP_DEFERRED_STATUS_SIZE=$(printf '%s' "$ACTIVE_CLEANUP_DEFERRED_STATUS_SIZE" | tr -d '[:space:]')
+ACTIVE_CLEANUP_DEFERRED_STATUS_SIZE=$(file_size_or_zero "$HOME_DIR/state/active-cleanup-deferred.status")
 ACTIVE_CLEANUP_DEFERRED_TREEHOUSE_START=$(wc -l < "$TREEHOUSE_CALL_LOG" | tr -d '[:space:]')
 teardown_task active-cleanup-deferred "$HOME_DIR" \
   > "$TMP_ROOT/active-cleanup-deferred-teardown.out" 2> "$TMP_ROOT/active-cleanup-deferred-teardown.err" \
@@ -807,17 +814,18 @@ fi
   || fail "active cleanup deferral created a captain-decision binding"
 [ ! -e "$HOME_DIR/state/active-cleanup-deferred.backlog-close" ] \
   || fail "active cleanup deferral staged completion while retaining the task"
-CURRENT_DEFERRED_STATUS_SIZE=$(wc -c < "$HOME_DIR/state/active-cleanup-deferred.status" 2>/dev/null || printf 0)
-CURRENT_DEFERRED_STATUS_SIZE=$(printf '%s' "$CURRENT_DEFERRED_STATUS_SIZE" | tr -d '[:space:]')
+CURRENT_DEFERRED_STATUS_SIZE=$(file_size_or_zero "$HOME_DIR/state/active-cleanup-deferred.status")
 [ "$CURRENT_DEFERRED_STATUS_SIZE" = "$ACTIVE_CLEANUP_DEFERRED_STATUS_SIZE" ] \
   || fail "active cleanup deferral created a captain-facing status event"
+[ -f "$HOME_DIR/state/active-cleanup-deferred.herdr-cleanup-deferred" ] \
+  || fail "active cleanup deferral did not persist its retry-suppression marker"
 
 teardown_task active-cleanup-deferred "$HOME_DIR" \
   > "$TMP_ROOT/active-cleanup-deferred-repeat.out" 2> "$TMP_ROOT/active-cleanup-deferred-repeat.err" \
   || fail "repeated active cleanup deferral was not action-free: $(cat "$TMP_ROOT/active-cleanup-deferred-repeat.err")"
 [ ! -s "$TMP_ROOT/active-cleanup-deferred-repeat.out" ] \
   && [ ! -s "$TMP_ROOT/active-cleanup-deferred-repeat.err" ] \
-  || fail "repeated active cleanup deferral generated recurring user-facing noise"
+  || fail "repeated active cleanup deferral generated recurring user-facing noise: stdout=$(cat "$TMP_ROOT/active-cleanup-deferred-repeat.out") stderr=$(cat "$TMP_ROOT/active-cleanup-deferred-repeat.err")"
 assert_focus_is "$ACTIVE_CLEANUP_DEFERRED_FOCUS" "repeated active cleanup deferred focus"
 lab pane get "$ACTIVE_CLEANUP_DEFERRED_PANE" >/dev/null 2>&1 \
   || fail "repeated active cleanup deferral removed the exact task pane"
@@ -829,8 +837,7 @@ if sed -n "$((ACTIVE_CLEANUP_DEFERRED_TREEHOUSE_START + 1)),\$p" "$TREEHOUSE_CAL
 fi
 [ ! -e "$HOME_DIR/state/decision-bindings" ] \
   || fail "repeated active cleanup deferral created a captain-decision binding"
-CURRENT_DEFERRED_STATUS_SIZE=$(wc -c < "$HOME_DIR/state/active-cleanup-deferred.status" 2>/dev/null || printf 0)
-CURRENT_DEFERRED_STATUS_SIZE=$(printf '%s' "$CURRENT_DEFERRED_STATUS_SIZE" | tr -d '[:space:]')
+CURRENT_DEFERRED_STATUS_SIZE=$(file_size_or_zero "$HOME_DIR/state/active-cleanup-deferred.status")
 [ "$CURRENT_DEFERRED_STATUS_SIZE" = "$ACTIVE_CLEANUP_DEFERRED_STATUS_SIZE" ] \
   || fail "repeated active cleanup deferral generated recurring status noise"
 pass "real Herdr lab: no safe focus target yields an idempotent action-free defer with no captain-decision artifact"

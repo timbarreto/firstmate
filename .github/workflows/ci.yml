@@ -67,7 +67,7 @@ jobs:
       - name: Install tasks-axi
         run: |
           set -eu
-          npm install -g tasks-axi
+          npm install -g tasks-axi@0.2.5
           tasks-axi --version
       - name: Run portable parallel shard 1
         run: |
@@ -104,7 +104,7 @@ jobs:
       - name: Install tasks-axi
         run: |
           set -eu
-          npm install -g tasks-axi
+          npm install -g tasks-axi@0.2.5
           tasks-axi --version
       - name: Run portable parallel shard 2
         run: |
@@ -163,7 +163,7 @@ jobs:
       - name: Install tasks-axi for backlog-handoff delegation
         run: |
           set -eu
-          npm install -g tasks-axi
+          npm install -g tasks-axi@0.2.5
           tasks-axi --version
       - name: Run portable serial shard ${{ matrix.shard }}
         env:
@@ -356,6 +356,31 @@ jobs:
       - name: Run Windows updater regression
         shell: bash
         run: bin/fm-test-run.sh tests/fm-update-windows.test.sh
+
+  harness-package-compatibility:
+    name: Harness package compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install pinned harness packages
+        run: |
+          set -eu
+          npm install -g \
+            @earendil-works/pi-coding-agent@0.84.3 \
+            opencode-ai@1.18.23 \
+            typescript@5.9.3
+          pi --version
+          opencode --version
+          tsc --version
+      - name: Run non-credentialed Pi compatibility checks
+        run: |
+          set -eu
+          bin/fm-test-run.sh tests/fm-pi-primary-types.test.sh
+          bin/fm-test-run.sh tests/fm-pi-branch-extension.test.sh
 
   macos-stock-bash:
     name: Stock macOS Bash snapshot compatibility
