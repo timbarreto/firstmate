@@ -1,4 +1,4 @@
-<h1 align="center">firstmate</h1>
+<h1 align="center">firstmate - GitHub Copilot CLI support</h1>
 <p align="center">
   <a
     href="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue?style=flat-square"
@@ -23,6 +23,19 @@
 <p align="center">
   <img alt="firstmate - talk to one agent, ship with a crew" src="assets/banner.png" width="100%" />
 </p>
+
+## GitHub Copilot CLI: why this fork?
+
+**This community fork of [kunchenguid/firstmate](https://github.com/kunchenguid/firstmate) adds GitHub Copilot CLI support for multi-agent orchestration.**
+Run Copilot as your first mate and as the workers it coordinates, with isolated git worktrees, task supervision, and pull-request delivery.
+If your team standardizes on GitHub Copilot - including developers at Microsoft and organizations where Copilot is the approved coding assistant - this fork provides a Copilot entry point to Firstmate's crew workflow.
+
+- **Copilot primary and workers** - dedicated launch integration and tracked hooks handle session startup, worker activity, and asynchronous supervision.
+- **Windows setup** - a PowerShell installer and watcher bridge complement the macOS and Linux paths; see [Install and launch](#install-and-launch) and the [Copilot supervision protocol](docs/supervision-protocols/copilot.md).
+- **Built on Firstmate** - this fork retains upstream's multi-harness architecture and credits its original author and contributors.
+
+Upstream's [`main` snapshot checked on September 4, 2026](https://github.com/kunchenguid/firstmate/tree/f09de8a3d3a550b13b4d535346fbc7b9ac0d6c19) does not include a GitHub Copilot CLI harness adapter or Copilot hooks; those integrations are additions in this fork.
+See [harness configuration](docs/configuration.md#harness-support) and the [Copilot supervision protocol](docs/supervision-protocols/copilot.md) for supported behavior and operating requirements.
 
 ## What it is
 
@@ -82,7 +95,7 @@ Its tracked asynchronous watcher, Windows bridge, recovery bounds, and current a
 
 ```sh
 gh auth login
-git clone https://github.com/kunchenguid/firstmate
+git clone https://github.com/timbarreto/firstmate
 cd firstmate
 ```
 
