@@ -144,9 +144,11 @@ Keep the runner output visible or retain its process handle and output stream wh
 Use its `FM_TEST_BEGIN`, `FM_TEST_END`, `FM_TEST_SUMMARY`, and `FM_TEST_SLOWEST` markers to report the active script, completed count, failures, elapsed time, and slowest completed scripts.
 A live process with advancing markers is progress; a process beyond the runner's per-script bound is a bounded failure to investigate rather than an opaque wait.
 
-Run focused scripts for conflict-touched behavior when the changed-file map does not already select them.
-Use `--all` only when explicitly requested or when failure diagnosis shows that complete local regression is necessary.
-GitHub Actions owns the complete portable, Herdr, Windows, and macOS matrix.
+Run only the scripts selected by `--changed` plus focused scripts for conflict-touched behavior that the changed-file map does not already select.
+Pass every additional focused script explicitly to `bin/fm-test-run.sh`.
+Do not run `--all`, a complete lane matrix, or a `tests/*.test.sh` walk during this skill.
+When a focused failure reveals another affected surface, add only its smallest relevant script to the focused run.
+GitHub Actions owns the complete portable, Herdr, Windows, and macOS matrix; a separately requested full local regression is outside this skill.
 
 Run every repository gate:
 
@@ -161,7 +163,7 @@ Record each command, result, duration, and explicit optional-tool skip.
 Clean only test-owned processes and temporary paths, never broad process classes.
 Review the full branch diff after every test or lint fix.
 
-This step is complete when changed behavior and conflict-touched surfaces pass locally, all four gates pass, every skip is named, and no test-owned process or debug artifact remains.
+This step is complete when the changed-file-informed scripts and explicitly named conflict-touched scripts pass locally, all four gates pass, every skip is named, and no test-owned process or debug artifact remains.
 
 ## 6. Commit the frozen snapshot
 
