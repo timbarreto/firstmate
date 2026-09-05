@@ -35,6 +35,7 @@ install_pi_watch_extension_fixture() {
   cp "$ROOT/.pi/extensions/lib/fm-branch-dispatch.ts" "$repo/.pi/extensions/lib/fm-branch-dispatch.ts"
   cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$repo/.pi/extensions/lib/fm-calm-visibility.ts"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
   mkdir -p "$repo/bin"
   cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
   chmod +x "$repo/bin/fm-operational-input.sh"
@@ -1074,9 +1075,9 @@ writeFileSync(`${process.env.FM_HOME}/state/.lock`, `${process.pid}\n`);
 const mod = await import(pathToFileURL(process.env.PLUGIN).href);
 mod.default(pi);
 await tool.execute("tool-call-hung-successor", {}, undefined, undefined, {});
-// Three unready successors each cost the full readiness budget, so wait well
-// past their sum. The wait ends as soon as the wake lands.
-for (let i = 0; i < 1500 && !prompt; i += 1) {
+// Three unready successors each cost the full readiness budget plus bounded
+// native-tree retirement on Windows. The wait ends as soon as the wake lands.
+for (let i = 0; i < 3000 && !prompt; i += 1) {
   await new Promise((resolve) => setTimeout(resolve, 10));
 }
 const rows = existsSync(process.env.FM_ARM_LOG)
@@ -1453,8 +1454,19 @@ SH
   chmod +x "$repo/bin/fm-watch-arm.sh"
   out=$(PLUGIN="$plugin" FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" FM_ARM_LOG="$log" node --input-type=module 2>&1 <<'EOF'
 import { existsSync, unlinkSync, writeFileSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+
+function shellVisibleProcessPid() {
+  if (process.platform !== "win32") return process.pid;
+  const result = spawnSync("ps", ["-W"], { encoding: "utf8" });
+  if (result.status !== 0) throw new Error(`ps -W failed: ${result.stderr}`);
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const match = line.match(/^\s*([0-9]+)\s+[0-9]+\s+[0-9]+\s+([0-9]+)\s+/);
+    if (match?.[2] === String(process.pid)) return Number(match[1]);
+  }
+  throw new Error(`native pid ${process.pid} was absent from ps -W`);
+}
 
 let tool = null;
 const pi = {
@@ -1502,7 +1514,7 @@ try {
 }
 
 if (existsSync(process.env.FM_ARM_LOG)) throw new Error("watcher arm ran without lock ownership");
-writeFileSync(lock, `${process.pid}\n`);
+writeFileSync(lock, `${shellVisibleProcessPid()}\n`);
 const owned = await callArm();
 if (owned.details?.ok !== true || !owned.details.message.includes("started Pi extension arm child")) {
   throw new Error(`owned lock did not arm: ${JSON.stringify(owned.details)}`);
@@ -1548,6 +1560,10 @@ SH
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+const { pidAlive } = await import(
+  new URL("./lib/fm-process-ancestry.ts", pathToFileURL(process.env.PLUGIN)).href
+);
+
 function makePi() {
   const handlers = new Map();
   let tool = null;
@@ -1563,15 +1579,6 @@ function makePi() {
     events: { on() {} },
   };
   return { pi, handlers, getTool: () => tool };
-}
-
-function pidAlive(pid) {
-  try {
-    process.kill(Number(pid), 0);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function waitFor(pred, label, attempts = 250) {
@@ -1755,6 +1762,10 @@ SH
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+const { pidAlive } = await import(
+  new URL("./lib/fm-process-ancestry.ts", pathToFileURL(process.env.PLUGIN)).href
+);
+
 let releaseOldDelivery = () => {};
 const oldDeliveryRelease = new Promise((resolve) => {
   releaseOldDelivery = resolve;
@@ -1791,15 +1802,6 @@ function makePi(blockDelivery = false) {
     },
   };
   return { pi, handlers, getTool: () => tool, prompts };
-}
-
-function pidAlive(pid) {
-  try {
-    process.kill(Number(pid), 0);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function armRows() {
@@ -2638,6 +2640,7 @@ test_opencode_plugin_package_boundary_is_explicit_esm() {
   cp "$ROOT/.opencode/plugins/package.json" "$fixture/plugins/package.json"
   cp "$ROOT/.opencode/plugins/fm-primary-watch-arm.js" "$plugin"
   cp "$ROOT/.opencode/plugins/lib/fm-operational-input.js" "$fixture/plugins/lib/fm-operational-input.js"
+  cp "$ROOT/.opencode/plugins/lib/fm-process-ancestry.js" "$fixture/plugins/lib/fm-process-ancestry.js"
   out=$(PLUGIN="$plugin" node --input-type=module 2>&1 <<'EOF'
 import { pathToFileURL } from "node:url";
 await import(pathToFileURL(process.env.PLUGIN).href);
@@ -2765,8 +2768,20 @@ printf 'watcher: healthy pid=1 (beacon 0s)\n'
 SH
   chmod +x "$repo/bin/fm-watch-arm.sh"
   out=$(PLUGIN="$plugin" WORKTREE="$repo" FM_HOME="$home" FM_ARM_LOG="$log" node 2>&1 <<'EOF'
+import { spawnSync } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+
+function shellVisibleProcessPid() {
+if (process.platform !== "win32") return process.pid;
+const result = spawnSync("ps", ["-W"], { encoding: "utf8" });
+if (result.status !== 0) throw new Error(`ps -W failed: ${result.stderr}`);
+for (const line of result.stdout.split(/\r?\n/)) {
+  const match = line.match(/^\s*([0-9]+)\s+[0-9]+\s+[0-9]+\s+([0-9]+)\s+/);
+  if (match?.[2] === String(process.pid)) return Number(match[1]);
+}
+throw new Error(`native pid ${process.pid} was absent from ps -W`);
+}
 
 const mod = await import(pathToFileURL(process.env.PLUGIN).href);
 const client = { session: { promptAsync: async () => {} } };
@@ -2792,7 +2807,7 @@ if (existsSync(process.env.FM_ARM_LOG)) {
   console.error("watch arm ran without owning the session lock");
   process.exit(1);
 }
-writeFileSync(`${process.env.FM_HOME}/state/.lock`, `${process.pid}\n`);
+writeFileSync(`${process.env.FM_HOME}/state/.lock`, `${shellVisibleProcessPid()}\n`);
 await hooks.event(event);
 for (let i = 0; i < 250 && !existsSync(process.env.FM_ARM_LOG); i += 1) {
   await new Promise((resolve) => setTimeout(resolve, 20));
@@ -3079,9 +3094,9 @@ const hooks = await mod.FmPrimaryWatchArm({
 });
 writeFileSync(`${process.env.FM_HOME}/state/.lock`, `${process.pid}\n`);
 await hooks.event({ event: { type: "session.idle", properties: { sessionID: "session-test" } } });
-// Three unready successors each cost the full readiness budget, so wait well
-// past their sum. The wait ends as soon as the wake lands.
-for (let i = 0; i < 1500 && !prompt; i += 1) {
+// Three unready successors each cost the full readiness budget plus bounded
+// native-tree retirement on Windows. The wait ends as soon as the wake lands.
+for (let i = 0; i < 3000 && !prompt; i += 1) {
   await new Promise((resolve) => setTimeout(resolve, 10));
 }
 const rows = existsSync(process.env.FM_ARM_LOG)

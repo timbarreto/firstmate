@@ -81,6 +81,22 @@ count_results() {  # <home> <source-id>
   printf '%s\n' "$n"
 }
 
+process_group_for_test() {  # <pid>
+  perl -we '
+    my $pgid = getpgrp(shift);
+    exit 1 if !defined($pgid) || $pgid < 1;
+    print "$pgid\n";
+  ' "$1"
+}
+
+private_file_valid_for_test() {  # <path>
+  PATH="${FM_TEST_BASE_PATH:-$PATH}" bash -c '
+    . "$1/bin/fm-pr-lib.sh"
+    device=$(fm_pr_file_device "$2") || exit 1
+    fm_pr_private_file_valid "$2" 600 "$device"
+  ' _ "$ROOT" "$1"
+}
+
 wait_for() {  # <file> [tries]
   local f=$1 n=${2:-100}
   for _ in $(seq 1 "$n"); do [ -s "$f" ] && return 0; sleep 0.1; done
@@ -178,9 +194,7 @@ pass "one blocking completion yields exactly one bounded normalized event"
 
 RESULT=$(first_result "$H1" src-one || true)
 [ -n "$RESULT" ] || fail "no durable result was captured"
-mode=$(PATH="${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}" bash -c \
-  '. "$1/bin/fm-pr-lib.sh"; fm_pr_file_mode "$2"' _ "$ROOT" "$RESULT")
-assert_contains "$mode" 600 "the captured result is private"
+private_file_valid_for_test "$RESULT" || fail "the captured result is not private"
 assert_grep 'payload one' "$RESULT" "the captured result holds the source output verbatim"
 assert_grep 'lavish' "${RESULT%.result}.adapter" "the captured result retains its immutable adapter"
 assert_absent "${RESULT%.result}.handled" "publication alone never marks a result handled"
@@ -217,7 +231,7 @@ pe "$HPG" start direct-src > "$TMP_ROOT/direct-start.out" &
 direct_runner=$!
 wait_for "$FM_PROCEVENT_CLAIM_ROOT/direct-src.claim" || fail "direct start never claimed its source"
 direct_leader=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/direct-src.claim")
-direct_group=$(ps -o pgid= -p "$direct_leader" 2>/dev/null | tr -d '[:space:]')
+direct_group=$(process_group_for_test "$direct_leader")
 [ "$direct_group" = "$direct_leader" ] \
   || fail "direct start claimed before leading its process group: pid=$direct_leader pgid=$direct_group"
 : > "$DIRECT_TRIGGER"
@@ -251,7 +265,9 @@ if ($sibling == 0) {
   open(my $out, '>', $sibling_file) or exit 125;
   print {$out} "$$\n";
   close $out;
-  sleep 30;
+  # The parent terminates this immediately after retirement; the long ceiling
+  # only keeps Windows claim and DACL setup from expiring the safety witness.
+  sleep 300;
   exit 0;
 }
 waitpid($runner, 0);
@@ -354,9 +370,8 @@ assert_contains "$private_out" "cannot durably record handling" "mode enforcemen
 assert_absent "$HPRIVATE/state/procevent-inbox/private-src.1.handled" "failed mode enforcement left an authoritative marker"
 private_out=$(umask 000; pe "$HPRIVATE" handled private-src 1)
 assert_contains "$private_out" "handled: private-src 1" "handling succeeds after private mode enforcement recovers"
-private_mode=$(PATH="${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}" bash -c \
-  '. "$1/bin/fm-pr-lib.sh"; fm_pr_file_mode "$2"' _ "$ROOT" "$HPRIVATE/state/procevent-inbox/private-src.1.handled")
-assert_contains "$private_mode" 600 "the handled marker is private under a permissive caller umask"
+private_file_valid_for_test "$HPRIVATE/state/procevent-inbox/private-src.1.handled" \
+  || fail "the handled marker is not private under a permissive caller umask"
 pass "handled acknowledgement creation is private and fails safely"
 
 # --- a terminal result retires its source, on the adapter's verdict alone ----
@@ -998,7 +1013,8 @@ TRIG4="$TMP_ROOT/trigger-four"
 HZ="$TMP_ROOT/hz"; new_home "$HZ"
 pe_register "$HZ" lavish orphan-src -- "$BLOCKER" "$TRIG4" "orphan" >/dev/null
 pe "$HZ" reconcile >/dev/null
-sleep 0.5
+wait_for "$FM_PROCEVENT_CLAIM_ROOT/orphan-src.claim" \
+  || fail "orphan fixture runner did not publish its claim"
 orphan_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/orphan-src.claim" 2>/dev/null)
 if [ -z "$orphan_pid" ] || ! kill -0 "$orphan_pid" 2>/dev/null; then
   fail "orphan fixture runner did not start"
@@ -1394,7 +1410,7 @@ case "$sid" in lavish-*) : ;; *) fail "adapter source id has an unexpected shape
 sid2=$(FM_HOME="$TMP_ROOT/hg" "$ROOT/bin/fm-procevent-lavish.sh" source-id "$ART")
 [ "$sid" = "$sid2" ] || fail "adapter source id is not stable"
 ART_ALIAS="$TMP_ROOT/artifact-alias.html"
-ln -s "$ART" "$ART_ALIAS"
+fm_test_make_symlink "$ART" "$ART_ALIAS"
 sid3=$(FM_HOME="$TMP_ROOT/hg" "$ROOT/bin/fm-procevent-lavish.sh" source-id "$ART_ALIAS")
 [ "$sid" = "$sid3" ] || fail "a final-component symlink produced a second source id"
 ART_NEWLINE="$TMP_ROOT/line-ending"$'\n'
@@ -1496,7 +1512,9 @@ silent_says no "indented payload text cannot forge an empty content block"
 if [ "$(id -u)" != 0 ]; then
   printf 'session:\n  file: /a.html\n  status: ended\n  ended_by: user\n' > "$SIL"
   chmod 000 "$SIL"
-  silent_says no "a content check that cannot complete announces rather than assuming silence"
+  if ! cat "$SIL" >/dev/null 2>&1; then
+    silent_says no "a content check that cannot complete announces rather than assuming silence"
+  fi
   chmod 600 "$SIL"
 fi
 pass "the adapter owns which Lavish results are silent, and fails closed on everything else"

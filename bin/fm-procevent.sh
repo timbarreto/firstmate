@@ -591,11 +591,20 @@ isolate_runner() {  # <wait|detach> <source-id>
   perl -e "$program" "$mode" "$SCRIPT_DIR/fm-procevent.sh" _start "$id" >/dev/null 2>&1 &
 }
 
+fm_procevent_process_group_id() {  # <pid>
+  case "$1" in ''|*[!0-9]*) return 1 ;; esac
+  perl -we '
+    my $pgid = getpgrp(shift);
+    exit 1 if !defined($pgid) || $pgid < 1;
+    print "$pgid\n";
+  ' "$1" 2>/dev/null
+}
+
 require_runner_group() {
   local pgid
   [ "${FM_PROCEVENT_RUNNER_GROUP:-}" = "$$" ] \
     || die "runner process group was not isolated"
-  pgid=$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]') \
+  pgid=$(fm_procevent_process_group_id "$$") \
     || die "cannot inspect runner process group"
   [ -n "$pgid" ] || die "cannot inspect runner process group"
   [ "$pgid" = "$$" ] || die "runner does not lead its process group"
@@ -1037,7 +1046,7 @@ stop_runner_pid() {  # <pid> <identity>
     0)
       # A live identity-matched leader still owns its group, so prove the group
       # really is the one this pid leads before signalling it.
-      pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]') || return 2
+      pgid=$(fm_procevent_process_group_id "$pid") || return 2
       [ "$pgid" = "$pid" ] || return 2
       ;;
     3)

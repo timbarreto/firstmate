@@ -72,6 +72,16 @@ run_captain() {  # <home> <command args...>
     FM_CONFIG_OVERRIDE="$home/config" "$ROOT/bin/fm-captain-hold.sh" "$@"
 }
 
+sha256_file() {  # <path>
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    fail "shasum or sha256sum is required"
+  fi
+}
+
 # The retired command surface, kept for one release as a shim; in-flight
 # pre-collapse work still drives the lifecycle through these spellings.
 run_shim() {  # <home> <command args...>
@@ -205,9 +215,9 @@ EOF
   grep -F 'captain-held [key=route]: tracked by sample-route-call' "$home/state/$id.status" >/dev/null \
     || fail "the transfer line does not name the tracking inventory"
 
-  before=$(shasum -a 256 "$home/data/backlog.md" | awk '{print $1}')
+  before=$(sha256_file "$home/data/backlog.md")
   json=$(run_bearings "$home") || fail "Bearings failed with a captain-held task"
-  after=$(shasum -a 256 "$home/data/backlog.md" | awk '{print $1}')
+  after=$(sha256_file "$home/data/backlog.md")
   [ "$before" = "$after" ] || fail "Bearings mutated the authoritative backlog"
   printf '%s' "$json" | jq -e '
     (.decisions_open | any(.id == "sample-route-call" and .verb == "captain-hold" and .owner == "(main)"))

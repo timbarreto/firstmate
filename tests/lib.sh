@@ -51,6 +51,13 @@ pass() {
   printf 'ok - %s\n' "$1"
 }
 
+fm_test_make_symlink() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*) MSYS=winsymlinks:nativestrict ln -s "$@" ;;
+    *) ln -s "$@" ;;
+  esac
+}
+
 # --- self-cleaning temp root ------------------------------------------------
 #
 # fm_test_tmproot <prefix> echoes a fresh temp dir and registers it for removal

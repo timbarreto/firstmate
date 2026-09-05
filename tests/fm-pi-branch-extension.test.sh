@@ -31,6 +31,7 @@ install_pi_branch_extension_fixture() {
   cp "$ROOT/.pi/extensions/lib/fm-branch-model-picker.ts" "$repo/.pi/extensions/lib/fm-branch-model-picker.ts"
   cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$repo/.pi/extensions/lib/fm-calm-visibility.ts"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
   mkdir -p "$repo/bin"
   cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
   chmod +x "$repo/bin/fm-operational-input.sh"
@@ -609,9 +610,20 @@ test_branch_dispatch_two_stage_filter_and_prefix_contract() {
 const prelude = process.env.DRIVER_PRELUDE;
 await eval(`(async () => { ${prelude}; globalThis.__t = { pi, fire, dispatch, settle, outcomeScript, sentToMain, mainUserMessages, mainTools, renderers, entryRenderers, mainEntries, defaultSessionCtx, home, realRoot }; })()`);
 const { pi, fire, dispatch, settle, outcomeScript, sentToMain, mainUserMessages, mainTools, renderers, entryRenderers, mainEntries, defaultSessionCtx, home, realRoot } = globalThis.__t;
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
-writeFileSync(`${home}/state/.lock`, `${process.ppid}\n`);
+let lockPid = String(process.ppid);
+if (process.platform === "win32") {
+  const processes = spawnSync("ps", ["-W"], { encoding: "utf8" });
+  const current = processes.stdout
+    .split(/\r?\n/)
+    .map((line) => line.match(/^\s*([0-9]+)\s+([0-9]+)\s+[0-9]+\s+([0-9]+)\s+/))
+    .find((row) => row?.[3] === String(process.pid));
+  if (!current) throw new Error("could not resolve the Node process in the Git for Windows process table");
+  lockPid = current[2];
+}
+writeFileSync(`${home}/state/.lock`, `${lockPid}\n`);
 fire("session_start", {}, defaultSessionCtx);
 
 // 1. An accepted wake reaches the branch session, never main. Keep the
@@ -646,7 +658,7 @@ if (loader.options.systemPrompt.length < 4096) throw new Error("branch prompt is
 const bashTool = session.options.customTools.find((tool) => tool.name === "bash");
 const hooked = bashTool.__options.spawnHook({ command: "true", cwd: "/x", env: { PATH: "/bin" } });
 if (hooked.env.FM_SUPERVISION_ACTOR !== "branch") throw new Error("branch bash does not inject the branch actor");
-if (hooked.env.FM_LEASE_HOLDER_PID !== String(process.ppid)) throw new Error("branch bash does not pin the verified session-lock holder pid");
+if (hooked.env.FM_LEASE_HOLDER_PID !== lockPid) throw new Error("branch bash does not pin the verified session-lock holder pid");
 
 // 3. Shared per-home prompt_cache_key: overrides only payloads that already
 // carry one, stable within the home.
@@ -2396,7 +2408,8 @@ EOF
   out=$(cat "$TMP_ROOT/node-output")
   expect_code 0 "$status" "a main session start must start a new branch conversation: $out"
   first_pointer=$(tail -n 1 "$TMP_ROOT/node-output")
-  case "$first_pointer" in
+  normalized_pointer=${first_pointer//\\//}
+  case "$normalized_pointer" in
     */fresh-session-home/state/branch-session/*.jsonl) ;;
     *) fail "the branch conversation was not recorded under state/branch-session: $first_pointer" ;;
   esac
@@ -2627,7 +2640,9 @@ const pinFile = `${home}/config/supervision-branch-model`;
 if (readFileSync(pinFile, "utf8") !== "openai-codex/cheap-oauth\n") {
   throw new Error(`unexpected persisted pin: ${JSON.stringify(readFileSync(pinFile, "utf8"))}`);
 }
-if ((statSync(pinFile).mode & 0o777) !== 0o600) throw new Error("the pin must be written private to the operator");
+if (process.platform !== "win32" && (statSync(pinFile).mode & 0o777) !== 0o600) {
+  throw new Error("the pin must be written private to the operator");
+}
 if (!notices.some((notice) => notice.message.includes("openai-codex/cheap-oauth"))) {
   throw new Error(`the captain was not told which model the branch now uses: ${JSON.stringify(notices)}`);
 }
@@ -3094,7 +3109,9 @@ if (JSON.stringify(effortStep.options.slice(1)) !== JSON.stringify(["off", "mini
 if (readFileSync(effortPin, "utf8") !== "xhigh\n") {
   throw new Error(`unexpected persisted effort pin: ${JSON.stringify(readFileSync(effortPin, "utf8"))}`);
 }
-if ((statSync(effortPin).mode & 0o777) !== 0o600) throw new Error("the effort pin must be written private to the operator");
+if (process.platform !== "win32" && (statSync(effortPin).mode & 0o777) !== 0o600) {
+  throw new Error("the effort pin must be written private to the operator");
+}
 if (readFileSync(modelPin, "utf8") !== "openai/deep-1\n") throw new Error("the model pick was not persisted alongside the effort pick");
 const bothNotice = notices[notices.length - 1];
 if (!bothNotice.message.includes("openai/deep-1") || !bothNotice.message.includes("xhigh")) {
@@ -3268,24 +3285,24 @@ EOF
 }
 
 test_replacement_activation_cleans_leases_and_retries_failure() {
-  local repo home fakebin out status real_bash
+  local repo home bash_env out status
   repo="$TMP_ROOT/activation-root"
   home="$TMP_ROOT/activation-home"
-  fakebin="$home/fakebin"
-  real_bash=$(command -v bash)
-  mkdir -p "$home/state" "$home/config" "$fakebin"
+  bash_env="$home/fail-lease-once.bash"
+  mkdir -p "$home/state" "$home/config"
   install_pi_branch_extension_fixture "$repo"
-  cat > "$fakebin/bash" <<'SH'
-#!/bin/sh
-if [ "$1" = "$FM_TEST_LEASE_SCRIPT" ] && [ ! -e "$FM_TEST_FAIL_MARKER" ]; then
-  : > "$FM_TEST_FAIL_MARKER"
-  exit 7
-fi
-exec "$FM_TEST_REAL_BASH" "$@"
+  cat > "$bash_env" <<'SH'
+case "${0:-}" in
+  "$FM_TEST_LEASE_SCRIPT"|*/fm-lease.sh|*\\fm-lease.sh)
+    if [ ! -e "$FM_TEST_FAIL_MARKER" ]; then
+      : > "$FM_TEST_FAIL_MARKER"
+      exit 7
+    fi
+    ;;
+esac
 SH
-  chmod +x "$fakebin/bash"
-  PATH="$fakebin:$PATH" PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
-    FM_TEST_REAL_BASH="$real_bash" FM_TEST_LEASE_SCRIPT="$ROOT/bin/fm-lease.sh" \
+  BASH_ENV="$bash_env" PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
+    FM_TEST_LEASE_SCRIPT="$ROOT/bin/fm-lease.sh" \
     FM_TEST_FAIL_MARKER="$home/state/release-failed-once" DRIVER_PRELUDE="$DRIVER_PRELUDE" \
     node --input-type=module > "$TMP_ROOT/node-output" 2>&1 <<'EOF'
 const prelude = process.env.DRIVER_PRELUDE;
@@ -3608,6 +3625,7 @@ test_branch_dispatch_classifies_main_only_rows_and_writes_the_eligible_snapshot(
   mkdir -p "$repo/.pi/extensions/lib" "$home/state" "$home/projects/approved"
   cp "$ROOT/.pi/extensions/lib/fm-branch-dispatch.ts" "$repo/.pi/extensions/lib/fm-branch-dispatch.ts"
   cp "$ROOT/.pi/extensions/lib/fm-branch-model-picker.ts" "$repo/.pi/extensions/lib/fm-branch-model-picker.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
   printf 'project=%s/projects/approved\nwindow=fm-window\n' "$home" > "$home/state/task-a.meta"
   LIB="$repo/.pi/extensions/lib/fm-branch-dispatch.ts" FM_HOME="$home" GRANT="$ROOT/bin/fm-wake-grant.sh" \
     node --input-type=module > "$TMP_ROOT/node-output" 2>&1 <<'EOF'
@@ -3616,8 +3634,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const { activateEligibleRowsOwner, scopeForUnreadWake, writeEligibleRowsSnapshot, releaseEligibleRowsSnapshot, BRANCH_ELIGIBLE_ROWS_FILE } =
   await import(pathToFileURL(process.env.LIB).href);
+const { shellVisibleProcessPid } =
+  await import(new URL("./fm-process-ancestry.ts", pathToFileURL(process.env.LIB)));
 const state = `${process.env.FM_HOME}/state`;
-const project = `${process.env.FM_HOME}/projects/approved`;
+const project = readFileSync(`${state}/task-a.meta`, "utf8").match(/^project=(.*)$/m)?.[1];
+if (!project) throw new Error("fixture project metadata is missing");
 
 // Every legitimately main-only class is a check-kind row under a different
 // key; classification never looks at the key, only the kind, so one
@@ -3667,7 +3688,7 @@ if (!mixed.projects.includes(project)) {
   throw new Error(`eligible project context lost: ${JSON.stringify(mixed.projects)}`);
 }
 
-if (!activateEligibleRowsOwner(state, process.env.GRANT, process.pid, "fixture")) {
+if (!activateEligibleRowsOwner(state, process.env.GRANT, shellVisibleProcessPid(), "fixture")) {
   throw new Error("branch owner activation failed");
 }
 if (writeEligibleRowsSnapshot(state, mixed.eligibleSeqs, process.env.GRANT, "fixture") !== "published") {
@@ -3861,6 +3882,7 @@ test_outcomes_tool_uses_stock_execution_and_export_consumers() {
   cp "$ROOT/.pi/extensions/lib/fm-branch-model-picker.ts" "$fixture/.pi/extensions/lib/fm-branch-model-picker.ts"
   cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$fixture/.pi/extensions/lib/fm-calm-visibility.ts"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$fixture/.pi/extensions/lib/fm-operational-input.ts"
+  cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$fixture/.pi/extensions/lib/fm-process-ancestry.ts"
   ln -s "$package_dir" "$fixture/node_modules/@earendil-works/pi-coding-agent"
   ln -s "$package_dir/node_modules/@earendil-works/pi-tui" "$fixture/node_modules/@earendil-works/pi-tui"
   ln -s "$package_dir/node_modules/@earendil-works/pi-ai" "$fixture/node_modules/@earendil-works/pi-ai"

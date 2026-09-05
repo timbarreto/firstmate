@@ -43,6 +43,7 @@ matrix_case A14 allow "[ -f 'config/x-mode.env' ] && source 'config/x-mode.env';
 matrix_case A15 allow "cd $ROOT && exec bin/fm-watch-arm.sh"
 matrix_case A16 allow "export FM_HOME=$ROOT && bin/fm-watch-checkpoint.sh --seconds 180"
 matrix_case A17 allow $'source "config/x-mode.env"\nbin/fm-watch-checkpoint.sh --seconds 180'
+matrix_case A18 allow './bin/fm-watch-arm.ps1'
 
 matrix_case R01 allow "pgrep -fl '/bin/fm-watch.sh' || true"
 matrix_case R02 allow "ps aux | rg '/bin/fm-watch.sh'"
@@ -122,6 +123,8 @@ matrix_case D55 deny 'while true; do pkill -f fm-watch; done'
 matrix_case D56 deny 'for x in 1; do pkill -f fm-watch; done'
 matrix_case D57 deny 'case x in x) pkill -f fm-watch ;; esac'
 matrix_case D58 deny 'until false; do kill $(pgrep -f fm-watch); done'
+matrix_case D59 deny './bin/fm-watch-arm.ps1 &'
+matrix_case D60 deny './bin/fm-watch-arm.ps1 | cat'
 
 matrix_case E01 allow "bin/fm-watch-checkpoint.sh --seconds '180;still-one-arg'"
 matrix_case E02 allow "bin/fm-watch-checkpoint.sh --label 'fm-watch-arm.sh; literal argument'"
@@ -193,13 +196,36 @@ run_matrix_entry() {
   fi
 }
 
+run_matrix_case() {  # <matrix-index>
+  local i=$1 entry pid failed
+  local -a pids=()
+  for entry in codex claude grok opencode pi; do
+    run_matrix_entry \
+      "${MATRIX_IDS[$i]}" "${MATRIX_EXPECTED[$i]}" "$entry" "${MATRIX_COMMANDS[$i]}" &
+    pids+=("$!")
+  done
+  failed=0
+  for pid in "${pids[@]}"; do
+    wait "$pid" || failed=1
+  done
+  [ "$failed" -eq 0 ] || fail "matrix ${MATRIX_IDS[$i]} failed an entry form"
+  pass "matrix ${MATRIX_IDS[$i]}: ${MATRIX_EXPECTED[$i]} through all five entry forms"
+}
+
 test_full_acceptance_matrix() {
-  local i entry
+  local i pid failed
+  local -a pids=()
   for ((i = 0; i < ${#MATRIX_IDS[@]}; i++)); do
-    for entry in codex claude grok opencode pi; do
-      run_matrix_entry "${MATRIX_IDS[$i]}" "${MATRIX_EXPECTED[$i]}" "$entry" "${MATRIX_COMMANDS[$i]}"
-    done
-    pass "matrix ${MATRIX_IDS[$i]}: ${MATRIX_EXPECTED[$i]} through all five entry forms"
+    run_matrix_case "$i" &
+    pids+=("$!")
+    if [ "${#pids[@]}" -eq 4 ] || [ "$i" -eq "$((${#MATRIX_IDS[@]} - 1))" ]; then
+      failed=0
+      for pid in "${pids[@]}"; do
+        wait "$pid" || failed=1
+      done
+      [ "$failed" -eq 0 ] || fail "the full acceptance matrix failed"
+      pids=()
+    fi
   done
 }
 
@@ -215,7 +241,7 @@ assert_policy() {
 }
 
 test_direct_policy_contract() {
-  local heredoc_data heredoc_watcher
+  local heredoc_data heredoc_watcher stdin_output upper_root rc
   assert_policy direct-data-pkill allow "echo 'pkill -f fm-watch'"
   assert_policy direct-broad-pkill $'deny\tbroad-watcher-kill' "pkill -f '/bin/fm-watch.sh'"
   assert_policy direct-loop-broad-pkill $'deny\tbroad-watcher-kill' 'while true; do pkill -f fm-watch; done'
@@ -237,6 +263,24 @@ test_direct_policy_contract() {
   heredoc_watcher=$'bin/fm-watch-arm.sh <<\'EOF\'\ndata only\nEOF'
   assert_policy direct-heredoc-data allow "$heredoc_data"
   assert_policy direct-heredoc-watcher $'deny\twatcher-redirection' "$heredoc_watcher"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      upper_root=$(printf '%s' "$ROOT" | tr '[:lower:]' '[:upper:]')
+      assert_policy windows-casefold $'deny\twatcher-background' \
+        "$upper_root/BIN/FM-WATCH-ARM.SH &"
+      "$CHECK" --command "$upper_root/BIN/FM-WATCH-ARM.SH &" >/dev/null 2>&1
+      rc=$?
+      [ "$rc" -eq 2 ] \
+        || fail "Windows transport prefilter allowed a mixed-case protected watcher path"
+      ;;
+  esac
+  stdin_output=$(printf 'bin/fm-watch-arm.sh &' | \
+    node "$POLICY" --root "$ROOT" --home "$ROOT" --command-stdin)
+  case "$stdin_output" in
+    $'deny\twatcher-background\t'*) ;;
+    *) fail "--command-stdin did not preserve exact command bytes: $stdin_output" ;;
+  esac
+  pass "direct policy stdin transport preserves exact shell command bytes"
 }
 
 # --- CLI parsing -------------------------------------------------------------
@@ -353,6 +397,16 @@ test_prefilter_is_strict_superset() {
 
 # --- fail-open ----------------------------------------------------------------
 
+write_tool_proxy() {  # <fakebin> <tool>
+  local fakebin=$1 tool=$2 tool_path
+  tool_path=$(type -P "$tool") || return 1
+  cat > "$fakebin/$tool" <<EOF
+#!/bin/bash
+exec "$tool_path" "\$@"
+EOF
+  chmod +x "$fakebin/$tool"
+}
+
 test_failopen_empty_stdin() {
   local rc
   printf '' | "$CHECK" >/dev/null 2>&1
@@ -370,31 +424,28 @@ test_failopen_garbage_stdin() {
 }
 
 test_failopen_missing_jq() {
-  local dir fakebin rc real
+  local dir fakebin rc real_bash
   dir=$(fm_test_tmproot fm-arm-pretool-check)
   fakebin="$dir/fakebin"
   mkdir -p "$fakebin"
-  local tool
-  for tool in bash grep sed tr; do
-    real=$(command -v "$tool")
-    ln -sf "$real" "$fakebin/$tool"
-  done
-  PATH="$fakebin" bash -c "printf '%s' '{\"tool_input\":{\"command\":\"bin/fm-watch-arm.sh &\"}}' | '$CHECK'" >/dev/null 2>&1
+  real_bash=$(command -v bash)
+  write_tool_proxy "$fakebin" cat
+  PATH="$fakebin" "$real_bash" -c \
+    "printf '%s' '{\"tool_input\":{\"command\":\"bin/fm-watch-arm.sh &\"}}' | '$real_bash' '$CHECK'" \
+    >/dev/null 2>&1
   rc=$?
   [ "$rc" -eq 0 ] || fail "missing jq must fail open (exit 0) rather than crash-deny, got exit $rc"
   pass "fail-open: missing jq on stdin path"
 }
 
 test_failopen_missing_node() {
-  local dir fakebin rc real tool
+  local dir fakebin rc real_bash
   dir=$(fm_test_tmproot fm-arm-pretool-node)
   fakebin="$dir/fakebin"
   mkdir -p "$fakebin"
-  for tool in bash dirname; do
-    real=$(command -v "$tool")
-    ln -sf "$real" "$fakebin/$tool"
-  done
-  PATH="$fakebin" "$CHECK" --command 'bin/fm-watch-arm.sh &' >/dev/null 2>&1
+  real_bash=$(command -v bash)
+  write_tool_proxy "$fakebin" dirname
+  PATH="$fakebin" "$real_bash" "$CHECK" --command 'bin/fm-watch-arm.sh &' >/dev/null 2>&1
   rc=$?
   [ "$rc" -eq 0 ] || fail "missing node must fail open (exit 0), got exit $rc"
   pass "fail-open: missing classifier runtime"

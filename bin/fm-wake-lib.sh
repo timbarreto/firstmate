@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Shared durable wake queue and portable lock helpers.
+# Stale lock recovery is single-level: a recovery lock is created or
+# reclaimed in place and never through a nested .steal.steal suffix.
 
 FM_WAKE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_WAKE_DEFAULT_ROOT="$(cd "$FM_WAKE_LIB_DIR/.." && pwd)"
@@ -90,9 +92,13 @@ fm_path_mtime() {
 }
 
 fm_path_age() {
-  local path=$1 m
+  local path=$1 m now
   m=$(fm_path_mtime "$path") || { echo 999999; return; }
-  echo $(( $(date +%s) - m ))
+  now=${EPOCHSECONDS:-}
+  case "$now" in
+    ''|*[!0-9]*) now=$(date +%s) ;;
+  esac
+  echo $(( now - m ))
 }
 
 # fm_watcher_lock_unheld <state>
@@ -157,7 +163,7 @@ fm_watcher_healthy() {
 
 # fm_supervision_model
 # Print the supervision model of this home's PRIMARY harness:
-#   autoarm     Claude's Stop-hook auto-arm and Cursor's stop-hook park: the
+#   autoarm     Claude's Stop-hook auto-arm plus Copilot and Cursor stop-hook parks: the
 #               watcher is armed at each turn end and exits on its wake, so it
 #               runs only BETWEEN turns. Mid-turn a fresh beacon with no live
 #               watcher process is the healthy state.
@@ -179,7 +185,7 @@ fm_supervision_model() {
   esac
   harness=$("$FM_WAKE_LIB_DIR/fm-harness.sh" 2>/dev/null || printf unknown)
   case "$harness" in
-    claude|cursor) printf 'autoarm\n' ;;
+    claude|copilot|cursor) printf 'autoarm\n' ;;
     pi|pi-signed) printf 'extension\n' ;;
     *) printf 'persistent\n' ;;
   esac
@@ -362,8 +368,20 @@ fm_lock_role() {
 
 fm_lock_abs_path() {
   local path=$1 dir base
-  dir=$(dirname "$path")
-  base=$(basename "$path")
+  # Absolute paths are already usable as mktemp prefixes. Skipping pwd -P
+  # here avoids a Git Bash fork on the contended lock path, where every
+  # failed try_create used to canonicalize a path it already had.
+  case "$path" in
+    /*)
+      printf '%s\n' "$path"
+      return 0
+      ;;
+  esac
+  dir=${path%/*}
+  base=${path##*/}
+  if [ "$dir" = "$path" ]; then
+    dir=.
+  fi
   dir=$(cd "$dir" 2>/dev/null && pwd -P) || return 1
   printf '%s/%s\n' "$dir" "$base"
 }
@@ -380,6 +398,20 @@ fm_lock_prepare_owner() {
   printf '%s\n' "$mypid" > "$ownerdir/pid" 2>/dev/null || return 1
   back=$(cat "$ownerdir/pid" 2>/dev/null || true)
   [ "$back" = "$mypid" ]
+}
+
+fm_lock_publish_owner_link() {
+  local ownerdir=$1 lockdir=$2
+  case "$_FM_UNAME" in
+    MSYS*|MINGW*|CYGWIN*)
+      # Git Bash defaults directory symlinks to deep copies, which cannot
+      # provide the identity-preserving publication this lock requires.
+      MSYS=winsymlinks:sys ln -s "$ownerdir" "$lockdir"
+      ;;
+    *)
+      ln -s "$ownerdir" "$lockdir"
+      ;;
+  esac
 }
 
 fm_lock_link_owner() {
@@ -452,6 +484,11 @@ fm_lock_claim() {
 fm_lock_try_create() {
   local lockdir=$1 allowed_steal_owner=${2:-} ownerdir
   FM_LOCK_OWNER_DIR=
+  # Existence is enough to refuse. Creating an owner directory first paid a
+  # Git Bash mktemp on every contended acquire, then discarded it.
+  if [ -e "$lockdir" ] || [ -L "$lockdir" ]; then
+    return 1
+  fi
   ownerdir=$(fm_lock_owner_dir "$lockdir") || return 1
   if [ -e "$lockdir" ] || [ -L "$lockdir" ]; then
     fm_lock_discard_owner "$ownerdir"
@@ -461,7 +498,8 @@ fm_lock_try_create() {
     fm_lock_discard_owner "$ownerdir"
     return 1
   fi
-  if ln -s "$ownerdir" "$lockdir" 2>/dev/null && fm_lock_points_to_owner "$lockdir" "$ownerdir"; then
+  if fm_lock_publish_owner_link "$ownerdir" "$lockdir" 2>/dev/null \
+    && fm_lock_points_to_owner "$lockdir" "$ownerdir"; then
     if fm_lock_claim "$lockdir" "$ownerdir" "$allowed_steal_owner"; then
       FM_LOCK_OWNER_DIR=$ownerdir
       return 0
@@ -828,6 +866,104 @@ fm_recovery_marker_reopen_announced() {
   fm_recovery_transition "$1" reopen-announced
 }
 
+# Remove leftover nested recovery locks under <lockdir>.steal without creating
+# another suffix. Leaf-first so a bounded retry shrinks a historic
+# .steal.steal... chain instead of racing it. A live or mid-acquire holder
+# anywhere in the suffix refuses rather than taking a live lock.
+fm_lock_discard_stale_steal_suffix() {
+  local lockdir=$1 path next stripped pid owner cur depth=0
+  path="$lockdir.steal"
+  if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+    return 0
+  fi
+  next=$path
+  while [ -e "$next.steal" ] || [ -L "$next.steal" ]; do
+    next="$next.steal"
+    depth=$((depth + 1))
+    [ "$depth" -ge 64 ] && break
+  done
+  while [ "$next" != "$lockdir" ]; do
+    pid=$(cat "$next/pid" 2>/dev/null || true)
+    if [ -n "$pid" ] && [ "$pid" = "${BASHPID:-$$}" ]; then
+      fm_lock_remove_path "$next" || true
+    elif fm_pid_alive "$pid"; then
+      return 1
+    elif fm_lock_mid_acquire_is_fresh "$next" "$pid"; then
+      return 1
+    else
+      owner=
+      if [ -L "$next" ]; then
+        owner=$(fm_lock_link_owner "$next" 2>/dev/null || true)
+      fi
+      cur=$(cat "$next/pid" 2>/dev/null || true)
+      if ! fm_lock_recheck_stale_owner "$next" "$owner" "$cur"; then
+        return 1
+      fi
+      fm_lock_remove_path "$next" || true
+    fi
+    if [ "$next" = "$path" ]; then
+      break
+    fi
+    stripped=${next%.steal}
+    [ "$stripped" != "$next" ] || break
+    next=$stripped
+  done
+  return 0
+}
+
+# Recover a stale lock in place, or create it when absent. Never opens
+# <lockdir>.steal, so a recovery lock cannot grow a steal hierarchy.
+fm_lock_try_acquire_recovery() {
+  local lockdir=$1 pid cur primary_owner
+  FM_LOCK_HELD_PID=
+  FM_LOCK_OWNER_DIR=
+  FM_LOCK_RECOVERED_PID=
+
+  if fm_lock_try_create "$lockdir"; then
+    return 0
+  fi
+
+  pid=$(cat "$lockdir/pid" 2>/dev/null || true)
+  if [ -n "$pid" ] && [ "$pid" = "${BASHPID:-$$}" ]; then
+    fm_lock_remove_path "$lockdir" || true
+    if fm_lock_try_create "$lockdir"; then
+      return 0
+    fi
+    FM_LOCK_HELD_PID=$(cat "$lockdir/pid" 2>/dev/null || true)
+    return 1
+  fi
+  if fm_pid_alive "$pid"; then
+    FM_LOCK_HELD_PID=$pid
+    return 1
+  fi
+  if fm_lock_mid_acquire_is_fresh "$lockdir" "$pid"; then
+    FM_LOCK_HELD_PID=$pid
+    return 1
+  fi
+  if ! fm_lock_discard_stale_steal_suffix "$lockdir"; then
+    FM_LOCK_HELD_PID=$(cat "$lockdir/pid" 2>/dev/null || true)
+    FM_LOCK_OWNER_DIR=
+    return 1
+  fi
+  primary_owner=
+  if [ -L "$lockdir" ]; then
+    primary_owner=$(fm_lock_link_owner "$lockdir" 2>/dev/null || true)
+  fi
+  cur=$(cat "$lockdir/pid" 2>/dev/null || true)
+  if ! fm_lock_recheck_stale_owner "$lockdir" "$primary_owner" "$cur"; then
+    FM_LOCK_HELD_PID=$(cat "$lockdir/pid" 2>/dev/null || true)
+    FM_LOCK_OWNER_DIR=
+    return 1
+  fi
+  fm_lock_remove_path "$lockdir" || true
+  if fm_lock_try_create "$lockdir"; then
+    return 0
+  fi
+  FM_LOCK_HELD_PID=$(cat "$lockdir/pid" 2>/dev/null || true)
+  FM_LOCK_OWNER_DIR=
+  return 1
+}
+
 fm_lock_try_acquire() {
   local lockdir=$1 pid steal cur rc steal_owner primary_owner
   FM_LOCK_HELD_PID=
@@ -866,8 +1002,17 @@ fm_lock_try_acquire() {
     return 1
   fi
 
+  # A recovery lock is recovered in place. Recursing through <lockdir>.steal
+  # on a stale steal lock is what grew .steal.steal... chains.
+  case "$lockdir" in
+    *.steal)
+      fm_lock_try_acquire_recovery "$lockdir"
+      return
+      ;;
+  esac
+
   steal="$lockdir.steal"
-  if ! fm_lock_try_acquire "$steal"; then
+  if ! fm_lock_try_acquire_recovery "$steal"; then
     FM_LOCK_HELD_PID=$(cat "$lockdir/pid" 2>/dev/null || true)
     FM_LOCK_OWNER_DIR=
     return 1

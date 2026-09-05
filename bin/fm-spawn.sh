@@ -87,7 +87,10 @@
 #   The journal, visible token, and labels alone are never endpoint or ownership
 #   authority, and every ambiguous recovery stays on the flat fallback after
 #   duplicate-agent risk is independently absent. Treehouse allocation and task
-#   metadata are unchanged.
+#   metadata are unchanged except on native Windows Herdr, where Firstmate
+#   acquires a durable Treehouse lease, moves the owning PowerShell into the
+#   known path, and bridges the POSIX worker launch through the same Git Bash
+#   because Herdr cannot observe Treehouse's nested cmd.exe cwd.
 #   A clean projected create or exact resume makes one bounded attempt to hold
 #   the one session-scoped presentation-order lock (keyed by named session plus
 #   canonical socket, outside any home's state/) through launch handoff. Lock
@@ -111,7 +114,7 @@
 #   profile consultation. A --secondmate spawn is exempt and resolves the SECONDMATE
 #   harness (config/secondmate-harness -> config/crew-harness -> own), so the
 #   secondmate-vs-crewmate split is DURABLE across every respawn (recovery,
-#   /updatefirstmate, restart). A bare adapter name (claude|codex|opencode|pi|pi-signed|grok|kimi|cursor|gemini|muse)
+#   /updatefirstmate, restart). A bare adapter name (claude|codex|copilot|opencode|pi|pi-signed|grok|kimi|cursor|gemini|muse)
 #   overrides it for this spawn (either kind). A non-flag string containing
 #   whitespace is treated as a RAW launch command - the escape hatch for verifying
 #   new adapters. For pi and pi-signed, fm-spawn resolves the selected executable
@@ -179,6 +182,7 @@
 #     __WORKTREE__  absolute path to the task worktree
 #     __CURSORBIN__ resolved, cursor-verified executable for a cursor launch
 #     __GEMINISETTINGS__ firstmate-owned per-task gemini settings file (busy-state hooks)
+#     __COPILOTBIN__ resolved GitHub Copilot CLI executable
 # Verified per-harness turn-end hooks are installed automatically where enabled; some live outside the worktree.
 # Kimi uses one surgically installed Firstmate region in $HOME/.kimi-code/config.toml,
 # a firstmate-owned global hook and registry, and a gitignored per-task pointer.
@@ -502,7 +506,7 @@ spawn_remote_secondmate() {
     harness=$("$FM_ROOT/bin/fm-harness.sh" secondmate)
   fi
   case "$harness" in
-    claude|codex|opencode|pi|pi-signed|grok|kimi|cursor) ;;
+    claude|codex|copilot|opencode|pi|pi-signed|grok|kimi|cursor) ;;
     *)
       fm_lock_release "$registry_lock" || true
       fm_lock_release "$SPAWN_TASK_LOCK" || true
@@ -737,6 +741,8 @@ BACKEND=
 ORCA_ABORT_CLEANUP=0
 ORCA_WORKTREE_ID=
 ORCA_TERMINAL=
+TREEHOUSE_ABORT_RETURN=0
+TREEHOUSE_ABORT_WORKTREE=
 HERDR_PROJECTION_ABORT_CLEANUP=0
 HERDR_PROJECTION_ABORT_SESSION=
 HERDR_PROJECTION_ABORT_TASK_PANE=
@@ -790,6 +796,40 @@ parse_orca_worktree_result() {
   fi
 }
 
+spawn_publish_treehouse_recovery_meta() {
+  local recovery_tmp="$STATE/.$ID.meta.treehouse-recovery.${BASHPID:-$$}"
+  [ -n "${T:-}" ] \
+    && [ -n "$TREEHOUSE_ABORT_WORKTREE" ] \
+    && [ -n "${PROJ_ABS:-}" ] \
+    && [ -n "${HERDR_SES:-}" ] \
+    && [ -n "${HERDR_WORKSPACE_ID:-}" ] \
+    && [ -n "${HERDR_TAB_ID:-}" ] \
+    && [ -n "${HERDR_PANE_ID:-}" ] \
+    || return 1
+  mkdir -p "$STATE" || return 1
+  {
+    echo "window=${T:-}"
+    echo "endpoint_task_id=$ID"
+    echo "worktree=$TREEHOUSE_ABORT_WORKTREE"
+    echo "project=$PROJ_ABS"
+    echo "harness=$HARNESS"
+    echo "kind=$KIND"
+    [ -z "${MODE:-}" ] || echo "mode=$MODE"
+    [ -z "${YOLO:-}" ] || echo "yolo=$YOLO"
+    echo "model=${MODEL:-default}"
+    echo "effort=${EFFORT:-default}"
+    echo "backend=herdr"
+    echo "herdr_session=${HERDR_SES:-}"
+    echo "herdr_workspace_id=${HERDR_WORKSPACE_ID:-}"
+    echo "herdr_tab_id=${HERDR_TAB_ID:-}"
+    echo "herdr_pane_id=${HERDR_PANE_ID:-}"
+  } > "$recovery_tmp" || {
+    rm -f "$recovery_tmp" 2>/dev/null || true
+    return 1
+  }
+  mv -f "$recovery_tmp" "$STATE/$ID.meta"
+}
+
 spawn_abort_cleanup() {
   local status=$?
   if [ "$RELAUNCH_REPLACEMENT_PENDING" = 1 ] \
@@ -833,6 +873,16 @@ spawn_abort_cleanup() {
   if [ "$HERDR_PRESENTATION_ORDER_LOCK_HELD" = 1 ]; then
     HERDR_PRESENTATION_ORDER_LOCK_HELD=0
     fm_lock_release "$HERDR_PRESENTATION_ORDER_LOCK" || true
+  fi
+  if [ "$TREEHOUSE_ABORT_RETURN" = 1 ]; then
+    TREEHOUSE_ABORT_RETURN=0
+    if ! fm_backend_herdr_return_unpublished_treehouse_lease "${T:-}" "$TREEHOUSE_ABORT_WORKTREE" >/dev/null 2>&1; then
+      if spawn_publish_treehouse_recovery_meta; then
+        echo "warning: could not return unpublished Treehouse lease '$TREEHOUSE_ABORT_WORKTREE' after aborted spawn; retained task metadata for guarded cleanup" >&2
+      else
+        echo "warning: could not return unpublished Treehouse lease '$TREEHOUSE_ABORT_WORKTREE' or retain recovery metadata after aborted spawn" >&2
+      fi
+    fi
   fi
   if [ "$ORCA_ABORT_CLEANUP" = 1 ]; then
     ORCA_ABORT_CLEANUP=0
@@ -905,14 +955,19 @@ trap spawn_abort_cleanup EXIT
 
 # One bounded lock per live Herdr session/socket, shared across all homes.
 # <session> is required so secondmate and primary spawns serialize against the
-# same session without writing any other home's state directory.
+# same session without writing any other home's state directory. A fresh create
+# keeps the short fallback budget; exact recovery gets a longer bounded wait
+# because it cannot safely degrade to another endpoint while a reclaim is live.
 spawn_herdr_presentation_order_lock_acquire() {
-  local session=${1:-} attempt lock_path
+  local session=${1:-} max_attempts=${2:-50} attempt lock_path
   [ -n "$session" ] || session=$(fm_backend_herdr_session)
+  case "$max_attempts" in
+    ''|*[!0-9]*|0) return 1 ;;
+  esac
   lock_path=$(fm_backend_herdr_presentation_session_lock_path "$session") || return 1
   HERDR_PRESENTATION_ORDER_LOCK="$lock_path"
   attempt=0
-  while [ "$attempt" -lt 50 ]; do
+  while [ "$attempt" -lt "$max_attempts" ]; do
     if fm_lock_try_acquire "$HERDR_PRESENTATION_ORDER_LOCK"; then
       HERDR_PRESENTATION_ORDER_LOCK_HELD=1
       return 0
@@ -1202,7 +1257,7 @@ if [ "$RELAUNCH" -eq 1 ]; then
   }
 elif [ "$KIND" = secondmate ]; then
   case "${POS[1]:-}" in
-    ''|claude|codex|opencode|pi|pi-signed|grok|kimi|cursor|gemini|muse)
+    ''|claude|codex|copilot|opencode|pi|pi-signed|grok|kimi|cursor|gemini|muse)
       ARG3=${POS[1]:-}
       ;;
     *' '*)
@@ -1230,7 +1285,7 @@ shell_quote() {
   printf "'"
 }
 
-resolve_pi_executable() {
+resolve_executable() {
   local candidate dir
   candidate=$(type -P -- "$1" 2>/dev/null) || return 1
   [ -x "$candidate" ] || return 1
@@ -1241,6 +1296,16 @@ resolve_pi_executable() {
       printf '%s/%s\n' "$dir" "$(basename "$candidate")"
       ;;
   esac
+}
+
+resolve_pi_executable() {
+  resolve_executable "$1"
+}
+
+powershell_quote() {
+  printf "'"
+  printf '%s' "$1" | sed "s/'/''/g"
+  printf "'"
 }
 
 # Pi's CLI surface is version-dependent, so probe the resolved executable's help
@@ -1285,6 +1350,7 @@ launch_template() {
         printf '%s' 'codex __MODELFLAG____EFFORTFLAG__--dangerously-bypass-approvals-and-sandbox -c "notify=[\"bash\",\"-c\",\"touch __TURNEND__\"]" "$(__OPINPUT__ encode launch-brief < __BRIEF__)"'
       fi
       ;;
+    copilot) printf '%s' 'env -u CLAUDECODE -u PI_CODING_AGENT -u GROK_AGENT -u FM_PI_HARNESS -u CURSOR_AGENT -u CURSOR_INVOKED_AS __COPILOTBIN__ --allow-all --no-ask-user __MODELFLAG____EFFORTFLAG__--interactive "$(__OPINPUT__ encode launch-brief < __BRIEF__)"' ;;
     opencode) printf '%s' 'OPENCODE_CONFIG_CONTENT='\''{"permission":{"*":"allow"}}'\'' opencode __MODELFLAG__--prompt "$(__OPINPUT__ encode launch-brief < __BRIEF__)"' ;;
     pi|pi-signed)
       printf '%s' '__PIBIN____PITUIMODE__'
@@ -1462,6 +1528,12 @@ case "$HARNESS" in
       fi
     fi
     ;;
+  copilot)
+    COPILOT_BIN=$(resolve_executable copilot) || {
+      echo "error: copilot executable not found on PATH; install GitHub Copilot CLI or select a different verified harness" >&2
+      exit 1
+    }
+    ;;
 esac
 
 # config/secondmate-harness may carry optional model/effort tokens alongside the
@@ -1567,7 +1639,7 @@ model_flag_for_harness() {
   local harness=$1 model=$2
   [ -n "$model" ] && [ "$model" != default ] || return 0
   case "$harness" in
-    claude|codex|opencode|pi|pi-signed|grok|kimi|cursor|gemini|muse)
+    claude|codex|copilot|opencode|pi|pi-signed|grok|kimi|cursor|gemini|muse)
       printf -- '--model %s ' "$(shell_quote "$model")"
       ;;
   esac
@@ -1578,6 +1650,11 @@ effort_flag_for_harness() {
   [ -n "$effort" ] && [ "$effort" != default ] || return 0
   case "$harness" in
     claude)
+      case "$effort" in
+        low|medium|high|xhigh|max) printf -- '--effort %s ' "$(shell_quote "$effort")" ;;
+      esac
+      ;;
+    copilot)
       case "$effort" in
         low|medium|high|xhigh|max) printf -- '--effort %s ' "$(shell_quote "$effort")" ;;
       esac
@@ -2241,7 +2318,7 @@ case "$BACKEND" in
           echo "error: herdr presentation recovery could not ensure its exact named session" >&2
           exit 1
         }
-        spawn_herdr_presentation_order_lock_acquire "$HERDR_SES" || {
+        spawn_herdr_presentation_order_lock_acquire "$HERDR_SES" 200 || {
           echo "error: herdr presentation recovery could not acquire its session lock; refusing a concurrent resume" >&2
           exit 1
         }
@@ -2308,8 +2385,9 @@ case "$BACKEND" in
           else
             HERDR_PROJECTION_ID=$(fm_backend_herdr_projection_journal_create "$STATE" "$ID") || exit 1
             HERDR_PROJECTION_LABEL=$(fm_backend_herdr_projection_workspace_label "$ID" "$HERDR_PROJECTION_ID")
+            HERDR_PROJECTION_PENDING_LABEL=$(fm_backend_herdr_projection_pending_workspace_label "$ID" "$HERDR_PROJECTION_ID")
             if ! FM_HOME="$HERDR_LABEL_HOME" fm_backend_herdr_projection_create_task \
-              "$PROJ_ABS" "$HERDR_PROJECTION_LABEL" "$W"; then
+              "$PROJ_ABS" "$HERDR_PROJECTION_PENDING_LABEL" "$W"; then
               if [ "${FM_BACKEND_HERDR_PROJECTION_CLEANUP_SAFE:-0}" = 1 ]; then
                 HERDR_PROJECTION_ABORT_CLEANUP=1
                 HERDR_PROJECTION_ABORT_SESSION=$FM_BACKEND_HERDR_PROJECTION_SESSION
@@ -2330,8 +2408,17 @@ case "$BACKEND" in
             HERDR_PROJECTION_ABORT_SEEDED_PANE=$FM_BACKEND_HERDR_PROJECTION_SEEDED_PANE_ID
             fm_backend_herdr_projection_order_best_effort \
               "$HERDR_SES" "$HERDR_WORKSPACE_ID" "$HERDR_PARENT_LABEL" "$HERDR_PARENT_WORKSPACE_ID"
+            HERDR_PROJECTION_LABEL_FINALIZED=0
+            if [ "${FM_BACKEND_HERDR_PROJECTION_ORDER_VERIFIED:-0}" = 1 ] \
+               && fm_backend_herdr_projection_finalize_workspace_label \
+                 "$HERDR_SES" "$HERDR_WORKSPACE_ID" "$HERDR_PROJECTION_LABEL"; then
+              HERDR_PROJECTION_LABEL_FINALIZED=1
+            else
+              echo "warning: herdr presentation left the worker as an explicitly top-level provisional workspace and withheld its restart binding" >&2
+            fi
             HERDR_HOME_ID=$(fm_backend_herdr_projection_home_identity "$HERDR_LABEL_HOME" 2>/dev/null || true)
-            if [ -n "$HERDR_HOME_ID" ] \
+            if [ "$HERDR_PROJECTION_LABEL_FINALIZED" -eq 1 ] \
+               && [ -n "$HERDR_HOME_ID" ] \
                && fm_backend_herdr_projection_live_binding_matches \
                  "$HERDR_SES" "$HERDR_PROJECTION_ID" "$HERDR_WORKSPACE_ID" \
                  "$HERDR_TAB_ID" "$HERDR_PANE_ID" "$HERDR_PARENT_WORKSPACE_ID" \
@@ -2435,6 +2522,11 @@ fi
 # WT_TARGET to $T for them (and for any future backend) - the shared treehouse-get +
 # worktree-detection steps below must never reference an unbound WT_TARGET under set -u.
 : "${WT_TARGET:=$T}"
+WINDOWS_HERDR_POWERSHELL=0
+if [ "$BACKEND" = herdr ] \
+   && [ "$(fm_backend_herdr_treehouse_acquisition_mode)" = lease ]; then
+  WINDOWS_HERDR_POWERSHELL=1
+fi
 spawn_send_text_line() {  # <target> <text>
   case "$BACKEND" in
     tmux) fm_backend_tmux_send_text_line "$1" "$2" ;;
@@ -2547,50 +2639,100 @@ if [ "$RELAUNCH" -eq 1 ]; then
   fi
   [ "$KIND" = secondmate ] || validate_spawn_worktree "relaunch" "$T"
 elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
-  spawn_send_text_line "$WT_TARGET" 'treehouse get'
+  treehouse_mode=interactive
+  if [ "$WINDOWS_HERDR_POWERSHELL" = 1 ]; then
+    treehouse_mode=lease
+  fi
+  if [ "$treehouse_mode" = lease ]; then
+    leased_wt=$(fm_backend_herdr_acquire_treehouse_lease "$PROJ_ABS_REAL" "$ID") || {
+      echo "error: treehouse could not acquire a durable worktree lease for $ID" >&2
+      exit 1
+    }
+    if [ -z "$leased_wt" ]; then
+      echo "error: treehouse returned no path for durable worktree lease $ID" >&2
+      exit 1
+    fi
+    WT=$(real_path_or_raw "$leased_wt")
+    TREEHOUSE_ABORT_WORKTREE=$WT
+    TREEHOUSE_ABORT_RETURN=1
+    enter_worktree=$(fm_backend_herdr_windows_enter_worktree_command "$leased_wt")
+    if ! spawn_send_text_line "$WT_TARGET" "$enter_worktree"; then
+      echo "error: could not move the Herdr PowerShell pane into leased worktree '$WT'" >&2
+      exit 1
+    fi
 
-  # Wait for the treehouse subshell: the pane's cwd moves from the project to the worktree.
-  # Target the stable window id, not the name: if the name is ever lost (e.g. an
-  # automatic-rename slips through), display-message -t <bad-name> falls back to the
-  # active client's window, which would misread firstmate's OWN pane path as the
-  # worktree and tangle a hook into the primary checkout. The window id never lies.
-  # Compare against PROJ_ABS_REAL (physical), not PROJ_ABS: a symlinked project
-  # prefix would otherwise make the pane's OS-level cwd read differ from
-  # PROJ_ABS on the very first poll, before the pane has actually moved.
-  #
-  # A single read that already differs from PROJ_ABS_REAL is not proof the pane
-  # settled there: on some tmux/WSL setups a brand-new window's pane_current_path
-  # transiently reports an unrelated stale path (seen live as another real git
-  # checkout entirely) before the shell catches up with treehouse get's cd. That
-  # stale path still passes the PROJ_ABS_REAL comparison and validate_spawn_worktree
-  # below (it resolves to a real, distinct worktree top-level too), so accepting it
-  # on one read alone silently records the wrong worktree= in state/<id>.meta. Require
-  # two consecutive reads to agree on the same non-project path before accepting it;
-  # a mismatch just becomes the new candidate rather than resetting the wait, so a
-  # pane that is already settled by the first real read only costs the one existing
-  # inter-poll sleep as confirmation, not a whole extra cycle on top.
-  candidate=""
-  for _ in $(seq 1 60); do
-    p=$(spawn_current_path "$WT_TARGET" || true)
-    if [ -n "$p" ]; then
-      p_real=$(real_path_or_raw "$p")
-      if [ "$p_real" != "$PROJ_ABS_REAL" ]; then
-        if [ -n "$candidate" ] && [ "$p_real" = "$candidate" ]; then
-          WT="$p"
-          break
+    # Confirm the owning PowerShell reached the exact leased path. Two equal
+    # reads preserve the same transient-cwd protection as the interactive path.
+    candidate=
+    settled=0
+    for _ in $(seq 1 60); do
+      p=$(spawn_current_path "$WT_TARGET" || true)
+      if [ -n "$p" ]; then
+        p_real=$(real_path_or_raw "$p")
+        if [ "$p_real" = "$WT" ]; then
+          if [ "$candidate" = "$p_real" ]; then
+            settled=1
+            break
+          fi
+          candidate=$p_real
+        else
+          candidate=
         fi
-        candidate="$p_real"
+      else
+        candidate=
+      fi
+      sleep 1
+    done
+    if [ "$settled" != 1 ]; then
+      echo "error: Herdr PowerShell did not enter leased worktree '$WT' within 60s; inspect window $T" >&2
+      exit 1
+    fi
+  else
+    spawn_send_text_line "$WT_TARGET" 'treehouse get'
+
+    # Wait for the treehouse subshell: the pane's cwd moves from the project to the worktree.
+    # Target the stable window id, not the name: if the name is ever lost (e.g. an
+    # automatic-rename slips through), display-message -t <bad-name> falls back to the
+    # active client's window, which would misread firstmate's OWN pane path as the
+    # worktree and tangle a hook into the primary checkout. The window id never lies.
+    # Compare against PROJ_ABS_REAL (physical), not PROJ_ABS: a symlinked project
+    # prefix would otherwise make the pane's OS-level cwd read differ from
+    # PROJ_ABS on the very first poll, before the pane has actually moved.
+    #
+    # A single read that already differs from PROJ_ABS_REAL is not proof the pane
+    # settled there: on some tmux/WSL setups a brand-new window's pane_current_path
+    # transiently reports an unrelated stale path (seen live as another real git
+    # checkout entirely) before the shell catches up with treehouse get's cd. That
+    # stale path still passes the PROJ_ABS_REAL comparison and validate_spawn_worktree
+    # below (it resolves to a real, distinct worktree top-level too), so accepting it
+    # on one read alone silently records the wrong worktree= in state/<id>.meta. Require
+    # two consecutive reads to agree on the same non-project path before accepting it;
+    # a mismatch just becomes the new candidate rather than resetting the wait, so a
+    # pane that is already settled by the first real read only costs the one existing
+    # inter-poll sleep as confirmation, not a whole extra cycle on top.
+    candidate=""
+    for _ in $(seq 1 60); do
+      p=$(spawn_current_path "$WT_TARGET" || true)
+      if [ -n "$p" ]; then
+        p_real=$(real_path_or_raw "$p")
+        if [ "$p_real" != "$PROJ_ABS_REAL" ]; then
+          if [ -n "$candidate" ] && [ "$p_real" = "$candidate" ]; then
+            WT="$p"
+            break
+          fi
+          candidate="$p_real"
+        else
+          candidate=""
+        fi
       else
         candidate=""
       fi
-    else
-      candidate=""
+      sleep 1
+    done
+    if [ -z "$WT" ]; then
+      echo "error: treehouse get did not enter a worktree within 60s; inspect window $T" >&2
+      exit 1
     fi
-    sleep 1
-  done
-  if [ -z "$WT" ]; then
-    echo "error: treehouse get did not enter a worktree within 60s; inspect window $T" >&2
-    exit 1
   fi
 
   validate_spawn_worktree "treehouse get" "$T"
@@ -2658,9 +2800,11 @@ if [ "$RELAUNCH" -eq 1 ]; then
   RELAUNCH_REPLACEMENT_STATE=$STATE_REAL
   RELAUNCH_REPLACEMENT_WT=$WT
 fi
-if [ "$KIND" != secondmate ]; then
+if [ "$KIND" != secondmate ] || [ "$HARNESS" = copilot ]; then
   # Arm the semantic busy-state contract (bin/fm-busy-lib.sh) for every
-  # adapter with a verified semantic source. The launch brief sent below IS a
+  # adapter with a verified semantic source. Copilot secondmates are included
+  # because their generated lifecycle hooks also give fm-send a backend-neutral
+  # submission acknowledgement. The launch brief sent below IS a
   # submitted turn, so the seed record is busy/fm-spawn. The minted gen is
   # embedded into each adapter's wiring so an event from a superseded
   # incarnation is rejected as stale. Grok stays on its isolated rendered-tail
@@ -2677,7 +2821,7 @@ if [ "$KIND" != secondmate ]; then
       ;;
   esac
   case "$HARNESS" in
-    claude*|opencode*|pi|pi-signed)
+    claude*|copilot*|opencode*|pi|pi-signed)
       BUSY_GEN=$("$FM_ROOT/bin/fm-busy-event.sh" arm "$STATE_REAL" "$ID") || {
         echo "error: failed to arm the busy-state contract for $ID" >&2
         exit 1
@@ -2761,6 +2905,25 @@ EOF
 EOF
       fi
       ;;
+    copilot*)
+      mkdir -p "$WT/.github/hooks"
+      busy_cmd="bash $(shell_quote "$FM_ROOT/bin/fm-ghcp-hook.sh") worker-event $(shell_quote "$STATE_REAL") $(shell_quote "$ID") $(shell_quote "$BUSY_GEN")"
+      hook_ps="$FM_ROOT/bin/fm-ghcp-hook.ps1"
+      if command -v cygpath >/dev/null 2>&1; then
+        hook_ps=$(cygpath -w "$hook_ps" 2>/dev/null || printf '%s' "$hook_ps")
+      fi
+      ps_cmd="& $(powershell_quote "$hook_ps") worker-event $(powershell_quote "$STATE_REAL") $(powershell_quote "$ID") $(powershell_quote "$BUSY_GEN")"
+      j_submit_bash=$(json_escape "$busy_cmd busy user-prompt-submitted -")
+      j_stop_bash=$(json_escape "$busy_cmd idle agent-stop $(shell_quote "$TURNEND")")
+      j_end_bash=$(json_escape "$busy_cmd idle session-end $(shell_quote "$TURNEND")")
+      j_submit_ps=$(json_escape "$ps_cmd busy user-prompt-submitted -")
+      j_stop_ps=$(json_escape "$ps_cmd idle agent-stop $(powershell_quote "$TURNEND")")
+      j_end_ps=$(json_escape "$ps_cmd idle session-end $(powershell_quote "$TURNEND")")
+      cat > "$WT/.github/hooks/zz-firstmate-$ID.json" <<EOF
+{"version":1,"hooks":{"userPromptSubmitted":[{"type":"command","bash":"$j_submit_bash","powershell":"$j_submit_ps","timeoutSec":10}],"agentStop":[{"type":"command","bash":"$j_stop_bash","powershell":"$j_stop_ps","timeoutSec":10}],"sessionEnd":[{"type":"command","bash":"$j_end_bash","powershell":"$j_end_ps","timeoutSec":10}]}}
+EOF
+      exclude_path '.github/hooks/zz-firstmate-*.json'
+      ;;
     opencode*)
       mkdir -p "$WT/.opencode/plugins"
       cat > "$WT/.opencode/plugins/fm-busy-state.js" <<EOF
@@ -2776,7 +2939,7 @@ EOF
 import { execFile } from "node:child_process";
 const busyEvent = (state, event) =>
   new Promise((resolve) => {
-    execFile("$FM_ROOT/bin/fm-busy-event.sh", [
+    execFile("bash", ["$FM_ROOT/bin/fm-busy-event.sh",
       "apply", "$STATE_REAL", "$ID", state,
       "--gen", "$BUSY_GEN", "--source", "opencode-plugin", "--event", event,
     ], () => resolve());
@@ -2832,7 +2995,7 @@ EOF
 import { execFile } from "node:child_process";
 const busyEvent = (state: string, event: string) =>
   new Promise<void>((resolve) => {
-    execFile("$FM_ROOT/bin/fm-busy-event.sh", [
+    execFile("bash", ["$FM_ROOT/bin/fm-busy-event.sh",
       "apply", "$STATE_REAL", "$ID", state,
       "--gen", "$BUSY_GEN", "--source", "pi-ext", "--event", event,
     ], () => resolve());
@@ -3124,6 +3287,7 @@ if [ "$RELAUNCH" -eq 1 ]; then
   SPAWN_META_PUBLISH_STARTED=0
   SPAWN_META_TMP=
 fi
+TREEHOUSE_ABORT_RETURN=0
 # A dispatch or relaunch keeps the per-task meta lock through launch delivery.
 # The backlog mutation is deliberately the final fallible commit below, so
 # teardown cannot remove a relaunched record while its replacement worker is
@@ -3161,13 +3325,23 @@ case "$HARNESS" in
   pi|pi-signed) LAUNCH=${LAUNCH//__PIBIN__/"$(shell_quote "$PI_BIN")"} ;;
   cursor) LAUNCH=${LAUNCH//__CURSORBIN__/"$(shell_quote "$CURSOR_BIN")"} ;;
   gemini) LAUNCH=${LAUNCH//__GEMINISETTINGS__/"$(shell_quote "$STATE_REAL/$ID.gemini-settings.json")"} ;;
+  copilot) LAUNCH=${LAUNCH//__COPILOTBIN__/"$(shell_quote "$COPILOT_BIN")"} ;;
 esac
 LAUNCH=${LAUNCH//__WORKTREE__/$sq_worktree}
 case "$HARNESS" in
   claude|codex|opencode|pi|pi-signed|grok|kimi|gemini|muse)
+    LAUNCH="env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI -u COPILOT_CLI -u COPILOT_AGENT_SESSION_ID -u COPILOT_LOADER_PID $LAUNCH"
+    ;;
+  cursor)
+    LAUNCH="env -u GEMINI_CLI -u COPILOT_CLI -u COPILOT_AGENT_SESSION_ID -u COPILOT_LOADER_PID $LAUNCH"
+    ;;
+  copilot)
     LAUNCH="env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI $LAUNCH"
     ;;
 esac
+if [ -n "${FM_COPILOT_PARENT_STATE:-}${FM_COPILOT_PARENT_TASK_ID:-}${FM_COPILOT_PARENT_BUSY_GEN:-}" ]; then
+  LAUNCH="env -u FM_COPILOT_PARENT_STATE -u FM_COPILOT_PARENT_TASK_ID -u FM_COPILOT_PARENT_BUSY_GEN $LAUNCH"
+fi
 # Crewmate panes are created by a long-lived tmux/herdr daemon that does not
 # inherit firstmate's current environment, so a bare `claude` in the pane falls
 # back to the default ~/.claude store even when firstmate itself runs under a
@@ -3185,7 +3359,7 @@ if [ "$KIND" = secondmate ]; then
   # Stop auto-arm and Cursor's stop-hook park both run the watcher only BETWEEN
   # turns, so a fresh beacon with no live watcher is their healthy mid-turn state.
   case "$HARNESS" in
-    claude|cursor) supervision_model=autoarm ;;
+    claude|copilot|cursor) supervision_model=autoarm ;;
     *) supervision_model=persistent ;;
   esac
   # Deliver the primary's EFFECTIVE trace-context decision as a normalized on/off
@@ -3196,6 +3370,9 @@ if [ "$KIND" = secondmate ]; then
   # Reuse the single frozen decision from the carrier resolution above so the
   # injected carrier and this on/off snapshot are guaranteed to agree.
   LAUNCH="FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME=$sq_primary_home FM_HOME=$sq_home FM_TRACE_CONTEXT=$SPAWN_TRACE_EFFECTIVE FM_SUPERVISION_MODEL=$supervision_model $LAUNCH"
+  if [ "$HARNESS" = copilot ]; then
+    LAUNCH="FM_COPILOT_PARENT_STATE=$(shell_quote "$STATE_REAL") FM_COPILOT_PARENT_TASK_ID=$(shell_quote "$ID") FM_COPILOT_PARENT_BUSY_GEN=$(shell_quote "$BUSY_GEN") $LAUNCH"
+  fi
 fi
 if [ -z "$SPAWN_TRACEPARENT" ] && [ "$RELAUNCH" -eq 1 ]; then
   LAUNCH="unset TRACEPARENT; $LAUNCH"
@@ -3227,15 +3404,31 @@ spawn_record_traceparent() {
   return "$status"
 }
 
-# Export GOTMPDIR into the crewmate's pane shell so the agent and every child
-# process (go build, go test, ...) inherit it. Sent before the launch command so
-# the env is set when the agent starts; the brief sleep lets the export land.
-spawn_send_text_line "$T" "export GOTMPDIR=$TASK_TMP/gotmp"
+# Set GOTMPDIR in the crewmate's pane shell so the agent and every child
+# process (go build, go test, ...) inherit it. Native Windows Herdr panes run
+# PowerShell; every other supported pane runs a POSIX shell.
+GOTMPDIR_COMMAND="export GOTMPDIR=$TASK_TMP/gotmp"
+if [ "$WINDOWS_HERDR_POWERSHELL" = 1 ]; then
+  GOTMPDIR_COMMAND=$(fm_backend_herdr_windows_set_environment_command \
+    GOTMPDIR "$TASK_TMP/gotmp") || {
+    echo "error: could not compose the native Windows GOTMPDIR assignment for $ID" >&2
+    exit 1
+  }
+fi
+spawn_send_text_line "$T" "$GOTMPDIR_COMMAND"
 # Send through the exact channel that already ships GOTMPDIR, so every backend
 # and harness - ship, scout, and secondmate - gets it before launch. Skipped
 # entirely when trace context is off.
 if [ -n "$SPAWN_TRACEPARENT" ]; then
-  if spawn_send_text_line "$T" "export TRACEPARENT=$SPAWN_TRACEPARENT"; then
+  TRACEPARENT_COMMAND="export TRACEPARENT=$SPAWN_TRACEPARENT"
+  if [ "$WINDOWS_HERDR_POWERSHELL" = 1 ]; then
+    TRACEPARENT_COMMAND=$(fm_backend_herdr_windows_set_environment_command \
+      TRACEPARENT "$SPAWN_TRACEPARENT") || {
+      echo "error: could not compose the native Windows TRACEPARENT assignment for $ID" >&2
+      exit 1
+    }
+  fi
+  if spawn_send_text_line "$T" "$TRACEPARENT_COMMAND"; then
     if ! spawn_record_traceparent; then
       LAUNCH="unset TRACEPARENT; $LAUNCH"
     fi
@@ -3247,6 +3440,21 @@ if [ -n "$SPAWN_TRACEPARENT" ]; then
     fi
     LAUNCH="unset TRACEPARENT; $LAUNCH"
   fi
+fi
+if [ "$WINDOWS_HERDR_POWERSHELL" = 1 ]; then
+  LAUNCH_SCRIPT="$TASK_TMP/launch.sh"
+  LAUNCH_SCRIPT_TMP="$LAUNCH_SCRIPT.tmp.${BASHPID:-$$}"
+  if ! (umask 077; printf '#!/usr/bin/env bash\n%s\n' "$LAUNCH" > "$LAUNCH_SCRIPT_TMP") \
+     || ! chmod 700 "$LAUNCH_SCRIPT_TMP" \
+     || ! mv -f "$LAUNCH_SCRIPT_TMP" "$LAUNCH_SCRIPT"; then
+    rm -f "$LAUNCH_SCRIPT_TMP" 2>/dev/null || true
+    echo "error: could not publish the native Windows Herdr launch script for $ID" >&2
+    exit 1
+  fi
+  LAUNCH=$(fm_backend_herdr_windows_bash_script_command "$LAUNCH_SCRIPT") || {
+    echo "error: could not resolve Git Bash for native Windows Herdr launch $ID" >&2
+    exit 1
+  }
 fi
 sleep 0.3
 spawn_send_literal "$T" "$LAUNCH"

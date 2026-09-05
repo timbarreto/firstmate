@@ -95,6 +95,24 @@ SH
   printf '%s\n' "$fb"
 }
 
+install_windows_cygpath_fake() {  # <fakebin>
+  cat > "$1/cygpath" <<'SH'
+#!/usr/bin/env bash
+set -u
+[ "${1:-}" = -u ] || exit 2
+path=${2:-}
+case "$path" in
+  [A-Za-z]:[\\/]*)
+    drive=$(printf '%s' "${path%%:*}" | tr '[:upper:]' '[:lower:]')
+    rest=$(printf '%s' "${path#?:}" | tr '\\' '/')
+    printf '/%s%s\n' "$drive" "$rest"
+    ;;
+  *) exit 1 ;;
+esac
+SH
+  chmod +x "$1/cygpath"
+}
+
 # make_herdr_statefake: a STATEFUL `herdr` stub that models the parts of herdr's
 # real container behavior the workspace-leak fix (and the default-tab-prune
 # safety fix) depend on, so a full spawn->teardown cycle can be replayed
@@ -355,6 +373,19 @@ test_launcher_identity_absent_when_herdr_env_alone_is_set() {
   pass "fm_backend_herdr_launcher_identity: HERDR_ENV=1 without a pane id selects the backend but binds no parent"
 }
 
+test_canonical_socket_path_accepts_native_windows_absolute_paths() {
+  local dir fb out
+  dir="$TMP_ROOT/canonical-windows-socket"; fb="$dir/fakebin"; mkdir -p "$fb"
+  install_windows_cygpath_fake "$fb"
+  out=$(PATH="$fb:$PATH" \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_canonical_socket_path "$1"' \
+      "$ROOT" 'C:\Users\test\AppData\Roaming\herdr\herdr.sock') \
+    || fail "a native Windows absolute Herdr socket path must canonicalize under Git Bash"
+  [ "$out" = '/c/Users/test/AppData/Roaming/herdr/herdr.sock' ] \
+    || fail "native Windows socket path canonicalized to '$out'"
+  pass "fm_backend_herdr_canonical_socket_path: accepts and normalizes a native Windows absolute socket path"
+}
+
 test_launcher_identity_resolves_the_exact_pane_tab_and_workspace() {
   local dir log resp fb out
   dir="$TMP_ROOT/launcher-ok"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
@@ -372,6 +403,24 @@ test_launcher_identity_resolves_the_exact_pane_tab_and_workspace() {
   assert_contains "$(cat "$log")" $'\x1f''pane'$'\x1f''get'$'\x1f''w7:p3' "launcher_identity did not read its own pane"
   assert_contains "$(cat "$log")" $'\x1f''tab'$'\x1f''get'$'\x1f''w7:t3' "launcher_identity did not cross-check the owning tab"
   pass "fm_backend_herdr_launcher_identity: resolves the launcher's exact workspace even when a same-labeled workspace sorts first"
+}
+
+test_launcher_identity_resolves_matching_native_windows_socket_paths() {
+  local dir log resp fb out
+  dir="$TMP_ROOT/launcher-windows-ok"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+  printf '%s\n' '{"sessions":[{"name":"default","running":true,"socket_path":"C:\\Users\\test\\AppData\\Roaming\\herdr\\herdr.sock"}]}' > "$resp/1.out"
+  printf '{"result":{"pane":{"pane_id":"w7:p3","tab_id":"w7:t3","workspace_id":"w7"}}}\n' > "$resp/2.out"
+  printf '{"result":{"tab":{"tab_id":"w7:t3","workspace_id":"w7"}}}\n' > "$resp/3.out"
+  printf '{"result":{"workspaces":[{"workspace_id":"w7","label":"firstmate"}]}}\n' > "$resp/4.out"
+  fb=$(make_herdr_fakebin "$dir")
+  install_windows_cygpath_fake "$fb"
+  out=$(PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+    HERDR_ENV=1 HERDR_PANE_ID=w7:p3 HERDR_SOCKET_PATH='C:\Users\test\AppData\Roaming\herdr\herdr.sock' \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_launcher_identity default || exit 1
+      printf "%s|%s|%s" "$FM_BACKEND_HERDR_LAUNCHER_PANE_ID" "$FM_BACKEND_HERDR_LAUNCHER_TAB_ID" "$FM_BACKEND_HERDR_LAUNCHER_WORKSPACE_ID"' "$ROOT" )
+  [ "$out" = 'w7:p3|w7:t3|w7' ] \
+    || fail "matching native Windows socket paths should resolve the launcher identity, got '$out'"
+  pass "fm_backend_herdr_launcher_identity: resolves a launcher whose injected and live socket paths use native Windows spelling"
 }
 
 test_launcher_identity_refuses_a_pane_from_another_session_name() {
@@ -416,6 +465,22 @@ test_launcher_identity_refuses_a_pane_from_another_server_socket() {
   assert_contains "$out" "cross-session parent identity" "the cross-socket refusal did not explain itself"
   assert_not_contains "$(cat "$log")" $'\x1f''pane'$'\x1f''get' "a cross-server launcher identity must be refused before its pane is trusted"
   pass "fm_backend_herdr_launcher_identity: refuses a launcher pane whose injected socket belongs to another herdr server"
+}
+
+test_launcher_identity_refuses_different_native_windows_socket_paths() {
+  local dir log resp fb out status
+  dir="$TMP_ROOT/launcher-windows-xsocket"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+  printf '%s\n' '{"sessions":[{"name":"default","running":true,"socket_path":"C:\\Users\\test\\AppData\\Roaming\\herdr\\herdr.sock"}]}' > "$resp/1.out"
+  fb=$(make_herdr_fakebin "$dir")
+  install_windows_cygpath_fake "$fb"
+  out=$(PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+    HERDR_ENV=1 HERDR_PANE_ID=w7:p3 HERDR_SOCKET_PATH='D:\Other\herdr.sock' \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_launcher_identity default' "$ROOT" 2>&1)
+  status=$?
+  expect_code 1 "$status" "different native Windows socket paths must refuse"
+  assert_contains "$out" "cross-session parent identity" "the native Windows cross-socket refusal did not explain itself"
+  assert_not_contains "$(cat "$log")" $'\x1f''pane'$'\x1f''get' "a cross-server Windows launcher identity must be refused before its pane is trusted"
+  pass "fm_backend_herdr_launcher_identity: refuses different native Windows socket paths before trusting the pane"
 }
 
 test_launcher_identity_refuses_an_unreadable_pane() {
@@ -1077,7 +1142,7 @@ test_presentation_floor_warning_marker_is_atomic_and_symlink_safe() {
   mkdir -p "$state"
   marker="$state/.herdr-presentation-floor-version-0-7-5--protocol-17-"
   outside="$dir/symlink-target"
-  ln -s "$outside" "$marker"
+  fm_test_make_symlink "$outside" "$marker"
   symlink_warning=$(presentation_enabled_verdict "$config" "$fb" "$state" 2>&1 >/dev/null)
   [ -z "$symlink_warning" ] \
     || fail "an existing dangling marker symlink must be treated as already claimed: $symlink_warning"
@@ -1415,7 +1480,7 @@ test_projection_close_restores_exact_prior_focus() {
   pass "herdr presentation focus: exact pane close restores the exact prior workspace and tab"
 }
 
-test_projection_close_refuses_active_tab() {
+test_projection_close_defers_active_tab_silently() {
   local dir log resp fb out status
   dir="$TMP_ROOT/projection-focus-active-refusal"; mkdir -p "$dir/responses"
   log="$dir/log"; resp="$dir/responses"; : > "$log"
@@ -1426,12 +1491,12 @@ test_projection_close_refuses_active_tab() {
   out=$(PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_close_pane_focus_preserving fmtest w9:p2' "$ROOT" 2>&1)
   status=$?
-  [ "$status" -ne 0 ] || fail "cleanup must refuse when exact active-tab preservation is impossible"
-  assert_contains "$out" "target is the captain's active tab" \
-    "active-tab cleanup refusal did not explain the focus-safety boundary"
+  [ "$status" -eq 3 ] || fail "cleanup must return the action-free deferral result when exact active-tab preservation is impossible"
+  [ -z "$out" ] \
+    || fail "active-tab cleanup helper emitted user-facing noise instead of leaving policy to its caller: $out"
   assert_not_contains "$(cat "$log")" $'pane\x1fclose' \
-    "active-tab cleanup refusal still closed the pane"
-  pass "herdr presentation focus: cleanup refuses rather than close the captain's active tab"
+    "active-tab cleanup deferral still closed the pane"
+  pass "herdr presentation focus: cleanup silently defers rather than close the active tab"
 }
 
 test_projection_close_reports_focus_restore_failure() {
@@ -2227,7 +2292,7 @@ test_endpoint_confirmed_gone_gates_on_structured_presence() {
   pass "endpoint confirmed-gone: only structured not-found permits record removal and ambiguous identity refuses"
 }
 
-test_projection_seeded_prune_refuses_active_tab() {
+test_projection_seeded_prune_defers_active_tab() {
   local dir log resp fb out status
   dir="$TMP_ROOT/projection-seeded-focus-active-refusal"; mkdir -p "$dir/responses"
   log="$dir/log"; resp="$dir/responses"; : > "$log"
@@ -2241,18 +2306,22 @@ test_projection_seeded_prune_refuses_active_tab() {
   out=$(PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_workspace_prune_seeded_default_tab fmtest w9 w9:t1 focus-preserving' "$ROOT" 2>&1)
   status=$?
-  [ "$status" -ne 0 ] || fail "projected seeded pruning must refuse the active tab"
-  assert_contains "$out" "target is the captain's active tab" \
-    "projected seeded prune did not explain its active-tab refusal"
+  [ "$status" -eq 3 ] || fail "projected seeded pruning must return the action-free active-tab deferral"
+  [ -z "$out" ] \
+    || fail "projected seeded prune helper emitted user-facing noise instead of leaving policy to its caller: $out"
   assert_not_contains "$(cat "$log")" $'pane\x1fclose' \
-    "projected seeded prune closed the captain's active tab"
-  pass "herdr presentation focus: projected seeded pruning refuses the active tab"
+    "projected seeded prune closed the active tab"
+  pass "herdr presentation focus: projected seeded pruning defers the active tab"
 }
 
 test_projection_label_builder_uses_corner_and_strips_owner_prefixes() {
-  local primary secondmate token
+  local pending primary secondmate token
   token='AbCdEfGhIjKlMnOpQrStUv'
   [ "${#token}" -eq 22 ] || fail "fixture token must be 22 characters"
+  pending=$(bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_pending_workspace_label task-p2 '"$token" "$ROOT")
+  [ "$pending" = "fm-task-p2 · pending p:$token" ] \
+    || fail "provisional projection label was wrong: $pending"
+  case "$pending" in $'└ '*) fail "provisional projection label must not imply a parent" ;; esac
   primary=$(bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_workspace_label task-p2 '"$token" "$ROOT")
   [ "$primary" = "└ task-p2 · p:$token" ] \
     || fail "primary child label was wrong: $primary"
@@ -2270,6 +2339,27 @@ test_projection_label_builder_uses_corner_and_strips_owner_prefixes() {
     || fail "presentation fm- owner prefix was not stripped: $primary"
   case "$primary" in $'└ '*) ;; *) fail "label must start with U+2514 and one space" ;; esac
   pass "herdr presentation labels: └ concise-task · p:<full-token> for primary and secondmate children"
+}
+
+test_workspace_move_capability_rejects_unusable_transport() {
+  local dir log resp fb checker status
+  dir="$TMP_ROOT/workspace-move-transport"; mkdir -p "$dir/responses"
+  log="$dir/log"; resp="$dir/responses"; checker="$dir/checker"; : > "$log"
+  printf '%s\n' '{"client":{"version":"0.8.2","protocol":20},"server":{"running":true}}' > "$resp/1.out"
+  # shellcheck disable=SC2016
+  printf '%s\n' '{"schemas":{"request":{"oneOf":[{"properties":{"method":{"const":"workspace.move"}}}],"$defs":{"WorkspaceMoveParams":{"required":["workspace_id","insert_index"],"properties":{"insert_index":{"type":"integer"}}}}}}}' > "$resp/2.out"
+  cat > "$checker" <<'SH'
+#!/usr/bin/env bash
+exit 9
+SH
+  chmod +x "$checker"
+  fb=$(make_herdr_fakebin "$dir")
+  PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_HERDR_SCRIPT_STATUS=1 \
+    FM_BACKEND_HERDR_WORKSPACE_MOVE_TRANSPORT_CHECKER="$checker" \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_workspace_move_capable fmtest' "$ROOT"
+  status=$?
+  [ "$status" -eq 6 ] || fail "unusable native transport returned capability status $status instead of 6"
+  pass "herdr presentation ordering: capability rejects an unusable platform transport"
 }
 
 test_projection_order_moves_only_exact_new_workspace_and_preserves_relative_order() {
@@ -2430,9 +2520,11 @@ SH
   fb=$(make_herdr_fakebin "$dir")
   out=$(PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" FM_HERDR_SCRIPT_STATUS=1 \
     FM_BACKEND_HERDR_WORKSPACE_MOVER="$mover" \
-    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_focus_snapshot() { printf "w1\tw1:t1"; }; fm_backend_herdr_projection_focus_restore() { return 0; }; fm_backend_herdr_projection_order_best_effort fmtest w3 firstmate' "$ROOT" 2>&1)
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_focus_snapshot() { printf "w1\tw1:t1"; }; fm_backend_herdr_projection_focus_restore() { return 0; }; fm_backend_herdr_projection_order_best_effort fmtest w3 firstmate; printf "\nverified=%s\n" "${FM_BACKEND_HERDR_PROJECTION_ORDER_VERIFIED:-unset}"' "$ROOT" 2>&1)
   status=$?
   [ "$status" -eq 0 ] || fail "a workspace.move failure must not fail the projected spawn"
+  assert_contains "$out" "verified=0" \
+    "a failed workspace.move was marked as verified"
   assert_contains "$out" "workspace move failed or had an ambiguous response" \
     "workspace.move failure did not report the best-effort warning"
   assert_not_contains "$(cat "$log")" $'workspace\x1fclose' "workspace.move failure triggered workspace cleanup"
@@ -2604,6 +2696,184 @@ test_presentation_session_lock_path_is_shared_across_homes() {
       || fail "symlink parent socket paths must resolve one lock: $path_tmp vs $path_private"
   fi
   pass "herdr presentation lock: one path per session/socket across homes"
+}
+
+presentation_lock_path_for_namespace_case() {
+  FM_TEST_NAMESPACE_OS=$1 FM_TEST_NAMESPACE_MODE=$2 \
+    FM_TEST_NAMESPACE_OWNER=$3 FM_TEST_NAMESPACE_ACL=$4 \
+    FM_TEST_NAMESPACE_DIR=$5 bash -c '
+      . "$0/bin/backends/herdr.sh"
+      uname() { printf "%s\n" "$FM_TEST_NAMESPACE_OS"; }
+      fm_backend_herdr_presentation_lock_namespace() {
+        printf "%s" "$FM_TEST_NAMESPACE_DIR"
+      }
+      fm_backend_herdr_presentation_lock_namespace_uid() {
+        printf "%s\n" "$FM_TEST_NAMESPACE_OWNER"
+      }
+      fm_backend_herdr_presentation_lock_namespace_mode() {
+        printf "%s\n" "$FM_TEST_NAMESPACE_MODE"
+      }
+      fm_backend_herdr_presentation_lock_namespace_windows_acl_valid() {
+        [ "$FM_TEST_NAMESPACE_ACL" = safe ]
+      }
+      fm_backend_herdr_presentation_session_socket_path() {
+        [ "$1" = fmtest ] || return 1
+        printf "%s/fmtest.sock" "$FM_TEST_NAMESPACE_DIR"
+      }
+      fm_backend_herdr_presentation_session_lock_path fmtest
+    ' "$ROOT"
+}
+
+test_presentation_lock_namespace_is_platform_aware() {
+  local dir owner path status os mode
+  dir="$TMP_ROOT/presentation-lock-namespace"
+  mkdir "$dir"
+  owner=$(id -u)
+
+  path=$(presentation_lock_path_for_namespace_case \
+    MSYS_NT-10.0-26200 755 "$owner" safe "$dir")
+  status=$?
+  [ "$status" -eq 0 ] \
+    || fail "native Windows synthetic mode 755 rejected a private current-user namespace"
+  case "$path" in
+    "$dir"/order-*.lock) ;;
+    *) fail "native Windows namespace returned an unexpected lock path: $path" ;;
+  esac
+
+  path=$(presentation_lock_path_for_namespace_case \
+    MINGW64_NT-10.0-26200 755 "$owner" unsafe "$dir" 2>&1)
+  status=$?
+  [ "$status" -ne 0 ] || fail "native Windows accepted an unsafe namespace ACL: $path"
+
+  path=$(presentation_lock_path_for_namespace_case \
+    CYGWIN_NT-10.0 755 "$((owner + 1))" safe "$dir" 2>&1)
+  status=$?
+  [ "$status" -ne 0 ] || fail "native Windows accepted a foreign-owned namespace: $path"
+
+  for os in Linux Darwin; do
+    for mode in 755 770 777; do
+      path=$(presentation_lock_path_for_namespace_case \
+        "$os" "$mode" "$owner" safe "$dir" 2>&1)
+      status=$?
+      [ "$status" -ne 0 ] \
+        || fail "$os accepted presentation namespace mode $mode: $path"
+    done
+    path=$(presentation_lock_path_for_namespace_case \
+      "$os" 700 "$owner" unsafe "$dir")
+    status=$?
+    [ "$status" -eq 0 ] \
+      || fail "$os rejected the required current-user mode 700 namespace"
+  done
+
+  : > "$dir/not-a-directory"
+  path=$(presentation_lock_path_for_namespace_case \
+    MSYS_NT-10.0-26200 755 "$owner" safe "$dir/not-a-directory" 2>&1)
+  status=$?
+  [ "$status" -ne 0 ] || fail "native Windows accepted a non-directory namespace: $path"
+  pass "herdr presentation lock: Windows proves ACL privacy while Linux and macOS require mode 700"
+}
+
+test_presentation_lock_namespace_windows_acl_proof() {
+  local dir junction junction_native native
+  case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*) ;;
+    *) return 0 ;;
+  esac
+  command -v cygpath >/dev/null 2>&1 \
+    || fail "native Windows ACL proof requires cygpath"
+  command -v powershell.exe >/dev/null 2>&1 \
+    || fail "native Windows ACL proof requires Windows PowerShell"
+  dir="$TMP_ROOT/presentation-lock-windows-acl"
+  mkdir "$dir"
+  native=$(cygpath -w "$dir") || fail "could not convert the ACL fixture path"
+
+  # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+  FM_TEST_NAMESPACE_NATIVE=$native powershell.exe -NoProfile -NonInteractive -Command '
+    $ErrorActionPreference = "Stop"
+    $path = $env:FM_TEST_NAMESPACE_NATIVE
+    $current = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    $security = [Security.AccessControl.DirectorySecurity]::new()
+    $security.SetOwner($current)
+    $security.SetAccessRuleProtection($true, $false)
+    $inherit = [Security.AccessControl.InheritanceFlags]"ContainerInherit, ObjectInherit"
+    foreach ($sid in @($current.Value, "S-1-5-18", "S-1-5-32-544")) {
+      $identity = [Security.Principal.SecurityIdentifier]::new($sid)
+      $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+        $identity,
+        [Security.AccessControl.FileSystemRights]::FullControl,
+        $inherit,
+        [Security.AccessControl.PropagationFlags]::None,
+        [Security.AccessControl.AccessControlType]::Allow
+      )
+      [void]$security.AddAccessRule($rule)
+    }
+    [IO.DirectoryInfo]::new($path).SetAccessControl($security)
+  ' >/dev/null 2>&1 || fail "could not build the private Windows ACL fixture"
+
+  ROOT="$ROOT" DIR="$dir" bash -c '
+    . "$ROOT/bin/backends/herdr.sh"
+    fm_backend_herdr_presentation_lock_namespace_windows_acl_valid "$DIR"
+  ' \
+    || fail "the Windows ACL proof rejected a private current-user namespace"
+
+  junction="$TMP_ROOT/presentation-lock-windows-junction"
+  junction_native=$(cygpath -w "$junction") \
+    || fail "could not convert the reparse-point fixture path"
+  # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+  FM_TEST_NAMESPACE_NATIVE=$native FM_TEST_JUNCTION_NATIVE=$junction_native \
+    powershell.exe -NoProfile -NonInteractive -Command '
+      $ErrorActionPreference = "Stop"
+      [void](New-Item -ItemType Junction -Path $env:FM_TEST_JUNCTION_NATIVE -Target $env:FM_TEST_NAMESPACE_NATIVE)
+    ' >/dev/null 2>&1 || fail "could not build the Windows reparse-point fixture"
+  if ROOT="$ROOT" DIR="$junction" bash -c '
+    . "$ROOT/bin/backends/herdr.sh"
+    fm_backend_herdr_presentation_lock_namespace_windows_acl_valid "$DIR"
+  '; then
+    fail "the Windows ACL proof accepted a reparse-point namespace"
+  fi
+
+  # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+  FM_TEST_NAMESPACE_NATIVE=$native powershell.exe -NoProfile -NonInteractive -Command '
+    $ErrorActionPreference = "Stop"
+    $item = [IO.DirectoryInfo]::new($env:FM_TEST_NAMESPACE_NATIVE)
+    $security = $item.GetAccessControl()
+    $everyone = [Security.Principal.SecurityIdentifier]::new("S-1-1-0")
+    $inherit = [Security.AccessControl.InheritanceFlags]"ContainerInherit, ObjectInherit"
+    $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+      $everyone,
+      [Security.AccessControl.FileSystemRights]::ReadAndExecute,
+      $inherit,
+      [Security.AccessControl.PropagationFlags]::None,
+      [Security.AccessControl.AccessControlType]::Allow
+    )
+    [void]$security.AddAccessRule($rule)
+    $item.SetAccessControl($security)
+  ' >/dev/null 2>&1 || fail "could not build the unsafe Windows ACL fixture"
+
+  if ROOT="$ROOT" DIR="$dir" bash -c '
+    . "$ROOT/bin/backends/herdr.sh"
+    fm_backend_herdr_presentation_lock_namespace_windows_acl_valid "$DIR"
+  '; then
+    fail "the Windows ACL proof accepted a namespace readable by Everyone"
+  fi
+  pass "herdr presentation lock: native Windows DACL proof rejects broad access"
+}
+
+test_presentation_session_lock_path_rejects_ambiguous_identity() {
+  local path status
+  path=$(bash -c '
+    . "$0/bin/backends/herdr.sh"
+    fm_backend_herdr_cli() {
+      printf "%s\n" \
+        "{\"sessions\":[{\"name\":\"fmtest\",\"running\":true,\"socket_path\":\"/tmp/a.sock\"},{\"name\":\"fmtest\",\"running\":true,\"socket_path\":\"/tmp/b.sock\"}]}"
+    }
+    fm_backend_herdr_presentation_session_lock_path fmtest
+  ' "$ROOT" 2>&1)
+  status=$?
+  [ "$status" -ne 0 ] \
+    || fail "ambiguous named-session socket identity returned a lock path: $path"
+  [ -z "$path" ] || fail "ambiguous named-session socket identity emitted output: $path"
+  pass "herdr presentation lock: ambiguous named-session socket identity remains rejected"
 }
 
 test_presentation_session_lock_path_rejects_malformed_socket() {
@@ -2989,7 +3259,33 @@ test_current_path_reads_cwd() {
     bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_current_path default:w1:p2' "$ROOT" )
   [ "$out" = "/tmp/fake-worktree" ] || fail "current_path should read foreground_cwd (the live process), not the frozen creation-time cwd, got '$out'"
   assert_contains "$(cat "$log")" $'\x1f''pane'$'\x1f''get'$'\x1f''w1:p2' "current_path did not call pane get"
+  assert_not_contains "$(cat "$log")" $'\x1f''pane'$'\x1f''process-info' "current_path should not call pane process-info when pane get supplies foreground_cwd"
   pass "fm_backend_herdr_current_path: reads pane foreground_cwd (the live running process), not the frozen creation-time cwd"
+}
+
+test_current_path_falls_back_to_foreground_process_cwd() {
+  local dir log resp fb out
+  dir="$TMP_ROOT/cwd-process-info"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+  printf '%s\n' '{"result":{"pane":{"cwd":"C:\\src\\firstmate"}}}' > "$resp/1.out"
+  printf '%s\n' '{"result":{"process_info":{"foreground_process_group_id":4242,"foreground_processes":[{"pid":4242,"name":"powershell.exe","cwd":"C:\\Users\\captain\\.treehouse\\project"}]}}}' > "$resp/2.out"
+  fb=$(make_herdr_fakebin "$dir")
+  out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_current_path default:w1:p2' "$ROOT" )
+  [ "$out" = 'C:\Users\captain\.treehouse\project' ] || fail "current_path should fall back to the foreground process cwd when pane get omits foreground_cwd, got '$out'"
+  assert_contains "$(cat "$log")" $'\x1f''pane'$'\x1f''process-info'$'\x1f''--pane'$'\x1f''w1:p2' "current_path did not fall back to pane process-info"
+  pass "fm_backend_herdr_current_path: falls back to the foreground process cwd when pane get omits foreground_cwd"
+}
+
+test_current_path_refuses_non_leader_process_cwd() {
+  local dir log resp fb out
+  dir="$TMP_ROOT/cwd-non-leader"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; : > "$log"
+  printf '%s\n' '{"result":{"pane":{"cwd":"C:\\src\\firstmate"}}}' > "$resp/1.out"
+  printf '%s\n' '{"result":{"process_info":{"foreground_process_group_id":4242,"foreground_processes":[{"pid":5151,"name":"powershell.exe","cwd":"C:\\Users\\captain\\.treehouse\\project"}]}}}' > "$resp/2.out"
+  fb=$(make_herdr_fakebin "$dir")
+  out=$( PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+    bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_current_path default:w1:p2' "$ROOT" )
+  [ -z "$out" ] || fail "current_path must not guess from a process cwd that does not belong to the foreground group leader, got '$out'"
+  pass "fm_backend_herdr_current_path: refuses a process cwd that does not belong to the foreground group leader"
 }
 
 # --- busy_state (semantic agent state) ---------------------------------------
@@ -4476,6 +4772,9 @@ test_wait_transition_clean_timeout_returns_1() {
 # shellcheck source=bin/fm-backend.sh
 . "$ROOT/bin/fm-backend.sh"
 
+test_presentation_lock_namespace_is_platform_aware
+test_presentation_lock_namespace_windows_acl_proof
+test_presentation_session_lock_path_rejects_ambiguous_identity
 test_version_check_accepts_current_protocol
 test_version_check_refuses_old_protocol
 test_version_check_refuses_missing_herdr
@@ -4487,10 +4786,13 @@ test_workspace_label_different_secondmates_get_different_labels
 test_cli_helper_sets_env_and_appends_trailing_session_flag
 test_launcher_identity_absent_without_a_herdr_pane
 test_launcher_identity_absent_when_herdr_env_alone_is_set
+test_canonical_socket_path_accepts_native_windows_absolute_paths
 test_launcher_identity_resolves_the_exact_pane_tab_and_workspace
+test_launcher_identity_resolves_matching_native_windows_socket_paths
 test_launcher_identity_refuses_a_pane_from_another_session_name
 test_launcher_identity_refuses_a_missing_server_socket
 test_launcher_identity_refuses_a_pane_from_another_server_socket
+test_launcher_identity_refuses_different_native_windows_socket_paths
 test_launcher_identity_refuses_an_unreadable_pane
 test_launcher_identity_refuses_a_pane_and_tab_that_disagree
 test_launcher_identity_refuses_a_workspace_missing_from_the_session
@@ -4537,7 +4839,7 @@ test_projection_create_uses_exact_response_ids_and_leaves_one_task_pane
 test_projection_create_never_closes_a_concurrent_same_label_tab
 test_projection_focus_snapshot_requires_exact_workspace_and_tab
 test_projection_close_restores_exact_prior_focus
-test_projection_close_refuses_active_tab
+test_projection_close_defers_active_tab_silently
 test_projection_close_reports_focus_restore_failure
 test_projection_close_rechecks_required_agent_state_at_boundary
 test_projection_close_emptying_after_focus_uses_pane_death_without_move
@@ -4559,8 +4861,9 @@ test_kill_emptying_non_focused_uses_pane_death
 test_kill_focused_workspace_stays_plain_close
 test_endpoint_confirmed_gone_gates_on_structured_presence
 test_kill_refuses_when_presentation_lock_is_unavailable
-test_projection_seeded_prune_refuses_active_tab
+test_projection_seeded_prune_defers_active_tab
 test_projection_label_builder_uses_corner_and_strips_owner_prefixes
+test_workspace_move_capability_rejects_unusable_transport
 test_projection_order_moves_only_exact_new_workspace_and_preserves_relative_order
 test_projection_order_secondmate_parent_block
 test_projection_order_foreign_legacy_child_is_read_only
@@ -4587,6 +4890,8 @@ test_capture_preserves_pane_read_failure
 test_send_key_normalizes_and_targets_pane
 test_kill_is_best_effort
 test_current_path_reads_cwd
+test_current_path_falls_back_to_foreground_process_cwd
+test_current_path_refuses_non_leader_process_cwd
 test_busy_state_working_maps_to_busy
 test_busy_state_done_and_blocked_map_to_idle
 test_busy_state_unknown_on_no_agent

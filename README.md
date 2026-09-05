@@ -58,7 +58,7 @@ Full detail on every feature lives in [docs/architecture.md](docs/architecture.m
 
 ### Requirements
 
-- A verified primary agent harness: Claude Code, Grok, Pi, `pi-signed`, Codex, OpenCode, or Cursor Agent CLI.
+- A verified primary agent harness: Claude Code, GitHub Copilot CLI, Grok, Pi, `pi-signed`, Codex, OpenCode, or Cursor Agent CLI.
 - Git and the GitHub CLI, authenticated through `gh auth login`.
 - The CLI and dependencies for your selected runtime backend; tmux is the reference default.
 
@@ -75,6 +75,8 @@ Pick whichever one matches your subscription and workflow.
 Codex and OpenCode are also verified and supported as primary harnesses; Codex uses bounded foreground checkpoints, and OpenCode uses a TUI plugin, so both carry more harness-specific supervision tradeoffs than the three co-primaries.
 Cursor Agent CLI is verified as a primary too, using a tracked project-scope `.cursor/hooks.json` whose `stop` hook parks on the watcher between turns, closest in shape to Claude Code's.
 Launch it with `--trust`, or none of its project hooks load; it also has no turn-end hook in headless `cursor-agent -p`, so run the primary session interactively.
+GitHub Copilot CLI is verified for primary and worker use through tracked `.github/hooks/firstmate.json`.
+Its tracked asynchronous watcher, Windows bridge, recovery bounds, and current away-mode limitation are documented in the [Copilot supervision protocol](docs/supervision-protocols/copilot.md).
 
 ### Install and launch
 
@@ -84,7 +86,15 @@ git clone https://github.com/kunchenguid/firstmate
 cd firstmate
 ```
 
-Then launch one of the co-primary harnesses; AGENTS.md takes over from there:
+On Windows, install Firstmate's required tools from PowerShell:
+
+```powershell
+.\bin\fm-install-windows.ps1
+```
+
+The Windows installer also installs Git for Windows and Python 3.13, configures the AXI integration hooks, and disables this repository's Claude project hooks by renaming `.claude/settings.json` to `.claude/settings.json.disabled`.
+
+Then launch a verified primary harness; AGENTS.md takes over from there:
 
 **Claude Code**
 
@@ -96,6 +106,12 @@ claude
 
 ```sh
 grok --trust
+```
+
+**GitHub Copilot CLI**
+
+```sh
+copilot
 ```
 
 **Pi**
@@ -192,10 +208,11 @@ Agent-only reference skills live under `.agents/skills/` and are loaded by first
 Firstmate's skills live in two separate places with different audiences:
 
 - `.agents/skills/` - agent-loaded skills (this section's table, plus firstmate's agent-only reference skills). Every one of these assumes a live firstmate home and is meaningless, or actively misleading, installed anywhere else, so each carries `metadata.internal: true` in its frontmatter. That flag hides them from installer discovery (tools like the [skills.sh](https://skills.sh) `npx skills add` installer) without affecting how firstmate itself loads them - frontmatter metadata is inert to the agent's own skill loader.
-- `skills/` - public, installer-facing skills meant to be installed standalone into any project, independent of firstmate.
-  Each one is a self-contained skill with no dependency on firstmate's paths, tools, or vocabulary.
-  Today that is `skills/stow`, a generic session-knowledge-sweep skill that routes findings by explicit instruction first, then existing local conventions, then a private `.stow-notes.md` fallback, and curates tiered entries through decay, local archival, and user-approved on-demand offload proposals.
+- `skills/` - public, installer-facing skills for external agents and never part of a live firstmate's loaded instruction surface.
+  Each one is self-contained and must not depend on a live firstmate home or private fleet state; a skill may be generic or may target maintenance of the Firstmate repository itself.
+  `skills/stow` is a generic session-knowledge-sweep skill that routes findings by explicit instruction first, then existing local conventions, then a private `.stow-notes.md` fallback, and curates tiered entries through decay, local archival, and user-approved on-demand offload proposals.
   It intentionally shares no code with the firstmate-internal `.agents/skills/stow` it is named after, so the two can evolve independently.
+  `skills/reconcile-firstmate-upstream` is an external-maintainer workflow for freezing one `kunchenguid/firstmate` revision, reconciling the `timbarreto/firstmate` fork, running changed-aware local validation, and opening an ordinary unmerged PR.
 
 ## Documentation
 
@@ -216,7 +233,7 @@ Firstmate's skills live in two separate places with different audiences:
 - [docs/gitlab-merge-watch.md](docs/gitlab-merge-watch.md) - maintainer verification for watching and merging GitLab merge requests on arbitrary instances.
 - [docs/turnend-guard.md](docs/turnend-guard.md) - the primary session's current "no turn ends blind" backstop, scope, loop safety, and compatibility limits.
 - [docs/verification/supervision.md](docs/verification/supervision.md) - active maintainer verification for session-start, guard, continuity, and wedge integrations.
-- [docs/supervision-protocols/](docs/supervision-protocols/) - rendered primary-harness watcher protocols for Claude, Codex, OpenCode, Pi and `pi-signed`, Grok, Cursor, and unknown harness fallback.
+- [docs/supervision-protocols/](docs/supervision-protocols/) - rendered primary-harness watcher protocols for Claude, Codex, GitHub Copilot CLI, OpenCode, Pi and `pi-signed`, Grok, Cursor, and unknown harness fallback.
 - [docs/scripts.md](docs/scripts.md) - the `bin/` toolbelt reference.
 - [docs/documentation-audiences.md](docs/documentation-audiences.md) - documentation audiences and the machine-checked placement boundary.
 - [`AGENTS.md`](AGENTS.md) - the distro's always-loaded operating contract and routing index for conditional procedures.

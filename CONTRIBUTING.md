@@ -1,52 +1,38 @@
 # Contributing
 
 Thanks for wanting to contribute.
-One rule up front:
-
-**Human-authored pull requests targeting `main` must be raised through [`no-mistakes`](https://github.com/kunchenguid/no-mistakes).**
-We require this to reduce the maintainer's burden of reviewing and merging contributions.
-
-`no-mistakes` puts a local git proxy in front of your real remote.
-Pushing through it runs an AI-driven review/test/lint pipeline in an isolated worktree, forwards the push upstream only after every check passes, and opens a clean PR automatically.
-
-A GitHub Actions check (`Require no-mistakes`) runs on PRs targeting `main` and requires both the deterministic signature and a parseable structured attestation from no-mistakes v1.46.0 or newer.
-The attestation must bind to the current PR head commit and report the review, test, and document steps as completed, so a stale attestation, a missing `head_sha`, or a skipped required step fails.
-It evaluates every PR opening and body edit independently, reruns after head synchronization or reopening, and prevents a later edit from replacing an earlier pending compliance check.
-GitHub Actions and Dependabot are exempt so their automation keeps working, but other contributor PRs that do not satisfy the attestation contract will not be reviewed or merged.
+Contributions use ordinary GitHub pull requests.
+[`no-mistakes`](https://github.com/kunchenguid/no-mistakes) remains an optional local validation path, but its signature is not required.
 
 ## Workflow
 
 1. Fork the repo, then clone the parent repo or set your local `origin` back to the parent (`git@github.com:kunchenguid/firstmate.git`).
 2. Create a branch and make your changes.
-3. Initialize the gate with your fork as the push target: `no-mistakes init --fork-url git@github.com:<you>/firstmate.git` (contributing to firstmate requires **no-mistakes v1.46.0+** for structured attestation; without a fork, plain `no-mistakes init` still works for maintainers with push access).
-4. Commit your changes.
-5. Push through the gate instead of pushing to `origin`:
+3. Run the relevant checks from the [Development](#development) section.
+4. Commit your changes and push the branch to your fork:
 
    ```sh
-   git push no-mistakes
+   git push origin <branch>
    ```
 
-6. Run `no-mistakes` to attach to the pipeline, watch findings, authorize auto-fixes, and review ask-user findings as needed.
-   Follow the installed no-mistakes version's SKILL.md and live `axi` help for gate mechanics.
-7. Once the pipeline passes, it pushes the branch to your fork and opens the PR against the parent repo for you.
-
-See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/start-here/quick-start/) for the full first-run walkthrough.
+5. Open a pull request against `kunchenguid/firstmate:main`.
+6. Address review findings and required CI checks.
 
 ## Repo conventions
 
 - This repo is a template for running a firstmate orchestrator agent.
   `AGENTS.md` is the agent's main job description and names when to load bundled firstmate skills; `CLAUDE.md` is a real `@AGENTS.md` pointer to it, and `.claude/skills` is a symlink to `.agents/skills`.
 - Only shared material is tracked: `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `.tasks.toml`, `.github/workflows/`, `bin/`, `.agents/skills/`, and `skills/`.
-  `.agents/skills/` holds agent-loaded skills that assume a live firstmate home and carry `metadata.internal: true` so installers such as [skills.sh](https://skills.sh) hide them from discovery; `skills/` holds standalone, installer-facing public skills with no firstmate dependency (see the README's "Two-tier skill layout").
+  `.agents/skills/` holds agent-loaded skills that assume a live firstmate home and carry `metadata.internal: true` so installers such as [skills.sh](https://skills.sh) hide them from discovery; `skills/` holds standalone, installer-facing public skills for external agents, and those skills never depend on a live firstmate home or private fleet state (see the README's "Two-tier skill layout").
   Everything personal to one captain's fleet (`.env`, `data/`, `state/`, `config/`, `projects/`, `.no-mistakes/`) is gitignored; never commit it.
   The root `.tasks.toml` is tracked `tasks-axi` config for `data/backlog.md`; compatible `tasks-axi` is the default backend for routine backlog mutations, with the compatibility definition owned by [`docs/configuration.md`](docs/configuration.md) ("Backlog backend").
   A local `config/backlog-backend=manual` opt-out forces firstmate's routine backlog updates to hand-editing and stays gitignored; validated secondmate handoffs still delegate through `tasks-axi mv`.
   A local `config/backend` file explicitly overrides runtime auto-detection for new task endpoints and stays gitignored; spawn-supported values are `tmux` plus experimental `herdr`, `zellij`, `orca`, and `cmux`, while `codex-app` is documented only in `docs/codex-app-backend.md`.
   It does not make `data/` tracked.
-- Helper scripts in `bin/` are plain bash.
+- Shell helpers in `bin/` are plain Bash; semantic policy owners may use tracked `.mjs` modules, and Windows-native installers or bridges may use tracked `.ps1` scripts.
   Each starts with a usage header comment; keep it accurate when you change behavior.
   Test scripts and helpers in `tests/` are plain bash too.
-  `bin/fm-lint.sh` must pass: it is the single owner of the lint definition (the shellcheck file set, config, pinned shellcheck version, and pinned actionlint workflow lint), and both CI and the no-mistakes pre-push gate run its no-argument full-analysis path.
+  `bin/fm-lint.sh` must pass: it is the single owner of the lint definition (the shellcheck file set, config, pinned shellcheck version, and pinned actionlint workflow lint), and both CI and the optional no-mistakes configuration run its no-argument full-analysis path.
   Its header and `--help` output own the exact local lint modes and flags.
   A malformed `.github/workflows/*.yml`, including a self-broken `ci.yml`, fails that local lint path before merge because a broken workflow cannot report its own breakage.
   It pins one exact shellcheck version and one exact actionlint version and refuses to run under any other.
@@ -61,14 +47,15 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 
 ## Development
 
-Tracked changes to firstmate itself - `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `.tasks.toml`, `.github/workflows/`, `bin/`, `.agents/skills/`, and `skills/` - ship through the `no-mistakes` pipeline on a feature branch and require an explicit merge approval.
+Tracked changes to firstmate itself - `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `.tasks.toml`, `.github/workflows/`, `bin/`, `.agents/skills/`, and `skills/` - ship through a feature-branch pull request and require an explicit merge approval.
 Before making any such change, load the agent-only `firstmate-coding-guidelines` skill (`.agents/skills/firstmate-coding-guidelines/SKILL.md`).
 It has the knowledge-placement rules that keep `AGENTS.md` from regrowing after each diet pass.
 There is no reliable way for `bin/fm-brief.sh`'s scaffold to detect that a task's repo is firstmate itself, so firstmate adds this skill's load line to firstmate-repo briefs by hand.
 A crewmate picking up such a brief should load the skill even if the brief predates this instruction.
 When supervising live crewmates, keep firstmate's own long validation or build commands in the background so watcher wakes can still be handled.
-Crewmate validation follows the installed no-mistakes version's SKILL.md and live `axi` help instead of duplicating gate mechanics in firstmate docs.
-Firstmate's wrapper still matters: crewmates route every `ask-user` finding to firstmate, which applies `ask-user-authority`, and crewmates never pass `--yes` or `-y` because either flag bypasses that check and any required captain escalation.
+When no-mistakes is used optionally, follow the installed version's SKILL.md and live `axi` help instead of duplicating its mechanics here.
+Firstmate's wrapper still matters: crewmates route every `ask-user` finding to firstmate, which applies `ask-user-authority`.
+Crewmates never pass `--yes` or `-y` because either flag bypasses that check and any required captain escalation.
 `.no-mistakes.yaml` publishes test evidence to the orphan `no-mistakes/evidence` branch, which shares no history with code branches, pins the gate's lint command to `bin/fm-lint.sh`, matching the Linux CI lint job, and pins its test command to `bin/fm-test-run.sh --changed`.
 Local no-mistakes Test is intent-targeted and must not re-run every `tests/*.test.sh`; `.github/workflows/ci.yml` owns the broad behavior suite plus platform-specific compatibility lanes.
 Verify the same way the gate does: reach for `bin/fm-test-run.sh` with the subjects you care about rather than chaining `bash tests/a.test.sh && bash tests/b.test.sh`, because a list of script paths gets the same bounded concurrency as `--changed`.
@@ -108,6 +95,8 @@ Portable shard balance evidence lives in `docs/fm-test-portable-shards.md`.
 Local no-mistakes Test stays intent-targeted and must not wire `commands.test` to `--all` or a `tests/*.test.sh` walk.
 Family selection is the ordinary local path; `--all` is deliberate full regression only.
 CI owns broad regression across required portable parallel shards, the portable serial lane's separate-runner shards, the Herdr lane, lint, invariants, the coverage guard, and stock macOS Bash compatibility in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+CI also installs pinned Pi and OpenCode packages in a non-credentialed compatibility job so package API drift and missing runner CLIs fail pull requests explicitly.
+The upstream repository additionally requires a no-mistakes signature workflow, but this fork intentionally omits that pull-request policy because ordinary pull requests remain supported and no-mistakes is optional here.
 Use `bin/fm-test-run.sh --list-lanes` for exact lane names and `--help` for `--jobs` rules and required gate-skip flags when reproducing a lane locally.
 Leave the `sleep 0.1` cadence in the suites' bounded condition waits alone.
 Those sleeps look like recoverable overhead - `fm-watch-triage.test.sh` alone issues about 1,900 of them, each paying a flat ~100ms scheduler wake-up penalty on macOS - but they are not overhead added to the clock; they are how a test waits for a subject that only moves on `fm-watch.sh`'s own one-second `FM_POLL` cadence.

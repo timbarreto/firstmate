@@ -202,7 +202,11 @@ interrupt_spawn_during_start() {  # <case-dir> <before|after>
 #!/usr/bin/env bash
 if [ "\${1:-}" = start ] && [ ! -f "$case_dir/start-interrupted" ]; then
   : > "$case_dir/start-interrupted"
-  spawn_pid=\$(ps -o ppid= -p "\$PPID" | tr -d ' ')
+  if [ -r "/proc/\$PPID/status" ]; then
+    spawn_pid=\$(sed -n 's/^PPid:[[:space:]]*//p' "/proc/\$PPID/status")
+  else
+    spawn_pid=\$(ps -o ppid= -p "\$PPID" | tr -d ' ')
+  fi
   case "\$spawn_pid" in ''|*[!0-9]*) exit 1 ;; esac
   if [ "$timing" = before ]; then
     kill -TERM "\$spawn_pid"
@@ -274,7 +278,11 @@ interrupt_teardown_during_treehouse_return() {  # <case-dir>
 #!/usr/bin/env bash
 if [ "\${1:-}" = return ] && [ ! -f "$case_dir/teardown-interrupted" ]; then
   : > "$case_dir/teardown-interrupted"
-  teardown_pid=\$(ps -o ppid= -p "\$PPID" | tr -d ' ')
+  if [ -r "/proc/\$PPID/status" ]; then
+    teardown_pid=\$(sed -n 's/^PPid:[[:space:]]*//p' "/proc/\$PPID/status")
+  else
+    teardown_pid=\$(ps -o ppid= -p "\$PPID" | tr -d ' ')
+  fi
   case "\$teardown_pid" in ''|*[!0-9]*) exit 1 ;; esac
   kill -TERM "\$teardown_pid"
   kill -TERM "\$\$"
@@ -301,7 +309,11 @@ case "\${1:-}" in
   capture-pane)
     if [ ! -f "$case_dir/kimi-interrupted" ]; then
       : > "$case_dir/kimi-interrupted"
-      spawn_pid=\$(ps -o ppid= -p "\$PPID" | tr -d ' ')
+      if [ -r "/proc/\$PPID/status" ]; then
+        spawn_pid=\$(sed -n 's/^PPid:[[:space:]]*//p' "/proc/\$PPID/status")
+      else
+        spawn_pid=\$(ps -o ppid= -p "\$PPID" | tr -d ' ')
+      fi
       case "\$spawn_pid" in ''|*[!0-9]*) exit 1 ;; esac
       kill -TERM "\$spawn_pid"
     fi
@@ -731,7 +743,7 @@ test_dispatch_refuses_a_symlinked_backlog_without_crossing_homes() {
   local_backlog=$(backlog_of "$case_dir")
   foreign_backlog=$(backlog_of "$foreign_case")
   rm -f "$local_backlog"
-  ln -s "$foreign_backlog" "$local_backlog"
+  fm_test_make_symlink "$foreign_backlog" "$local_backlog"
 
   out=$(run_ship_spawn "$case_dir" "$id") || rc=$?
   [ "$rc" -ne 0 ] || fail "spawn accepted a symlinked backlog"
@@ -1203,7 +1215,7 @@ test_trailing_newline_data_path_fails_closed() {
   mv "$home/data" "$data"
   mkdir -p "$home/data/$id"
   cp "$data/$id/brief.md" "$home/data/$id/brief.md"
-  ln -s "$data" "$case_dir/data-alias"
+  fm_test_make_symlink "$data" "$case_dir/data-alias"
   backlog_alias="$case_dir/data-alias/backlog.md"
   tasks-axi add "$id" "item for $id" --kind ship --file "$backlog_alias" >/dev/null
 
@@ -1229,22 +1241,23 @@ test_trailing_newline_data_path_fails_closed() {
 }
 
 test_control_character_data_path_is_refused_before_cleanup() {
-  local case_dir id data backlog marker out rc=0
+  local case_dir id data backlog_alias marker out rc=0
   id=atomic-control-data-refusal-b7
   case_dir=$(make_home control-data-refusal "$id")
   data="$case_dir/crew"$'\t'"data"
   mv "$(home_of "$case_dir")/data" "$data"
-  backlog="$data/backlog.md"
-  tasks-axi add "$id" "item for $id" --kind ship --file "$backlog" >/dev/null
+  fm_test_make_symlink "$data" "$case_dir/data-alias"
+  backlog_alias="$case_dir/data-alias/backlog.md"
+  tasks-axi add "$id" "item for $id" --kind ship --file "$backlog_alias" >/dev/null
 
   out=$(FM_DATA_OVERRIDE="$data" run_ship_spawn "$case_dir" "$id") || rc=$?
   [ "$rc" -ne 0 ] || fail "control-character data path passed dispatch preflight"
   assert_absent "$(home_of "$case_dir")/state/$id.meta" \
     "control-character dispatch published a task record"
-  [ "$(tasks-axi show "$id" --file "$backlog" 2>/dev/null | sed -n 's/^  state: *//p' | head -1)" = queued ] \
+  [ "$(tasks-axi show "$id" --file "$backlog_alias" 2>/dev/null | sed -n 's/^  state: *//p' | head -1)" = queued ] \
     || fail "control-character dispatch changed the backlog row: $out"
 
-  tasks-axi start "$id" --file "$backlog" >/dev/null
+  tasks-axi start "$id" --file "$backlog_alias" >/dev/null
   write_task_meta "$case_dir" "$id" ship local-only "spawn_gen=spawn-control-data"
   marker="$(home_of "$case_dir")/state/$id.backlog-close"
   rc=0
@@ -1253,7 +1266,7 @@ test_control_character_data_path_is_refused_before_cleanup() {
   assert_present "$(home_of "$case_dir")/state/$id.meta" \
     "control-character close preflight removed the task record"
   assert_absent "$marker" "control-character close preflight published a marker"
-  [ "$(tasks-axi show "$id" --file "$backlog" 2>/dev/null | sed -n 's/^  state: *//p' | head -1)" = in_flight ] \
+  [ "$(tasks-axi show "$id" --file "$backlog_alias" 2>/dev/null | sed -n 's/^  state: *//p' | head -1)" = in_flight ] \
     || fail "control-character close preflight changed the backlog row: $out"
   pass "unreplayable data paths are refused before destructive cleanup"
 }
@@ -1338,7 +1351,7 @@ test_completion_refuses_a_close_target_symlinked_to_a_directory() {
   marker="$home/state/$id.backlog-close"
   external="$case_dir/external-directory"
   mkdir -p "$external"
-  ln -s "$external" "$marker"
+  fm_test_make_symlink "$external" "$marker"
 
   out=$(run_teardown "$case_dir" "$id") || rc=$?
   [ "$rc" -ne 0 ] || fail "teardown published through a directory symlink"
@@ -1463,7 +1476,7 @@ test_recovery_rejects_an_internal_worker_record_symlink() {
   home=$(home_of "$case_dir")
   add_item "$case_dir" "$id"
   write_task_meta "$case_dir" "$target_id" ship no-mistakes "spawn_gen=internal-target"
-  ln -s "$target_id.meta" "$home/state/$id.meta"
+  fm_test_make_symlink "$target_id.meta" "$home/state/$id.meta"
 
   out=$(run_bootstrap "$case_dir") || rc=$?
   [ "$rc" -ne 0 ] || fail "session start accepted an internal worker-record symlink"
@@ -1486,7 +1499,7 @@ test_recovery_ignores_a_symlinked_worker_record() {
   add_item "$case_dir" "$id"
   target="$case_dir/symlink-meta-target"
   printf 'kind=ship\nspawn_gen=unpublished\n' > "$target"
-  ln -s "$target" "$home/state/$id.meta"
+  fm_test_make_symlink "$target" "$home/state/$id.meta"
 
   out=$(run_bootstrap "$case_dir") || rc=$?
   [ "$rc" -ne 0 ] || fail "session start accepted a symlinked worker record"
@@ -1681,7 +1694,7 @@ test_recovery_preserves_a_close_beside_symlinked_metadata() {
   start_item "$case_dir" "$id"
   target="$case_dir/foreign-meta-target"
   printf 'kind=ship\nspawn_gen=other-incarnation\n' > "$target"
-  ln -s "$target" "$home/state/$id.meta"
+  fm_test_make_symlink "$target" "$home/state/$id.meta"
   marker="$home/state/$id.backlog-close"
   printf 'id=%s\ndata=%s\nspawn_gen=closing-incarnation\narg=--note\narg=local%%20main\n' \
     "$id" "$home/data" > "$marker"
@@ -1887,7 +1900,7 @@ test_recovery_rejects_a_symlinked_close_marker() {
   marker="$(home_of "$case_dir")/state/$id.backlog-close"
   printf 'id=%s\ndata=%s\nspawn_gen=spawn-symlink\narg=--note\narg=local%%20main\n' \
     "$id" "$(home_of "$case_dir")/data" > "$payload"
-  ln -s "$payload" "$marker"
+  fm_test_make_symlink "$payload" "$marker"
   rm -f "$payload"
 
   out=$(run_bootstrap "$case_dir") || rc=$?
@@ -1987,7 +2000,7 @@ test_lifecycle_refuses_ancestor_symlinks_outside_home_roots() {
   foreign="$backlog_case/foreign-home"
   mkdir -p "$foreign/data"
   cp "$(backlog_of "$backlog_case")" "$foreign/data/backlog.md"
-  ln -s "$foreign" "$home/foreign-link"
+  fm_test_make_symlink "$foreign" "$home/foreign-link"
   out=$(FM_DATA_OVERRIDE="$home/foreign-link/data" run_ship_spawn "$backlog_case" "$id") || rc=$?
   [ "$rc" -ne 0 ] || fail "dispatch accepted a backlog through an ancestor symlink"
   assert_absent "$home/state/$id.meta" "dispatch published through a foreign backlog root"
@@ -1998,7 +2011,7 @@ test_lifecycle_refuses_ancestor_symlinks_outside_home_roots() {
   mkdir -p "$foreign/state"
   add_item "$worker_case" "$id"
   fm_write_meta "$foreign/state/$id.meta" "kind=ship" "spawn_gen=foreign-worker"
-  ln -s "$foreign" "$home/foreign-link"
+  fm_test_make_symlink "$foreign" "$home/foreign-link"
   rc=0
   out=$(FM_STATE_OVERRIDE="$home/foreign-link/state" run_bootstrap "$worker_case") || rc=$?
   [ "$rc" -ne 0 ] || fail "bootstrap accepted a worker record through an ancestor symlink"
@@ -2014,7 +2027,7 @@ test_lifecycle_refuses_ancestor_symlinks_outside_home_roots() {
   marker="$foreign/state/$id.backlog-close"
   printf 'id=%s\ndata=%s\nspawn_gen=foreign-close\narg=--note\narg=local%%20main\n' \
     "$id" "$home/data" > "$marker"
-  ln -s "$foreign" "$home/foreign-link"
+  fm_test_make_symlink "$foreign" "$home/foreign-link"
   rc=0
   out=$(FM_STATE_OVERRIDE="$home/foreign-link/state" run_bootstrap "$close_case") || rc=$?
   [ "$rc" -ne 0 ] || fail "bootstrap accepted a close record through an ancestor symlink"
@@ -2051,7 +2064,7 @@ test_bootstrap_refuses_a_symlinked_state_directory_before_reconciliation() {
   add_item "$case_dir" "$id"
   write_task_meta "$foreign_case" "$id" ship no-mistakes "spawn_gen=foreign-worker"
   rm -rf "$home/state"
-  ln -s "$foreign_state" "$home/state"
+  fm_test_make_symlink "$foreign_state" "$home/state"
 
   out=$(run_bootstrap "$case_dir") || rc=$?
   [ "$rc" -ne 0 ] || fail "bootstrap accepted a symlinked state directory"
@@ -2140,7 +2153,7 @@ test_no_backlog_teardown_refuses_a_symlinked_task_record_at_entry() {
     "window=firstmate:fm-$id" "endpoint_task_id=$id" \
     "worktree=$foreign_worktree" "project=$case_dir/foreign-project" \
     "harness=claude" "kind=ship" "mode=local-only" "yolo=off"
-  ln -s "$target" "$home/state/$id.meta"
+  fm_test_make_symlink "$target" "$home/state/$id.meta"
   track_teardown_resource_actions "$case_dir"
 
   out=$(run_teardown "$case_dir" "$id") || rc=$?
@@ -2211,7 +2224,7 @@ test_teardown_refuses_a_symlinked_state_directory_at_entry() {
     "window=firstmate:fm-$id" "endpoint_task_id=$id" \
     "worktree=$case_dir/foreign-worktree" "project=$case_dir/foreign-project" \
     "harness=claude" "kind=ship" "mode=local-only" "yolo=off"
-  ln -s "$external_state" "$home/state"
+  fm_test_make_symlink "$external_state" "$home/state"
   track_teardown_resource_actions "$case_dir"
 
   out=$(run_teardown "$case_dir" "$id") || rc=$?
