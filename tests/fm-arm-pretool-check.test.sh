@@ -196,13 +196,36 @@ run_matrix_entry() {
   fi
 }
 
+run_matrix_case() {  # <matrix-index>
+  local i=$1 entry pid failed
+  local -a pids=()
+  for entry in codex claude grok opencode pi; do
+    run_matrix_entry \
+      "${MATRIX_IDS[$i]}" "${MATRIX_EXPECTED[$i]}" "$entry" "${MATRIX_COMMANDS[$i]}" &
+    pids+=("$!")
+  done
+  failed=0
+  for pid in "${pids[@]}"; do
+    wait "$pid" || failed=1
+  done
+  [ "$failed" -eq 0 ] || fail "matrix ${MATRIX_IDS[$i]} failed an entry form"
+  pass "matrix ${MATRIX_IDS[$i]}: ${MATRIX_EXPECTED[$i]} through all five entry forms"
+}
+
 test_full_acceptance_matrix() {
-  local i entry
+  local i pid failed
+  local -a pids=()
   for ((i = 0; i < ${#MATRIX_IDS[@]}; i++)); do
-    for entry in codex claude grok opencode pi; do
-      run_matrix_entry "${MATRIX_IDS[$i]}" "${MATRIX_EXPECTED[$i]}" "$entry" "${MATRIX_COMMANDS[$i]}"
-    done
-    pass "matrix ${MATRIX_IDS[$i]}: ${MATRIX_EXPECTED[$i]} through all five entry forms"
+    run_matrix_case "$i" &
+    pids+=("$!")
+    if [ "${#pids[@]}" -eq 4 ] || [ "$i" -eq "$((${#MATRIX_IDS[@]} - 1))" ]; then
+      failed=0
+      for pid in "${pids[@]}"; do
+        wait "$pid" || failed=1
+      done
+      [ "$failed" -eq 0 ] || fail "the full acceptance matrix failed"
+      pids=()
+    fi
   done
 }
 

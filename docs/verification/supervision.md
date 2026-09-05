@@ -210,7 +210,7 @@ Each pass polled `state/<id>.busy-state` while a real turn ran.
 | Pi | 0.82.0 | Extension `agent_start` / `agent_settled` with `ctx.isIdle()` | The spawn seed `busy source=fm-spawn`, then `busy source=pi-ext event=agent-start`, then `idle source=pi-ext event=agent-settled`; the turn-end marker was still touched. |
 | OpenCode | 1.17.18 | Plugin `session.status` | In a real TUI pane: seed, then `busy source=opencode-plugin event=session-busy`, then `idle source=opencode-plugin event=session-status-idle`. |
 | Claude | 2.1.220 (Claude Code) | Hooks `UserPromptSubmit`, `Stop`, `StopFailure`, `SessionEnd` | `UserPromptSubmit` fired for the argv launch prompt and each steer, and `Stop` closed every completed turn. A mid-stream Escape interrupt fired no closing hook, which is why the firstmate-controlled clear exists. `StopFailure` and `SessionEnd` are wired from the four hook names present in the installed binary; only the abnormal paths they cover were not reproduced live. |
-| Copilot | 1.0.81-7 | Hooks `userPromptSubmitted`, `agentStop`, and `sessionEnd` | Genuine payloads established all three events. Prompt submission writes `busy source=copilot-hook event=user-prompt-submitted` and a submission token; stop and session end write idle and touch the turn-ended marker. |
+| Copilot | 1.0.81-7 | Hooks `userPromptSubmitted`, `agentStop`, and `sessionEnd` | Genuine payloads established all three events: prompt submission writes `busy source=copilot-hook event=user-prompt-submitted` and a submission token, while stop and session end write idle and touch the turn-ended marker. |
 | Codex | codex-cli 0.145.0 | None usable | See below; classifies `unknown codex-unverified`. |
 | Kimi (standalone) | not installed | None usable | No binary on `PATH`, so the gate stays closed and it classifies `unknown kimi-unverified`. |
 | Grok | 0.2.112 | Isolated rendered-tail fallback | Retained unconverted; the approved audit could not credit a live structured-lifecycle run. |
@@ -261,6 +261,12 @@ FM_COPILOT_HOOKS_LIVE_E2E=1 tests/fm-copilot-hooks-live-e2e.test.sh
 The first repository retained the hook-discovery negative control and proved that Copilot loads visible repository hook files in descending filename order while ignoring hidden JSON files.
 The second instructed Copilot to start one native asynchronous PowerShell task.
 The initiating turn continued with `ASYNC_STARTED`, the completed task produced a genuine `notification_type=shell_completed` payload, and the notification hook's `additionalContext` produced a later turn containing the unique probe token.
+The live guard completed with these exact result lines:
+
+```text
+ok - Copilot repository hooks ignore hidden files and load visible files in descending filename order
+ok - Copilot background shell completion asynchronously injects a follow-up turn
+```
 
 `tests/fm-copilot-harness.test.sh` separately proves the tracked Firstmate integration: the `agentStop` path returns promptly, allows a healthy asynchronous watcher to keep running, requests a missing watcher through a bounded native blocked continuation, resets on a real captain prompt, restores parent busy ownership before continuation, and routes shell-completion notifications only when supervision remains necessary and unhealthy.
 Copilot overrides an eighth consecutive blocked stop, so Firstmate's session-scoped repair ledger allows at most seven and uses the seventh response to report its ceiling without launching or waiting for another watcher.

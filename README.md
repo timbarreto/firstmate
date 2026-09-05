@@ -76,10 +76,7 @@ Codex and OpenCode are also verified and supported as primary harnesses; Codex u
 Cursor Agent CLI is verified as a primary too, using a tracked project-scope `.cursor/hooks.json` whose `stop` hook parks on the watcher between turns, closest in shape to Claude Code's.
 Launch it with `--trust`, or none of its project hooks load; it also has no turn-end hook in headless `cursor-agent -p`, so run the primary session interactively.
 GitHub Copilot CLI is verified for primary and worker use through tracked `.github/hooks/firstmate.json`.
-It runs the watcher as a tracked asynchronous shell task, so captain input remains available while supervision waits.
-Shell-completion notifications deliver actionable watcher results, while a short nonblocking `agentStop` hook requests a replacement asynchronous arm only when supervision is missing.
-Native Windows runs use a guarded PowerShell bridge to Git for Windows Bash.
-Copilot primary support does not yet include away-mode escalation injection because its interactive composer has no structurally verified empty shape; attended supervision, session start, and asynchronous watcher supervision are unaffected.
+Its tracked asynchronous watcher, Windows bridge, recovery bounds, and current away-mode limitation are documented in the [Copilot supervision protocol](docs/supervision-protocols/copilot.md).
 
 ### Install and launch
 
@@ -194,7 +191,7 @@ Claude and grok use the slash form shown here; codex uses the same names with `$
 | `/afk`             | Enter away-mode supervision: the sub-supervisor self-handles routine notifications in bash, escalates captain-relevant events and bounded declared-external-wait rechecks as batched digests, and actively alerts if delivery gets stuck while you step away |
 | `/ahoy`            | Recap visible session events since the prior real captain message plus visibly unanswered captain decisions, then guide the captain through any open decisions one at a time in agent-judged impact order; fall back to Bearings when invoked as the session's first real captain message |
 | `/bearings`        | Generate a concise four-section chat digest from bounded fleet state, including registered remote-home ledgers; use `/bearings file` to also replace today's dated report in `data/`, and add `include PRs` for live GitHub enrichment |
-| `/updatefirstmate` | Self-update the running firstmate and its secondmates to the latest from origin with fast-forward-only pulls, then re-read instructions and nudge secondmates |
+| `/updatefirstmate` | Fast-forward the running firstmate and its secondmates, then persist and restart every live mate successfully left on the target commit - including already-current homes - with an honest re-read nudge only when restart cannot be proven |
 | `/stow`            | Sweep the session for uncaptured durable knowledge, persist the open work records this session knows are unfiled or now wrong, curate tiered startup memory with decay and cold archival, enforce each home's budget or surface the required decision, cascade to registered second mates, and report what is safe to reset |
 
 Bearings invocation examples:

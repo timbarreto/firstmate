@@ -43,26 +43,29 @@
 #                   The required Herdr CI lane uses this so a missing pin cannot
 #                   silently pass as a gate skip.
 #   --jobs N        run the selected scripts with up to N concurrent workers.
-#                   Plain --changed uses min(4, cpus) workers when multiple
-#                   selected scripts are admissible.
+#                   Plain --changed and a plain list of script paths use
+#                   min(4, cpus) workers when multiple selected scripts are
+#                   admissible; --lane, --family, and --all stay serial unless
+#                   asked for concurrency explicitly.
 #                   N>1 is allowed only when every selected script is proven
 #                   safe to run concurrently: individually in the proven-isolated
 #                   set (bin/fm-test-isolation-proof.sh --list), or in a family
 #                   carrying a recorded concurrent proof
 #                   (list_concurrent_safe_families below). Overall cap is 8;
-#                   family proofs may impose a lower cap. Unproven stateful
-#                   scripts stay serial. Concurrent runs are ordered
-#                   longest-hint-first so the slowest script is not stranded
-#                   alone at the tail. Default is 1 (serial) except for plain
-#                   --changed, which uses the bounded automatic scheduler. Any
-#                   unproven remainder runs serially after that group.
+#                   family proofs may impose a lower cap. Individually proven
+#                   scripts share one phase; scripts admitted only by a family
+#                   proof run in a separate phase for each family. Concurrent
+#                   phases are ordered longest-hint-first. Unproven stateful
+#                   scripts, plus measured process-heavy Windows scripts, run
+#                   serially after all concurrent phases. Default is 1 (serial)
+#                   except for plain --changed and a plain list of script paths,
+#                   which use the bounded automatic scheduler.
 #   --per-script-timeout-secs N
 #                   terminate a script that runs longer than N seconds and
-#                   record it as exit 124 (0 disables, the default). The
-#                   --changed applies 900s automatically: no real script
-#                   approaches it, so it only converts a HUNG
-#                   script into a bounded failure. --max-wall-ms is checked
-#                   after the run and so cannot catch a hang on its own.
+#                   record it as exit 124 (0 disables, the default). --changed
+#                   applies a 900s automatic floor, with larger measured bounds
+#                   for process-heavy Git-for-Windows scripts. --max-wall-ms is
+#                   checked after the run and so cannot catch a hang on its own.
 #                   External interruption cleanup is outside this runner's
 #                   guarantee; configured per-script bounds remain authoritative.
 #   --max-wall-ms N fail the run when its measured invocation wall clock exceeds
@@ -107,6 +110,15 @@
 set -eu
 
 now_ms() {
+  local value
+  value=$(date +%s%3N 2>/dev/null || true)
+  case "$value" in
+    ''|*[!0-9]*) ;;
+    *)
+      printf '%s\n' "$value"
+      return
+      ;;
+  esac
   if command -v python3 >/dev/null 2>&1; then
     python3 -c 'import time; print(int(time.time() * 1000))'
   else
@@ -140,16 +152,22 @@ JOBS_EXPLICIT=0
 JOBS_MAX=8
 MAX_WALL_MS=
 PER_SCRIPT_TIMEOUT_SECS=0
+CHANGED_TIMEOUT_AUTOMATIC=0
+RUNNER_UNAME_S=$(uname -s 2>/dev/null || true)
 # Bound applied automatically on the automatic --changed path, derived from
-# measured healthy runtimes with margin rather than picked: the slowest measured
-# behavior test is the 341s Herdr presentation E2E, and the slowest script in a
-# runner-file changed selection is tests/fm-calm-pi-extension.test.sh at 77s
-# once its Chrome reap terminates. 900s leaves roughly 2.6x headroom over the
-# slowest real script, so this can only ever fire on a script that is genuinely
-# stuck. It is a guard, not a speed control: a HUNG script becomes a bounded
-# failure instead of an unbounded suite, which is the shape that silently
-# outruns a caller's invocation budget.
+# measured healthy runtimes with margin rather than picked. On ordinary hosts,
+# 900s remains well above the slowest measured behavior script. Git-for-Windows
+# exceptions below preserve the same role against that platform's much higher
+# process-launch cost. These are guards, not speed controls: a HUNG script
+# becomes a bounded failure instead of silently outrunning its caller.
 CHANGED_DEFAULT_TIMEOUT_SECS=900
+# Git Bash pays a much higher process-launch cost. These bounds retain a
+# fail-closed tripwire above the measured September 4, 2026 healthy runs:
+# 797s for the arm policy matrix, 2,638s for the Herdr backend contract, and
+# 3,569s for the captain-hold lifecycle contract.
+CHANGED_WINDOWS_ARM_TIMEOUT_SECS=1800
+CHANGED_WINDOWS_HERDR_TIMEOUT_SECS=4500
+CHANGED_WINDOWS_CAPTAIN_TIMEOUT_SECS=7200
 
 # How many separate-runner shards the portable serial remainder splits into.
 # One owner: CI lane names carry this count and are refused when they disagree.
@@ -247,8 +265,22 @@ cpu_count() {
   printf '%s\n' "$n"
 }
 
+running_on_windows() {
+  case "$RUNNER_UNAME_S" in
+    MSYS*|MINGW*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Primary family for one tests/*.test.sh basename. Unmapped scripts are
 # unclassified so new tests are still runnable and visible in summaries.
+#
+# `standalone` is the residual family: scripts that belong to no subsystem
+# family above but each own their own surface. Its membership is enumerated
+# rather than inherited from the `*)` catch-all precisely because the catch-all
+# also swallows every test nobody has classified yet. Keeping the two separate
+# is what lets `standalone` carry a concurrent proof while a brand-new test
+# lands in `unclassified` and stays serial until someone proves it.
 family_for_basename() {
   case "$1" in
     fm-arm-pretool-check.test.sh|fm-ask-user-authority.test.sh|\
@@ -286,6 +318,7 @@ family_for_basename() {
     fm-backend-herdr-eventwait-smoke.test.sh|fm-backend-herdr-presentation-e2e.test.sh|\
     fm-backend-herdr-launcher-workspace-e2e.test.sh|\
     fm-backend-herdr-prune-safety-e2e.test.sh|fm-backend-herdr-respawn-idem-e2e.test.sh|\
+    fm-backend-herdr-focus-flash-e2e.test.sh|\
     fm-herdr-session-cleanup-e2e.test.sh|\
     fm-backend-herdr-smoke.test.sh|fm-backend-herdr-workspace-per-home-e2e.test.sh|\
     fm-control-herdr-smoke.test.sh)
@@ -298,6 +331,7 @@ family_for_basename() {
     fm-remote-secondmate-trace-context.test.sh|\
     fm-secondmate-harness.test.sh|fm-secondmate-lifecycle-e2e.test.sh|\
     fm-secondmate-liveness.test.sh|fm-secondmate-reconcile.test.sh|\
+    fm-secondmate-restart.test.sh|\
     fm-secondmate-safety.test.sh|fm-secondmate-sync.test.sh|\
     fm-startup-memory-budget.test.sh|fm-stow-cascade.test.sh|\
     fm-send-secondmate-marker.test.sh|fm-shared-captain-inheritance.test.sh)
@@ -310,6 +344,7 @@ family_for_basename() {
       printf '%s\n' session-bootstrap
       ;;
     fm-afk-pi-herdr-return-e2e.test.sh|\
+    fm-claude-stop-autoarm-live-e2e.test.sh|\
     fm-cmux-claude-composer-live-e2e.test.sh|\
     fm-composer-matrix-live-e2e.test.sh|\
     fm-codex-continuity-live-e2e.test.sh|fm-grok-continuity-live-e2e.test.sh|\
@@ -332,7 +367,7 @@ family_for_basename() {
     fm-control.test.sh|fm-control-relaunch.test.sh|\
     fm-herdr-session-cleanup.test.sh|fm-send-resolve-key.test.sh|fm-send-strict.test.sh|\
     fm-send-inbox.test.sh|fm-spawn-batch.test.sh|\
-    fm-spawn-dispatch-profile.test.sh|\
+    fm-spawn-dispatch-profile.test.sh|fm-claude-trust.test.sh|\
     fm-trace-context-spawn.test.sh|fm-spawn-worktree-settle.test.sh|\
     fm-teardown-endpoint-safety.test.sh)
       printf '%s\n' backend-dispatch
@@ -356,6 +391,21 @@ family_for_basename() {
       ;;
     fm-backend-orca.test.sh)
       printf '%s\n' orca
+      ;;
+    fm-branch-supervision.test.sh|fm-busy-adapter-wiring.test.sh|\
+    fm-busy-state.test.sh|fm-classify-corr-token.test.sh|\
+    fm-claude-stop-autoarm.test.sh|fm-cursor-harness.test.sh|\
+    fm-extension-binding.test.sh|fm-gitignore-config.test.sh|\
+    fm-no-mistakes-required.test.sh|fm-peek-remote.test.sh|\
+    fm-pending-reply.test.sh|fm-pi-branch-extension.test.sh|\
+    fm-procevent-quota.test.sh|fm-procevent-when.test.sh|fm-procevent.test.sh|\
+    fm-project-origin.test.sh|fm-public-followup.test.sh|fm-quota-choose.test.sh|\
+    fm-remote-entrypoint.test.sh|fm-remote-secondmate-parent-binding.test.sh|\
+    fm-send-remote-delivery.test.sh|fm-spawn-pool-base-freshen.test.sh|\
+    fm-test-fixture-cleanup.test.sh|fm-test-fixtures.test.sh|\
+    fm-voice-relay.test.sh|fm-wake-drain-open-decisions-cursor.test.sh|\
+    fm-wake-drain-open-decisions.test.sh|fm-wake-drain-outcome-backstop.test.sh)
+      printf '%s\n' standalone
       ;;
     *)
       printf '%s\n' unclassified
@@ -388,6 +438,7 @@ snapshot-bearings
 cmux
 zellij
 orca
+standalone
 unclassified
 EOF
 }
@@ -492,6 +543,10 @@ list_concurrent_safe_families() {
   cat <<'EOF'
 watcher-wake-lock
 pure-contract-unit
+pr-forge
+secondmate
+session-bootstrap
+standalone
 EOF
 }
 
@@ -505,7 +560,8 @@ family_is_concurrent_safe() {
 
 concurrent_safe_family_jobs_max() {
   case "$1" in
-    watcher-wake-lock|pure-contract-unit) printf '4\n' ;;
+    watcher-wake-lock|pure-contract-unit|pr-forge) printf '4\n' ;;
+    secondmate|session-bootstrap|standalone) printf '4\n' ;;
     *) printf '1\n' ;;
   esac
 }
@@ -515,12 +571,50 @@ concurrent_safe_family_jobs_max() {
 script_allows_concurrency() {
   local s=$1 family repo_script
   is_proven_isolated_script "$s" && return 0
-  family=$(family_for_basename "$(basename "$s")")
+  family=$(family_for_basename "${s##*/}")
   family_is_concurrent_safe "$family" || return 1
   while IFS= read -r repo_script; do
     [ "$repo_script" = "$s" ] && return 0
   done < <(all_repo_tests)
   return 1
+}
+
+automatic_concurrency_allowed() {
+  local s=$1
+  script_allows_concurrency "$s" || return 1
+  running_on_windows || return 0
+  # These scripts are logically isolated, but their process-heavy Windows runs
+  # must not compete with another test: captain lifecycle reads can cross their
+  # own bounded registry windows, while arm and Herdr need their measured
+  # automatic timeout headroom preserved.
+  case "${s##*/}" in
+    fm-arm-pretool-check.test.sh|\
+    fm-backend-herdr.test.sh|\
+    fm-captain-hold-lifecycle.test.sh)
+      return 1
+      ;;
+  esac
+  return 0
+}
+
+automatic_changed_timeout_secs_for() {  # <script>
+  if running_on_windows; then
+    case "${1##*/}" in
+      fm-arm-pretool-check.test.sh)
+        printf '%s\n' "$CHANGED_WINDOWS_ARM_TIMEOUT_SECS"
+        return
+        ;;
+      fm-backend-herdr.test.sh)
+        printf '%s\n' "$CHANGED_WINDOWS_HERDR_TIMEOUT_SECS"
+        return
+        ;;
+      fm-captain-hold-lifecycle.test.sh)
+        printf '%s\n' "$CHANGED_WINDOWS_CAPTAIN_TIMEOUT_SECS"
+        return
+        ;;
+    esac
+  fi
+  printf '%s\n' "$CHANGED_DEFAULT_TIMEOUT_SECS"
 }
 
 is_proven_isolated_script() {
@@ -540,7 +634,7 @@ list_portable_serial() {
   local s base fam
   while IFS= read -r s; do
     [ -n "$s" ] || continue
-    base=$(basename "$s")
+    base=${s##*/}
     fam=$(family_for_basename "$base")
     if [ "$fam" = "real-herdr-gated" ]; then
       continue
@@ -566,7 +660,6 @@ tests/fm-afk-return.test.sh 1837
 tests/fm-ask-user-authority.test.sh 128
 tests/fm-backend-cmux-smoke.test.sh 33
 tests/fm-backend-cmux.test.sh 3657
-tests/fm-backend-herdr-focus-flash-e2e.test.sh 22
 tests/fm-backend-orca.test.sh 19253
 tests/fm-backend-tmux-smoke.test.sh 393
 tests/fm-backend-zellij-smoke.test.sh 23
@@ -713,6 +806,17 @@ portable_serial_unhinted() {
   list_portable_serial | LC_ALL=C sort -u >"$tmp/serial"
   LC_ALL=C comm -23 "$tmp/serial" "$tmp/hinted"
   rm -rf "$tmp"
+}
+
+portable_serial_weight_for() {
+  local want=$1 path ms
+  while read -r path ms; do
+    if [ "$path" = "$want" ]; then
+      printf '%s\n' "$ms"
+      return 0
+    fi
+  done < <(portable_serial_weight_hints)
+  printf '%s\n' "$PORTABLE_SERIAL_DEFAULT_WEIGHT_MS"
 }
 
 portable_serial_weighted_paths() {
@@ -1097,7 +1201,7 @@ select_family() {
   [ -n "$want" ] || die "--family requires a name"
   while IFS= read -r s; do
     [ -n "$s" ] || continue
-    base=$(basename "$s")
+    base=${s##*/}
     fam=$(family_for_basename "$base")
     if [ "$fam" = "$want" ]; then
       add_script "$s"
@@ -1107,16 +1211,190 @@ select_family() {
   [ "$found" -eq 1 ] || die "no tests mapped to family '$want'"
 }
 
+CHANGED_REFERENCE_INDEX=
+CHANGED_REFERENCE_LOOKUP=0
+CHANGED_REFERENCE_RESULTS=()
+
+clear_changed_reference_lookup() {
+  CHANGED_REFERENCE_INDEX=
+  CHANGED_REFERENCE_LOOKUP=0
+  CHANGED_REFERENCE_RESULTS=()
+  unset -f changed_reference_lookup 2>/dev/null || true
+}
+
+prepare_changed_reference_index() {
+  local changed_paths=$1 patterns=$2 index_file=$3 all_tests=$4
+  local path fixture_ref b s
+  local -a reference_files=()
+
+  : >"$patterns"
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    printf '%s\n' "$path" >>"$patterns"
+    case "$path" in
+      .opencode/plugins/*|.pi/extensions/*|\
+      tests/lib.sh|tests/*-helpers.sh|tests/fixtures.sh|tests/assets/*)
+        printf '%s\n' "${path##*/}" >>"$patterns"
+        ;;
+      tests/fixtures/*/*)
+        fixture_ref=${path#tests/fixtures/}
+        fixture_ref=${fixture_ref%%/*}
+        printf 'fixtures/%s\n' "$fixture_ref" >>"$patterns"
+        ;;
+    esac
+  done <"$changed_paths"
+
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    reference_files+=("$s")
+  done <"$all_tests"
+  for b in bin/*.sh bin/*.mjs bin/*.ps1 bin/backends/*.sh; do
+    [ -f "$b" ] || continue
+    reference_files+=("$b")
+    printf '%s\n' "${b##*/}" >>"$patterns"
+  done
+
+  LC_ALL=C sort -u "$patterns" -o "$patterns"
+  : >"$index_file"
+  [ -s "$patterns" ] && [ "${#reference_files[@]}" -gt 0 ] || return 0
+  if command -v perl >/dev/null 2>&1; then
+    perl - "$patterns" "${reference_files[@]}" >"$index_file" <<'PL'
+use strict;
+use warnings;
+
+my $patterns_path = shift @ARGV;
+open my $patterns_fh, '<', $patterns_path or die "$patterns_path: $!\n";
+chomp(my @patterns = <$patterns_fh>);
+close $patterns_fh;
+@patterns = grep { length } @patterns;
+
+my %matches;
+for my $file (@ARGV) {
+  open my $file_fh, '<', $file or next;
+  local $/;
+  my $content = <$file_fh>;
+  close $file_fh;
+  for my $pattern (@patterns) {
+    push @{$matches{$pattern}}, $file if index($content, $pattern) >= 0;
+  }
+}
+
+sub shell_quote {
+  my ($value) = @_;
+  $value =~ s/'/'"'"'/g;
+  return "'$value'";
+}
+
+print "changed_reference_lookup() {\n";
+print "  CHANGED_REFERENCE_RESULTS=()\n";
+print "  case \"\$1\" in\n";
+for my $pattern (@patterns) {
+  next unless exists $matches{$pattern};
+  print "    ", shell_quote($pattern), ")\n";
+  print "      CHANGED_REFERENCE_RESULTS=(",
+    join(" ", map { shell_quote($_) } @{$matches{$pattern}}), ")\n";
+  print "      ;;\n";
+}
+print "  esac\n";
+print "}\n";
+PL
+    # shellcheck source=/dev/null
+    . "$index_file"
+    CHANGED_REFERENCE_LOOKUP=1
+    return 0
+  else
+    grep -F -H -f "$patterns" -- "${reference_files[@]}" 2>/dev/null \
+      | awk -v OFS='\t' '
+          NR == FNR {
+            if ($0 != "" && !pattern_seen[$0]++) {
+              patterns[++pattern_count] = $0
+            }
+            next
+          }
+          {
+            separator = index($0, ":")
+            if (separator == 0) {
+              next
+            }
+            file = substr($0, 1, separator - 1)
+            text = substr($0, separator + 1)
+            for (i = 1; i <= pattern_count; i++) {
+              if (index(text, patterns[i])) {
+                key = patterns[i] SUBSEP file
+                if (!match_seen[key]++) {
+                  print patterns[i], file
+                }
+              }
+            }
+          }
+        ' "$patterns" - >"$index_file"
+  fi
+}
+
+test_files_referencing() {
+  local needle=$1 indexed_needle s
+  local found=0
+  local -a test_files=()
+
+  if [ "$CHANGED_REFERENCE_LOOKUP" -eq 1 ]; then
+    changed_reference_lookup "$needle"
+    for s in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
+      case "$s" in
+        tests/*.test.sh)
+          printf '%s\n' "$s"
+          found=1
+          ;;
+      esac
+    done
+    [ "$found" -eq 1 ]
+    return
+  fi
+
+  if [ -n "$CHANGED_REFERENCE_INDEX" ] && [ -f "$CHANGED_REFERENCE_INDEX" ]; then
+    while IFS=$'\t' read -r indexed_needle s; do
+      [ "$indexed_needle" = "$needle" ] || continue
+      case "$s" in
+        tests/*.test.sh)
+          printf '%s\n' "$s"
+          found=1
+          ;;
+      esac
+    done <"$CHANGED_REFERENCE_INDEX"
+    [ "$found" -eq 1 ]
+    return
+  fi
+
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    test_files+=("$s")
+  done < <(all_repo_tests)
+  [ "${#test_files[@]}" -gt 0 ] || return 1
+
+  grep -F -l -- "$needle" "${test_files[@]}" 2>/dev/null
+}
+
 families_for_test_reference() {
   local needle=$1 s
   local found=0
+  if [ "$CHANGED_REFERENCE_LOOKUP" -eq 1 ]; then
+    changed_reference_lookup "$needle"
+    for s in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
+      case "$s" in
+        tests/*.test.sh)
+          family_for_basename "${s##*/}"
+          found=1
+          ;;
+      esac
+    done
+    [ "$found" -eq 1 ]
+    return
+  fi
+
   while IFS= read -r s; do
     [ -n "$s" ] || continue
-    if grep -Fq "$needle" "$s"; then
-      family_for_basename "$(basename "$s")"
-      found=1
-    fi
-  done < <(all_repo_tests)
+    family_for_basename "${s##*/}"
+    found=1
+  done < <(test_files_referencing "$needle")
   [ "$found" -eq 1 ]
 }
 
@@ -1127,23 +1405,62 @@ families_for_test_reference() {
 scripts_for_test_reference() {
   local needle=$1 s
   local found=0
+  if [ "$CHANGED_REFERENCE_LOOKUP" -eq 1 ]; then
+    changed_reference_lookup "$needle"
+    for s in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
+      case "$s" in
+        tests/*.test.sh)
+          printf '__script__:%s\n' "${s##*/}"
+          found=1
+          ;;
+      esac
+    done
+    [ "$found" -eq 1 ]
+    return
+  fi
+
   while IFS= read -r s; do
     [ -n "$s" ] || continue
-    if grep -Fq "$needle" "$s"; then
-      printf '__script__:%s\n' "$(basename "$s")"
-      found=1
-    fi
-  done < <(all_repo_tests)
+    printf '__script__:%s\n' "${s##*/}"
+    found=1
+  done < <(test_files_referencing "$needle")
   [ "$found" -eq 1 ]
 }
 
 # bin/ scripts other than <needle> itself that name <needle>.
 bin_consumers_of() {
-  local needle=$1 b
-  for b in bin/*.sh bin/backends/*.sh; do
+  local needle=$1 indexed_needle b
+  local -a consumers=()
+  if [ "$CHANGED_REFERENCE_LOOKUP" -eq 1 ]; then
+    changed_reference_lookup "$needle"
+    for b in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
+      case "$b" in
+        bin/*.sh|bin/*.mjs|bin/*.ps1)
+          [ "${b##*/}" = "$needle" ] || printf '%s\n' "$b"
+          ;;
+      esac
+    done
+    return 0
+  fi
+
+  if [ -n "$CHANGED_REFERENCE_INDEX" ] && [ -f "$CHANGED_REFERENCE_INDEX" ]; then
+    while IFS=$'\t' read -r indexed_needle b; do
+      [ "$indexed_needle" = "$needle" ] || continue
+      case "$b" in
+        bin/*.sh|bin/*.mjs|bin/*.ps1)
+          [ "${b##*/}" = "$needle" ] || printf '%s\n' "$b"
+          ;;
+      esac
+    done <"$CHANGED_REFERENCE_INDEX"
+    return 0
+  fi
+
+  for b in bin/*.sh bin/*.mjs bin/*.ps1 bin/backends/*.sh; do
     [ -f "$b" ] || continue
-    [ "$(basename "$b")" = "$needle" ] || ! grep -Fq "$needle" "$b" || printf '%s\n' "$b"
+    [ "${b##*/}" = "$needle" ] || consumers+=("$b")
   done
+  [ "${#consumers[@]}" -gt 0 ] || return 0
+  grep -F -l -- "$needle" "${consumers[@]}" 2>/dev/null || true
 }
 
 # An unmapped bin/ path has no curated family of its own. Its blast radius is
@@ -1153,9 +1470,42 @@ bin_consumers_of() {
 # coupling a maintainer recorded is preserved while an incidental single-script
 # reference no longer selects that script's whole family.
 BIN_FALLBACK_DEPTH=0
+CHANGED_SUPPRESS_UNMAPPED=0
+
+emit_unmapped_changed_path() {
+  local path=$1
+  [ "$CHANGED_SUPPRESS_UNMAPPED" -eq 0 ] || return 1
+  printf '%s\n' "__unmapped__:$path"
+}
+
 families_for_unmapped_bin() {
   local path=$1 needle consumer out found=0
-  needle=$(basename "$path")
+  needle=${path##*/}
+  if [ "$CHANGED_REFERENCE_LOOKUP" -eq 1 ]; then
+    if scripts_for_test_reference "$needle"; then
+      found=1
+    fi
+    if [ "$BIN_FALLBACK_DEPTH" -lt 2 ]; then
+      BIN_FALLBACK_DEPTH=$((BIN_FALLBACK_DEPTH + 1))
+      changed_reference_lookup "$needle"
+      for consumer in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
+        case "$consumer" in
+          bin/*.sh|bin/*.mjs|bin/*.ps1) ;;
+          *) continue ;;
+        esac
+        [ "${consumer##*/}" = "$needle" ] && continue
+        CHANGED_SUPPRESS_UNMAPPED=$((CHANGED_SUPPRESS_UNMAPPED + 1))
+        if families_for_changed_path "$consumer"; then
+          found=1
+        fi
+        CHANGED_SUPPRESS_UNMAPPED=$((CHANGED_SUPPRESS_UNMAPPED - 1))
+      done
+      BIN_FALLBACK_DEPTH=$((BIN_FALLBACK_DEPTH - 1))
+    fi
+    [ "$found" -eq 1 ]
+    return
+  fi
+
   if out=$(scripts_for_test_reference "$needle"); then
     printf '%s\n' "$out"
     found=1
@@ -1164,11 +1514,15 @@ families_for_unmapped_bin() {
     BIN_FALLBACK_DEPTH=$((BIN_FALLBACK_DEPTH + 1))
     while IFS= read -r consumer; do
       [ -n "$consumer" ] || continue
-      out=$(families_for_changed_path "$consumer" | grep -v '^__unmapped__:' || true)
-      if [ -n "$out" ]; then
-        printf '%s\n' "$out"
-        found=1
-      fi
+      while IFS= read -r entry; do
+        case "$entry" in
+          __unmapped__:*) ;;
+          *)
+            printf '%s\n' "$entry"
+            found=1
+            ;;
+        esac
+      done < <(families_for_changed_path "$consumer")
     done < <(bin_consumers_of "$needle")
     BIN_FALLBACK_DEPTH=$((BIN_FALLBACK_DEPTH - 1))
   fi
@@ -1187,7 +1541,7 @@ families_for_changed_path() {
     tests/*.test.sh)
       # A single test file change selects only that script via basename family
       # resolution in the caller; emit a marker family of __script__
-      printf '%s\n' "__script__:$(basename "$path")"
+      printf '%s\n' "__script__:${path##*/}"
       ;;
     bin/fm-test-run.sh|bin/fm-test-isolation-proof.sh)
       # Deliberately the WHOLE family, not just the two contract tests. This
@@ -1269,7 +1623,8 @@ families_for_changed_path() {
       printf '%s\n' session-bootstrap
       printf '%s\n' live-harness-optin
       ;;
-    bin/fm-extension.mjs|bin/fm-extension.sh|docs/examples/process-event-extension/*)
+    bin/fm-extension.mjs|bin/fm-extension-launch-barrier.mjs|bin/fm-extension.sh|\
+    docs/examples/process-event-extension/*)
       printf '%s\n' __script__:fm-extension-binding.test.sh
       ;;
     bin/fm-procevent.sh|bin/fm-procevent-lib.sh|bin/fm-procevent-extension-capture.pl)
@@ -1354,7 +1709,7 @@ families_for_changed_path() {
       printf '%s\n' pure-contract-unit
       printf '%s\n' live-harness-optin
       ;;
-    .agents/skills/*/SKILL.md)
+    .agents/skills/*/SKILL.md|skills/*/SKILL.md)
       printf '%s\n' pure-contract-unit
       ;;
     .github/workflows/ci.yml|.no-mistakes.yaml)
@@ -1369,9 +1724,16 @@ families_for_changed_path() {
     docs/configuration.md|docs/supervision-protocols/*)
       printf '%s\n' pure-contract-unit
       ;;
+    .gitattributes|.gitignore)
+      printf '%s\n' __script__:fm-gitignore-config.test.sh
+      ;;
+    .opencode/plugins/*|.pi/extensions/*)
+      families_for_test_reference "${path##*/}" \
+        || emit_unmapped_changed_path "$path"
+      ;;
     tests/lib.sh|tests/*-helpers.sh|tests/fixtures.sh|tests/assets/*)
-      families_for_test_reference "$(basename "$path")" \
-        || printf '%s\n' "__unmapped__:$path"
+      families_for_test_reference "${path##*/}" \
+        || emit_unmapped_changed_path "$path"
       ;;
     tests/fixtures/*/*)
       # A fixture belongs to whichever suite reads its directory, found by the
@@ -1382,7 +1744,7 @@ families_for_changed_path() {
       fixture_ref=${fixture_ref%%/*}
       if [ -d "tests/fixtures/$fixture_ref" ]; then
         families_for_test_reference "fixtures/$fixture_ref" \
-          || printf '%s\n' "__unmapped__:$path"
+          || emit_unmapped_changed_path "$path"
       fi
       ;;
     bin/*)
@@ -1391,23 +1753,25 @@ families_for_changed_path() {
       # make every retirement branch unable to select its changed tests.
       if [ -e "$path" ]; then
         families_for_unmapped_bin "$path" \
-          || printf '%s\n' "__unmapped__:$path"
+          || emit_unmapped_changed_path "$path"
       fi
       ;;
     tests/*)
-      printf '%s\n' "__unmapped__:$path"
+      emit_unmapped_changed_path "$path"
       ;;
-    README.md|LICENSE|assets/*|docs/*|.gitignore)
+    README.md|LICENSE|assets/*|docs/*)
       ;;
     *)
       families_for_test_reference "$path" \
-        || printf '%s\n' "__unmapped__:$path"
+        || emit_unmapped_changed_path "$path"
       ;;
   esac
 }
 
 select_changed() {
-  local base=$1 path entry fam script_name s
+  local base=$1 path entry fam script_name s f matched
+  local changed_tmp changed_paths all_tests entries candidates
+  local unmapped_path=
   local -a wanted_families=()
   local -a wanted_scripts=()
 
@@ -1415,26 +1779,53 @@ select_changed() {
     die "changed-file base ref not found: $base (pass --base <ref>)"
   fi
 
+  changed_tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-changed.XXXXXX") \
+    || die "could not create changed-test selection workspace"
+  changed_paths="$changed_tmp/paths"
+  {
+    git -C "$ROOT" diff --name-only "${base}...HEAD" 2>/dev/null
+    git -C "$ROOT" diff --name-only HEAD 2>/dev/null
+    git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null
+  } >"$changed_paths"
+  all_tests="$changed_tmp/all-tests"
+  all_repo_tests >"$all_tests"
+  CHANGED_REFERENCE_INDEX="$changed_tmp/references.tsv"
+  if ! prepare_changed_reference_index \
+    "$changed_paths" "$changed_tmp/patterns" "$CHANGED_REFERENCE_INDEX" "$all_tests"; then
+    rm -rf "$changed_tmp"
+    clear_changed_reference_lookup
+    die "could not build changed-test reference index"
+  fi
+
+  entries="$changed_tmp/entries"
+  : >"$entries"
   while IFS= read -r path; do
     [ -n "$path" ] || continue
-    while IFS= read -r entry; do
-      [ -n "$entry" ] || continue
-      case "$entry" in
-        __script__:*)
-          script_name=${entry#__script__:}
-          wanted_scripts+=("$script_name")
-          ;;
-        __unmapped__:*)
-          die "no changed-test mapping for source path: ${entry#__unmapped__:}"
-          ;;
-        *)
-          wanted_families+=("$entry")
-          ;;
-      esac
-    done < <(families_for_changed_path "$path")
-  done < <(git -C "$ROOT" diff --name-only "${base}...HEAD" 2>/dev/null; \
-           git -C "$ROOT" diff --name-only HEAD 2>/dev/null; \
-           git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null)
+    families_for_changed_path "$path" >>"$entries"
+  done <"$changed_paths"
+
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    case "$entry" in
+      __script__:*)
+        script_name=${entry#__script__:}
+        wanted_scripts+=("$script_name")
+        ;;
+      __unmapped__:*)
+        unmapped_path=${entry#__unmapped__:}
+        break
+        ;;
+      *)
+        wanted_families+=("$entry")
+        ;;
+    esac
+  done <"$entries"
+
+  if [ -n "$unmapped_path" ]; then
+    rm -rf "$changed_tmp"
+    clear_changed_reference_lookup
+    die "no changed-test mapping for source path: $unmapped_path"
+  fi
 
   # Dedup families
   local f seen_f
@@ -1447,20 +1838,32 @@ select_changed() {
     [ "$seen_f" -eq 0 ] && unique_families+=("$f")
   done
 
-  for f in "${unique_families[@]+"${unique_families[@]}"}"; do
-    while IFS= read -r s; do
-      [ -n "$s" ] || continue
-      if [ "$(family_for_basename "$(basename "$s")")" = "$f" ]; then
-        add_script "$s"
+  candidates="$changed_tmp/candidates"
+  : >"$candidates"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    fam=$(family_for_basename "${s##*/}")
+    matched=0
+    for f in "${unique_families[@]+"${unique_families[@]}"}"; do
+      if [ "$fam" = "$f" ]; then
+        matched=1
+        break
       fi
-    done < <(all_repo_tests)
-  done
-
+    done
+    [ "$matched" -eq 0 ] || printf '%s\n' "$s" >>"$candidates"
+  done <"$all_tests"
   for script_name in "${wanted_scripts[@]+"${wanted_scripts[@]}"}"; do
     if [ -f "tests/$script_name" ]; then
-      add_script "tests/$script_name"
+      printf 'tests/%s\n' "$script_name" >>"$candidates"
     fi
   done
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    SCRIPTS+=("$s")
+  done < <(LC_ALL=C sort -u "$candidates")
+
+  rm -rf "$changed_tmp"
+  clear_changed_reference_lookup
 
   if [ "${#SCRIPTS[@]}" -eq 0 ]; then
     log "no tests selected for changes vs $base (map is conservative; use --all for the complete suite)"
@@ -1489,7 +1892,7 @@ apply_exclude_families() {
   local -a kept=()
   [ "${#EXCLUDE_FAMILIES[@]}" -gt 0 ] || return 0
   for s in "${SCRIPTS[@]+"${SCRIPTS[@]}"}"; do
-    fam=$(family_for_basename "$(basename "$s")")
+    fam=$(family_for_basename "${s##*/}")
     keep=1
     for ex in "${EXCLUDE_FAMILIES[@]+"${EXCLUDE_FAMILIES[@]}"}"; do
       if [ "$fam" = "$ex" ]; then
@@ -1897,16 +2300,23 @@ for s in "${SCRIPTS[@]}"; do
   [ -x "$s" ] || [ -r "$s" ] || die "test script not readable: $s"
 done
 
-# Plain --changed uses the bounded representative-suite scheduler; numeric
-# --jobs retains the strict all-script admission rule below.
+# Plain --changed and a plain list of script paths both use the bounded
+# representative-suite scheduler; numeric --jobs retains the strict all-script
+# admission rule below. Naming scripts is how a local verification round asks
+# for exactly those subjects, so it gets bounded concurrency rather than a
+# serial chain of separate runs.
+# The curated selections stay untouched: --lane composes CI shards whose serial
+# lane must stay strictly serial, --family is what the required Herdr lane runs,
+# and --all is a deliberate complete regression.
 AUTO_CONCURRENCY=0
-if [ "$MODE" = changed ] && [ "$JOBS_EXPLICIT" -eq 0 ]; then
-  if [ "${#SCRIPTS[@]}" -gt 0 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
+if { [ "$MODE" = changed ] || [ "$MODE" = scripts ]; } && [ "$JOBS_EXPLICIT" -eq 0 ]; then
+  if [ "$MODE" = changed ] && [ "${#SCRIPTS[@]}" -gt 0 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
     PER_SCRIPT_TIMEOUT_SECS=$CHANGED_DEFAULT_TIMEOUT_SECS
+    CHANGED_TIMEOUT_AUTOMATIC=1
   fi
   auto_admissible=0
   for s in "${SCRIPTS[@]}"; do
-    script_allows_concurrency "$s" && auto_admissible=$((auto_admissible + 1))
+    automatic_concurrency_allowed "$s" && auto_admissible=$((auto_admissible + 1))
   done
   if [ "$auto_admissible" -gt 1 ]; then
     JOBS=$(cpu_count)
@@ -1915,7 +2325,7 @@ if [ "$MODE" = changed ] && [ "$JOBS_EXPLICIT" -eq 0 ]; then
     [ "$JOBS" -eq 1 ] || AUTO_CONCURRENCY=1
   fi
 fi
-if [ "$JOBS" -gt 1 ] || [ "$MODE" = changed ]; then
+if [ "$JOBS" -gt 1 ] || [ "$MODE" = changed ] || [ "$MODE" = scripts ]; then
   SELECTION_DESC="${SELECTION_DESC};jobs=$JOBS"
 fi
 
@@ -1927,7 +2337,7 @@ if [ "$JOBS" -gt 1 ] && [ "$AUTO_CONCURRENCY" -eq 0 ]; then
       die "--jobs $JOBS refused: $s is not in the proven-isolated set (see bin/fm-test-isolation-proof.sh --list) and its family has no recorded concurrent proof. Unproven stateful scripts stay serial."
     fi
     if ! is_proven_isolated_script "$s"; then
-      family=$(family_for_basename "$(basename "$s")")
+      family=$(family_for_basename "${s##*/}")
       family_jobs_max=$(concurrent_safe_family_jobs_max "$family")
       [ "$JOBS" -le "$family_jobs_max" ] \
         || die "--jobs $JOBS refused: family $family is proven only up to $family_jobs_max concurrent workers"
@@ -1935,36 +2345,48 @@ if [ "$JOBS" -gt 1 ] && [ "$AUTO_CONCURRENCY" -eq 0 ]; then
   done
 fi
 
-# Split the run into the proven-concurrent scripts and an unproven remainder.
-# The remainder runs serially AFTER the concurrent group, never beside it, so an
-# unproven script still never shares a machine with another test. An explicit
-# --jobs refused above, so its remainder is always empty.
+# Split the run into admitted concurrent phases and an automatic serial
+# remainder.
+# Individually proven scripts share one phase. Scripts admitted only by a family
+# proof get a separate phase per family, because that proof establishes safety
+# only among members of that family. Unproven scripts and measured
+# platform-constrained scripts run after every concurrent phase, never beside
+# another test.
 CONCURRENT_SCRIPTS=()
 SERIAL_TAIL_SCRIPTS=()
+CONCURRENT_PHASE_BREAK=__fm_test_concurrent_phase_break__
 if [ "$JOBS" -gt 1 ]; then
   SCHEDULE_TMP=$(mktemp "${TMPDIR:-/tmp}/fm-test-sched.XXXXXX")
   : >"$SCHEDULE_TMP"
-  # Two passes: the tail array must be built in this shell, so the weighted
-  # listing is written to a file rather than piped into sort from a loop whose
-  # appends would be lost in a subshell.
   for s in "${SCRIPTS[@]}"; do
-    if script_allows_concurrency "$s"; then
-      # Longest first: workers are handed scripts in order, so starting the
-      # longest last strands it running alone at the tail. Measured over the
-      # watcher family, alphabetical order finished in 395s where the balanced
-      # four-worker sum was 205s.
-      printf '%s\n' "$s" >>"$SCHEDULE_TMP"
+    if { [ "$AUTO_CONCURRENCY" -eq 1 ] && automatic_concurrency_allowed "$s"; } \
+      || { [ "$AUTO_CONCURRENCY" -eq 0 ] && script_allows_concurrency "$s"; }; then
+      if is_proven_isolated_script "$s"; then
+        phase=0
+      else
+        family=$(family_for_basename "${s##*/}")
+        phase=1
+        while IFS= read -r admitted_family; do
+          [ "$family" = "$admitted_family" ] && break
+          phase=$((phase + 1))
+        done < <(list_concurrent_safe_families)
+      fi
+      # Longest first within each isolation phase: workers are handed scripts
+      # in order, so starting the longest last strands it at the tail.
+      printf '%s\t%s\t%s\n' "$phase" "$(portable_serial_weight_for "$s")" "$s" >>"$SCHEDULE_TMP"
     else
       SERIAL_TAIL_SCRIPTS+=("$s")
     fi
   done
-  while IFS=$'\t' read -r _weight s; do
+  previous_phase=
+  while IFS=$'\t' read -r phase _weight s; do
     [ -n "$s" ] || continue
+    if [ -n "$previous_phase" ] && [ "$phase" != "$previous_phase" ]; then
+      CONCURRENT_SCRIPTS+=("$CONCURRENT_PHASE_BREAK")
+    fi
     CONCURRENT_SCRIPTS+=("$s")
-  done < <(
-    portable_serial_weighted_paths <"$SCHEDULE_TMP" |
-      LC_ALL=C sort -t"$(printf '\t')" -k1,1nr -k2,2
-  )
+    previous_phase=$phase
+  done < <(LC_ALL=C sort -t"$(printf '\t')" -k1,1n -k2,2nr -k3,3 "$SCHEDULE_TMP")
   rm -f "$SCHEDULE_TMP"
 fi
 
@@ -2030,7 +2452,7 @@ family_bump() {
 record_script_result() {
   local script=$1 rc=$2 duration=$3 out=$4 end_iso=$5
   local base family expected gate_skip fail_delta
-  base=$(basename "$script")
+  base=${script##*/}
   family=$(family_for_basename "$base")
   expected=$(expected_gate_skip_for_family "$family")
 
@@ -2068,30 +2490,33 @@ record_script_result() {
 # because an unbounded suite is what silently outruns its caller's budget.
 run_script_bounded() {  # <script> <out> <stream> <id>
   local script=$1 out=$2 stream=$3 id=$4
-  local rc
+  local rc timeout_secs=$PER_SCRIPT_TIMEOUT_SECS
+  if [ "$CHANGED_TIMEOUT_AUTOMATIC" -eq 1 ]; then
+    timeout_secs=$(automatic_changed_timeout_secs_for "$script")
+  fi
   : "$id"
   set +e
   if [ "$stream" -eq 1 ]; then
-    if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
+    if [ "$timeout_secs" -gt 0 ]; then
       # Expansion is intentionally deferred to the child bash passed to -c.
       # shellcheck disable=SC2016
-      fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c \
+      fm_run_timed "$timeout_secs" bash -c \
         'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$out"
       rc=$?
     else
       bash "$script" 2>&1 | tee "$out"
       rc=${PIPESTATUS[0]}
     fi
-  elif [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-    fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash "$script" >"$out" 2>&1
+  elif [ "$timeout_secs" -gt 0 ]; then
+    fm_run_timed "$timeout_secs" bash "$script" >"$out" 2>&1
     rc=$?
   else
     bash "$script" >"$out" 2>&1
     rc=$?
   fi
-  if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ] && [ "$rc" -eq 124 ]; then
+  if [ "$timeout_secs" -gt 0 ] && [ "$rc" -eq 124 ]; then
     printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
-      "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$out"
+      "$script" "$timeout_secs" >>"$out"
     [ "$stream" -eq 1 ] && tail -1 "$out"
   fi
   return "$rc"
@@ -2100,7 +2525,7 @@ run_script_bounded() {  # <script> <out> <stream> <id>
 run_one_serial() {
   local script=$1
   local base family expected out begin_iso begin_ms end_ms end_iso duration rc
-  base=$(basename "$script")
+  base=${script##*/}
   family=$(family_for_basename "$base")
   expected=$(expected_gate_skip_for_family "$family")
   out="$RUN_TMP/out.$TOTAL"
@@ -2193,6 +2618,12 @@ else
   }
 
   for script in "${CONCURRENT_SCRIPTS[@]+"${CONCURRENT_SCRIPTS[@]}"}"; do
+    if [ "$script" = "$CONCURRENT_PHASE_BREAK" ]; then
+      while [ "$active_workers" -gt 0 ]; do
+        wait_one_completed_job_worker
+      done
+      continue
+    fi
     while [ "$active_workers" -ge "$JOBS" ]; do
       wait_one_completed_job_worker
     done
@@ -2200,7 +2631,7 @@ else
     work="$RUN_TMP/w$worker_n"
     mkdir -p "$work/tmp"
     chmod 0700 "$work" "$work/tmp" || die "could not chmod 0700 worker root $work"
-    base=$(basename "$script")
+    base=${script##*/}
     family=$(family_for_basename "$base")
     expected=$(expected_gate_skip_for_family "$family")
     printf 'FM_TEST_BEGIN %s %s family=%s expected_gate_skip=%s\n' \

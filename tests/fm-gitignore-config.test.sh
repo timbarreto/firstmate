@@ -33,6 +33,17 @@ test_config_dir_ignored_as_category() {
   pass "config/ is ignored as a directory, covering unlisted and nested paths"
 }
 
+test_shell_files_are_declared_lf() {
+  local text_attr eol_attr
+  text_attr=$(git -C "$ROOT" check-attr text -- bin/fm-test-run.sh)
+  eol_attr=$(git -C "$ROOT" check-attr eol -- bin/fm-test-run.sh)
+  [ "$text_attr" = "bin/fm-test-run.sh: text: set" ] \
+    || fail ".gitattributes must declare tracked shell files as text: $text_attr"
+  [ "$eol_attr" = "bin/fm-test-run.sh: eol: lf" ] \
+    || fail ".gitattributes must declare tracked shell files with eol=lf: $eol_attr"
+  pass "tracked shell files are declared as LF text"
+}
+
 test_unrelated_path_stays_visible() {
   # Control: a path outside config/ must remain visible to Git, so the
   # coverage above is proven by contrast rather than an always-ignoring rule.
@@ -83,6 +94,7 @@ test_scratchpad2_does_not_dirty_porcelain() {
 }
 
 test_config_dir_ignored_as_category
+test_shell_files_are_declared_lf
 test_unrelated_path_stays_visible
 test_scratchpad_prefix_is_ignored
 test_scratchpad_prefix_ignores_no_tracked_path
