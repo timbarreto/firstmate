@@ -1435,7 +1435,7 @@ bin_consumers_of() {
     changed_reference_lookup "$needle"
     for b in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
       case "$b" in
-        bin/*.sh|bin/*.mjs|bin/*.ps1|bin/backends/*.sh)
+        bin/*.sh|bin/*.mjs|bin/*.ps1)
           [ "${b##*/}" = "$needle" ] || printf '%s\n' "$b"
           ;;
       esac
@@ -1447,7 +1447,7 @@ bin_consumers_of() {
     while IFS=$'\t' read -r indexed_needle b; do
       [ "$indexed_needle" = "$needle" ] || continue
       case "$b" in
-        bin/*.sh|bin/*.mjs|bin/*.ps1|bin/backends/*.sh)
+        bin/*.sh|bin/*.mjs|bin/*.ps1)
           [ "${b##*/}" = "$needle" ] || printf '%s\n' "$b"
           ;;
       esac
@@ -1490,7 +1490,7 @@ families_for_unmapped_bin() {
       changed_reference_lookup "$needle"
       for consumer in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
         case "$consumer" in
-          bin/*.sh|bin/*.mjs|bin/*.ps1|bin/backends/*.sh) ;;
+          bin/*.sh|bin/*.mjs|bin/*.ps1) ;;
           *) continue ;;
         esac
         [ "${consumer##*/}" = "$needle" ] && continue
