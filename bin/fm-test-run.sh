@@ -1514,18 +1514,15 @@ families_for_unmapped_bin() {
     BIN_FALLBACK_DEPTH=$((BIN_FALLBACK_DEPTH + 1))
     while IFS= read -r consumer; do
       [ -n "$consumer" ] || continue
-      out=$(
-        while IFS= read -r entry; do
-          case "$entry" in
-            __unmapped__:*) ;;
-            *) printf '%s\n' "$entry" ;;
-          esac
-        done < <(families_for_changed_path "$consumer")
-      )
-      if [ -n "$out" ]; then
-        printf '%s\n' "$out"
-        found=1
-      fi
+      while IFS= read -r entry; do
+        case "$entry" in
+          __unmapped__:*) ;;
+          *)
+            printf '%s\n' "$entry"
+            found=1
+            ;;
+        esac
+      done < <(families_for_changed_path "$consumer")
     done < <(bin_consumers_of "$needle")
     BIN_FALLBACK_DEPTH=$((BIN_FALLBACK_DEPTH - 1))
   fi
