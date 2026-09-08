@@ -107,7 +107,7 @@ test_linked_spawning_home_rejects_primary_before_refresh() {
     case "$returned" in
       primary) POOL_DIR=$primary ;;
       primary-alias)
-        ln -s "$primary" "$CASE_DIR/primary-alias"
+        fm_test_make_symlink "$primary" "$CASE_DIR/primary-alias"
         POOL_DIR="$CASE_DIR/primary-alias"
         ;;
       spawning) POOL_DIR=$spawning ;;

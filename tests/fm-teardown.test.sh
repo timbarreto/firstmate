@@ -2566,6 +2566,255 @@ SH
   chmod +x "$case_dir/fakebin/herdr"
 }
 
+configure_active_herdr_projection_teardown_case() {  # <case-dir>
+  local case_dir=$1 token=AbCdEfGhIjKlMnOpQrStUv canonical_home
+  canonical_home=$(cd "$ROOT" && pwd -P)
+  sed -i.bak 's/^window=.*/window=fmtest:w1:p2/' "$case_dir/state/task-x1.meta"
+  rm -f "$case_dir/state/task-x1.meta.bak"
+  printf '%s\n' \
+    'backend=herdr' \
+    'herdr_session=fmtest' \
+    'herdr_workspace_id=w1' \
+    'herdr_tab_id=w1:t2' \
+    'herdr_pane_id=w1:p2' >> "$case_dir/state/task-x1.meta"
+  printf '%s\n' \
+    'version=2' \
+    'task_id=task-x1' \
+    "projection_id=$token" \
+    "home=$canonical_home" \
+    'session=fmtest' \
+    'workspace_id=w1' \
+    'tab_id=w1:t2' \
+    'pane_id=w1:p2' \
+    'parent_workspace_id=w0' \
+    'parent_label=firstmate' \
+    "workspace_label=└ task-x1 · p:$token" \
+    'task_label=fm-task-x1' > "$case_dir/state/task-x1.herdr-presentation"
+  cat > "$case_dir/fakebin/herdr" <<'SH'
+#!/usr/bin/env bash
+set -u
+printf '%s\n' "$*" >> "${FM_FAKE_HERDR_LOG:?}"
+focused=task
+[ ! -e "${FM_FAKE_HERDR_SAFE_FOCUSED:?}" ] || focused=safe
+case "${1:-} ${2:-}" in
+  "workspace list")
+    if [ -e "${FM_FAKE_HERDR_CLOSED:?}" ]; then
+      printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w0","active_tab_id":"w0:t1","label":"firstmate","focused":true}]}}'
+    elif [ "$focused" = safe ]; then
+      printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w0","active_tab_id":"w0:t1","label":"firstmate","focused":true},{"workspace_id":"w1","active_tab_id":"w1:t2","label":"└ task-x1 · p:AbCdEfGhIjKlMnOpQrStUv","focused":false}]}}'
+    else
+      printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w0","active_tab_id":"w0:t1","label":"firstmate","focused":false},{"workspace_id":"w1","active_tab_id":"w1:t2","label":"└ task-x1 · p:AbCdEfGhIjKlMnOpQrStUv","focused":true}]}}'
+    fi
+    ;;
+  "tab list")
+    case "$*" in
+      *"--workspace w0"*)
+        if [ "$focused" = safe ] || [ -e "${FM_FAKE_HERDR_CLOSED:?}" ]; then
+          printf '%s\n' '{"result":{"tabs":[{"tab_id":"w0:t1","workspace_id":"w0","label":"fm-anchor","focused":true}]}}'
+        else
+          printf '%s\n' '{"result":{"tabs":[{"tab_id":"w0:t1","workspace_id":"w0","label":"fm-anchor","focused":false}]}}'
+        fi
+        ;;
+      *"--workspace w1"*)
+        if [ "$focused" = task ]; then
+          printf '%s\n' '{"result":{"tabs":[{"tab_id":"w1:t2","workspace_id":"w1","label":"fm-task-x1","focused":true}]}}'
+        else
+          printf '%s\n' '{"result":{"tabs":[{"tab_id":"w1:t2","workspace_id":"w1","label":"fm-task-x1","focused":false}]}}'
+        fi
+        ;;
+      *) printf '%s\n' '{"result":{"tabs":[]}}' ;;
+    esac
+    ;;
+  "pane list")
+    printf '%s\n' '{"result":{"panes":[{"pane_id":"w1:p2","tab_id":"w1:t2","workspace_id":"w1"}]}}'
+    ;;
+  "status --json")
+    printf '%s\n' '{"server":{"running":true}}'
+    ;;
+  "session list")
+    printf '%s\n' '{"sessions":[{"name":"fmtest","running":true,"socket_path":"/tmp/fmtest.sock"}]}'
+    ;;
+  "pane close")
+    : > "${FM_FAKE_HERDR_CLOSED:?}"
+    ;;
+  "pane get")
+    if [ -e "${FM_FAKE_HERDR_CLOSED:?}" ]; then
+      printf '%s\n' '{"error":{"code":"pane_not_found"}}' >&2
+      exit 1
+    fi
+    printf '%s\n' '{"result":{"pane":{"pane_id":"w1:p2","tab_id":"w1:t2","workspace_id":"w1"}}}'
+    ;;
+  "pane process-info")
+    exit 1
+    ;;
+  "tab get")
+    printf '%s\n' '{"result":{"tab":{"tab_id":"w0:t1","workspace_id":"w0"}}}'
+    ;;
+  "tab focus")
+    [ "${3:-}" = w0:t1 ] || exit 1
+    : > "${FM_FAKE_HERDR_SAFE_FOCUSED:?}"
+    printf '%s\n' '{"result":{"tab":{"tab_id":"w0:t1","workspace_id":"w0","focused":true}}}'
+    ;;
+  "agent get")
+    printf '%s\n' '{"error":{"code":"agent_not_found"}}' >&2
+    exit 1
+    ;;
+esac
+SH
+  chmod +x "$case_dir/fakebin/herdr"
+}
+
+isolate_unrelated_projection_teardown_helpers() {
+  local case_dir=$1
+  cat > "$case_dir/fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = -u ] && [ "${3:-}" = -o ] && [ "${4:-}" = "pid=,command=" ]; then
+  exit 0
+fi
+exec "${REAL_PS_FOR_TEST:?}" "$@"
+SH
+  chmod +x "$case_dir/fakebin/ps"
+}
+
+test_herdr_projection_teardown_restores_safe_focus() {
+  local case_dir log closed safe_focused
+  case_dir=$(make_case herdr-projection-active-safe-focus)
+  write_meta "$case_dir" local-only ship
+  configure_active_herdr_projection_teardown_case "$case_dir"
+  isolate_unrelated_projection_teardown_helpers "$case_dir"
+  log="$case_dir/herdr.log"; closed="$case_dir/closed"; safe_focused="$case_dir/safe-focused"; : > "$log"
+
+  FM_TEARDOWN_GUARD_DONE=1 FM_HOME_SUMMARY_TIMEOUT=1 \
+    FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" \
+    FM_FAKE_HERDR_SAFE_FOCUSED="$safe_focused" \
+    run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "herdr-projection-active-safe-focus: cleanup failed with an exact Firstmate focus target: $(cat "$case_dir/stderr")"
+  [ -e "$safe_focused" ] \
+    || fail "herdr-projection-active-safe-focus: cleanup did not restore the exact parent Firstmate tab"
+  [ -e "$closed" ] \
+    || fail "herdr-projection-active-safe-focus: cleanup did not close the presentation after restoring focus"
+  [ ! -e "$case_dir/state/task-x1.meta" ] \
+    || fail "herdr-projection-active-safe-focus: completed cleanup retained the task record"
+  assert_contains "$(cat "$log")" "tab focus w0:t1" \
+    "herdr-projection-active-safe-focus: cleanup did not use the journal-bound Firstmate tab"
+  assert_contains "$(cat "$log")" "pane close w1:p2" \
+    "herdr-projection-active-safe-focus: cleanup did not close the exact task pane"
+  pass "herdr projection teardown restores a proven Firstmate tab before cleanup"
+}
+
+test_herdr_projection_teardown_defers_idempotently_without_a_captain_decision() {
+  local case_dir log closed safe_focused rc before_status defer_marker
+  case_dir=$(make_case herdr-projection-active-deferred)
+  write_meta "$case_dir" local-only ship
+  configure_active_herdr_projection_teardown_case "$case_dir"
+  isolate_unrelated_projection_teardown_helpers "$case_dir"
+  sed -i.bak 's/^parent_workspace_id=.*/parent_workspace_id=missing-parent/' \
+    "$case_dir/state/task-x1.herdr-presentation"
+  rm -f "$case_dir/state/task-x1.herdr-presentation.bak"
+  : > "$case_dir/state/task-x1.status"
+  before_status=$(wc -c < "$case_dir/state/task-x1.status" | tr -d '[:space:]')
+  log="$case_dir/herdr.log"; closed="$case_dir/closed"; safe_focused="$case_dir/safe-focused"; : > "$log"
+  defer_marker="$case_dir/state/task-x1.herdr-cleanup-deferred"
+
+  rc=0
+  FM_TEARDOWN_GUARD_DONE=1 FM_HOME_SUMMARY_TIMEOUT=1 \
+    FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" \
+    FM_FAKE_HERDR_SAFE_FOCUSED="$safe_focused" \
+    run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "herdr-projection-active-deferred: unsafe focus must be an action-free result"
+  assert_grep "deferred safely" "$case_dir/stdout" \
+    "herdr-projection-active-deferred: cleanup did not classify the retained task as action-free"
+  assert_not_contains "$(cat "$case_dir/stdout" "$case_dir/stderr")" "captain" \
+    "herdr-projection-active-deferred: cleanup emitted a captain-facing question or decision"
+  [ -f "$defer_marker" ] && [ ! -L "$defer_marker" ] \
+    || fail "herdr-projection-active-deferred: cleanup did not record its quiet retry state"
+  assert_grep "spawn_gen=teardown-test-task-x1" "$defer_marker" \
+    "herdr-projection-active-deferred: retry state is not bound to the task incarnation"
+  [ -d "$case_dir/wt" ] \
+    || fail "herdr-projection-active-deferred: cleanup returned the isolated copy"
+  [ -e "$case_dir/state/task-x1.meta" ] \
+    || fail "herdr-projection-active-deferred: cleanup erased the task record"
+  [ -e "$case_dir/state/task-x1.herdr-presentation" ] \
+    || fail "herdr-projection-active-deferred: cleanup erased the presentation binding"
+  [ -e "$case_dir/state/task-x1.status" ] \
+    || fail "herdr-projection-active-deferred: cleanup erased the task status"
+  [ "$(wc -c < "$case_dir/state/task-x1.status" | tr -d '[:space:]')" = "$before_status" ] \
+    || fail "herdr-projection-active-deferred: cleanup created a captain-facing status event"
+  [ ! -e "$case_dir/state/decision-bindings" ] \
+    || fail "herdr-projection-active-deferred: cleanup created a captain-decision binding"
+  [ ! -e "$case_dir/state/task-x1.backlog-close" ] \
+    || fail "herdr-projection-active-deferred: cleanup staged completion despite retaining the task"
+  [ ! -e "$closed" ] \
+    || fail "herdr-projection-active-deferred: cleanup closed the active presentation without a safe focus target"
+  assert_not_contains "$(cat "$log")" "pane close" \
+    "herdr-projection-active-deferred: cleanup attempted a pane close"
+
+  : > "$log"
+  rc=0
+  FM_TEARDOWN_GUARD_DONE=1 FM_HOME_SUMMARY_TIMEOUT=1 \
+    FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" \
+    FM_FAKE_HERDR_SAFE_FOCUSED="$safe_focused" \
+    run_teardown "$case_dir" --force > "$case_dir/stdout2" 2> "$case_dir/stderr2" || rc=$?
+  expect_code 0 "$rc" "herdr-projection-active-deferred: repeated cleanup must remain action-free"
+  [ ! -s "$case_dir/stdout2" ] && [ ! -s "$case_dir/stderr2" ] \
+    || fail "herdr-projection-active-deferred: repeated cleanup generated recurring user-facing noise"
+  [ -d "$case_dir/wt" ] && [ -e "$case_dir/state/task-x1.meta" ] \
+    || fail "herdr-projection-active-deferred: repeated cleanup changed retained work"
+  [ "$(wc -c < "$case_dir/state/task-x1.status" | tr -d '[:space:]')" = "$before_status" ] \
+    || fail "herdr-projection-active-deferred: repeated cleanup generated recurring status noise"
+  [ ! -e "$case_dir/state/decision-bindings" ] \
+    || fail "herdr-projection-active-deferred: repeated cleanup created a captain-decision binding"
+  assert_not_contains "$(cat "$log")" "pane close" \
+    "herdr-projection-active-deferred: repeated cleanup attempted a pane close"
+  pass "herdr projection teardown defers idempotently without a captain decision"
+}
+
+test_herdr_projection_teardown_recovers_after_confirmed_close() {
+  local case_dir log closed safe_focused treehouse_log treehouse_failed rc close_count
+  case_dir=$(make_case herdr-projection-post-close-retry)
+  write_meta "$case_dir" local-only ship
+  configure_active_herdr_projection_teardown_case "$case_dir"
+  log="$case_dir/herdr.log"; closed="$case_dir/closed"; safe_focused="$case_dir/safe-focused"
+  treehouse_log="$case_dir/treehouse.log"; treehouse_failed="$case_dir/treehouse-failed"
+  : > "$log"; : > "$treehouse_log"; : > "$safe_focused"
+  cat > "$case_dir/fakebin/treehouse" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${FM_FAKE_TREEHOUSE_LOG:?}"
+if [ ! -e "${FM_FAKE_TREEHOUSE_FAILED:?}" ]; then
+  : > "$FM_FAKE_TREEHOUSE_FAILED"
+  echo "simulated return failure" >&2
+  exit 1
+fi
+exit 0
+SH
+  chmod +x "$case_dir/fakebin/treehouse"
+
+  rc=0
+  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" \
+    FM_FAKE_HERDR_SAFE_FOCUSED="$safe_focused" \
+    FM_FAKE_TREEHOUSE_LOG="$treehouse_log" FM_FAKE_TREEHOUSE_FAILED="$treehouse_failed" \
+    run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  [ "$rc" -ne 0 ] \
+    || fail "herdr-projection-post-close-retry: simulated isolated-copy return failure reported success"
+  [ -e "$closed" ] && [ -e "$case_dir/state/task-x1.herdr-presentation" ] \
+    || fail "herdr-projection-post-close-retry: first cleanup did not retain the journal after its confirmed close"
+  [ -e "$case_dir/state/task-x1.meta" ] \
+    || fail "herdr-projection-post-close-retry: first cleanup erased the task record"
+
+  FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" \
+    FM_FAKE_HERDR_SAFE_FOCUSED="$safe_focused" \
+    FM_FAKE_TREEHOUSE_LOG="$treehouse_log" FM_FAKE_TREEHOUSE_FAILED="$treehouse_failed" \
+    run_teardown "$case_dir" --force > "$case_dir/stdout2" 2> "$case_dir/stderr2" \
+    || fail "herdr-projection-post-close-retry: retry did not finish after the prior confirmed close"
+  close_count=$(grep -c '^pane close w1:p2' "$log" || true)
+  [ "$close_count" = 1 ] \
+    || fail "herdr-projection-post-close-retry: retry repeated the pane close ($close_count attempts)"
+  [ ! -e "$case_dir/state/task-x1.herdr-presentation" ] \
+    && [ ! -e "$case_dir/state/task-x1.meta" ] \
+    || fail "herdr-projection-post-close-retry: retry did not retire task records"
+  pass "herdr projection teardown resumes after a confirmed close without repeating the mutation"
+}
+
 test_herdr_projection_teardown_retires_journal_only_after_confirmed_close() {
   local case_dir log closed restored
   case_dir=$(make_case herdr-projection-confirmed-close)
@@ -2603,9 +2852,9 @@ test_herdr_projection_teardown_retains_journal_when_close_unconfirmed() {
     || fail "unconfirmed task-pane close incorrectly retired the presentation journal"
   [ -e "$case_dir/state/task-x1.meta" ] \
     || fail "unconfirmed task-pane close erased the durable endpoint metadata"
-  assert_grep "close could not be confirmed" "$case_dir/stderr" \
+  assert_grep "not confirmed gone after projected cleanup" "$case_dir/stderr" \
     "unconfirmed projected close did not explain why the journal was retained"
-  assert_grep "not confirmed gone" "$case_dir/stderr" \
+  assert_grep "presentation journal, and the isolated copy" "$case_dir/stderr" \
     "unconfirmed projected close did not explain why the records were retained"
   assert_not_contains "$(cat "$log")" "workspace close" \
     "unconfirmed projected close must not escalate to workspace cleanup"
@@ -3655,87 +3904,91 @@ EOF
   pass "the run abort and the leaked-process reap both complete before the destructive worktree return"
 }
 
-test_local_only_fork_remote_allows
-test_teardown_closes_the_backlog_item_itself
-test_teardown_manual_backend_leaves_the_backlog_to_the_operator
-test_local_only_truly_unpushed_refuses
-test_local_only_merged_to_local_main_allows
-test_no_mistakes_origin_remote_allows
-test_no_mistakes_truly_unpushed_refuses
-test_local_only_force_overrides_unpushed
-test_secondmate_pr_registration_publishes_ready_line
-test_secondmate_home_teardown_delivers_final_line_or_refuses
-test_teardown_missing_busy_sidecar_completes
-test_herdr_teardown_clears_escalation_marker
-test_herdr_flat_teardown_refuses_orphaning_records_then_retry_completes
-test_herdr_flat_teardown_refuses_records_on_unparseable_presence
-test_herdr_flat_teardown_preflight_refuses_before_changes
-test_forced_secondmate_herdr_child_preflight_refuses_before_changes
-test_forced_secondmate_teardown_holds_descendant_lifecycle_locks
-test_forced_secondmate_herdr_child_retains_records_when_close_unconfirmed
-test_forced_teardown_retains_nested_secondmate_home_when_grandchild_close_unconfirmed
-test_herdr_projection_teardown_retires_journal_only_after_confirmed_close
-test_herdr_projection_teardown_retains_journal_when_close_unconfirmed
-test_herdr_projection_teardown_surfaces_restore_failure_without_blocking_cleanup
-test_squash_merged_branch_deleted_allows
-test_squash_merged_pr_allows_when_head_ancestor_of_pr_head
-test_no_pr_recorded_discovers_merged_pr_by_branch_allows
-test_squash_merged_pr_allows_replayed_unpushed_patch
-test_merged_pr_with_later_local_commit_refuses
-test_squash_merged_rebased_branch_allows
-test_squash_merged_same_file_different_content_refuses
-test_squash_merged_rebased_local_with_unlanded_commit_refuses
-test_squash_merged_stale_local_refuses_when_forge_unreachable
-test_pr_check_does_not_refresh_stale_pr_head
-test_pr_check_records_remote_head_when_local_lags
-test_content_in_default_fallback_allows
-test_content_fallback_refreshes_stale_origin_ref
-test_dirty_worktree_refuses
-test_gh_error_and_content_absent_refuses
-test_legacy_record_without_the_flag_refuses
-test_legacy_record_teardown_completes_when_landed_and_endpoint_dead
-test_legacy_record_teardown_refuses_unlanded_work
-test_legacy_record_teardown_refuses_an_ambiguous_endpoint
-test_legacy_record_rolls_the_stamp_back_when_the_marker_write_fails
-test_retained_legacy_stamp_still_faces_the_endpoint_gate
-test_legacy_record_never_accepts_a_corrupt_spawn_gen
-test_stale_index_lock_cleared_and_teardown_succeeds
-test_live_index_lock_is_never_removed_and_teardown_refuses
-test_lsof_error_never_clears_index_lock
-test_stale_index_lock_cleanup_rechecks_dirty_worktree
-test_non_linked_index_lock_path_is_checked_from_worktree
-test_index_lock_mtime_read_failure_refuses
-test_transient_index_lock_clears_after_first_attempt_and_retry_succeeds
-test_persistent_index_lock_exhausts_retries_and_refuses_loudly
-test_empty_retry_wait_uses_default_without_aborting
-test_fractional_legacy_retry_wait_refuses_without_arithmetic_error
-test_parked_own_run_is_aborted_before_teardown
-test_parked_run_advanced_past_unfetched_head_is_still_aborted
-test_parked_run_with_mismatched_ledger_head_is_never_aborted
-test_parked_run_with_malformed_ledger_row_is_never_aborted
-test_parked_run_with_impossible_ledger_date_is_never_aborted
-test_terminal_status_with_gate_never_queries_or_aborts_ledger_fallback
-test_parked_run_advanced_head_locally_fetched_is_still_aborted
-test_parked_advanced_run_without_anchor_is_never_aborted
-test_parked_advanced_run_ancestor_anchor_is_never_aborted
-test_parked_terminal_unfetched_row_is_never_aborted
-test_parked_run_terminal_newest_row_at_own_head_is_never_aborted
-test_parked_run_behind_diverged_newer_row_is_never_aborted
-test_parked_advanced_run_ambiguous_rows_are_never_aborted
-test_ledger_proven_continuation_never_aborts_active_run
-test_parked_own_run_refuses_when_abort_is_unconfirmed
-test_mismatched_run_after_abort_refuses_unconfirmed
-test_empty_status_after_abort_refuses_unconfirmed
-test_not_found_status_after_abort_confirms_completion
-test_another_branchs_parked_run_is_never_touched
-test_own_autonomous_run_is_left_alone
-test_leaked_worktree_process_is_reaped
-test_leaked_tasktmp_process_is_reaped
-test_lsof_absent_reaps_tmux_process_group
-test_lsof_error_refuses_before_removal
-test_reused_pid_identity_is_not_force_killed
-test_exec_changed_process_is_still_reaped
-test_process_spawned_during_grace_is_reaped_on_later_pass
-test_persistent_scan_refuses_after_bounded_retries
-test_process_exit_during_identity_lookup_does_not_refuse
-test_run_abort_precedes_process_reap_precedes_worktree_removal
+fm_test_run_cases \
+  test_local_only_fork_remote_allows \
+  test_teardown_closes_the_backlog_item_itself \
+  test_teardown_manual_backend_leaves_the_backlog_to_the_operator \
+  test_local_only_truly_unpushed_refuses \
+  test_local_only_merged_to_local_main_allows \
+  test_no_mistakes_origin_remote_allows \
+  test_no_mistakes_truly_unpushed_refuses \
+  test_local_only_force_overrides_unpushed \
+  test_secondmate_pr_registration_publishes_ready_line \
+  test_secondmate_home_teardown_delivers_final_line_or_refuses \
+  test_teardown_missing_busy_sidecar_completes \
+  test_herdr_teardown_clears_escalation_marker \
+  test_herdr_flat_teardown_refuses_orphaning_records_then_retry_completes \
+  test_herdr_flat_teardown_refuses_records_on_unparseable_presence \
+  test_herdr_flat_teardown_preflight_refuses_before_changes \
+  test_forced_secondmate_herdr_child_preflight_refuses_before_changes \
+  test_forced_secondmate_teardown_holds_descendant_lifecycle_locks \
+  test_forced_secondmate_herdr_child_retains_records_when_close_unconfirmed \
+  test_forced_teardown_retains_nested_secondmate_home_when_grandchild_close_unconfirmed \
+  test_herdr_projection_teardown_restores_safe_focus \
+  test_herdr_projection_teardown_defers_idempotently_without_a_captain_decision \
+  test_herdr_projection_teardown_recovers_after_confirmed_close \
+  test_herdr_projection_teardown_retires_journal_only_after_confirmed_close \
+  test_herdr_projection_teardown_retains_journal_when_close_unconfirmed \
+  test_herdr_projection_teardown_surfaces_restore_failure_without_blocking_cleanup \
+  test_squash_merged_branch_deleted_allows \
+  test_squash_merged_pr_allows_when_head_ancestor_of_pr_head \
+  test_no_pr_recorded_discovers_merged_pr_by_branch_allows \
+  test_squash_merged_pr_allows_replayed_unpushed_patch \
+  test_merged_pr_with_later_local_commit_refuses \
+  test_squash_merged_rebased_branch_allows \
+  test_squash_merged_same_file_different_content_refuses \
+  test_squash_merged_rebased_local_with_unlanded_commit_refuses \
+  test_squash_merged_stale_local_refuses_when_forge_unreachable \
+  test_pr_check_does_not_refresh_stale_pr_head \
+  test_pr_check_records_remote_head_when_local_lags \
+  test_content_in_default_fallback_allows \
+  test_content_fallback_refreshes_stale_origin_ref \
+  test_dirty_worktree_refuses \
+  test_gh_error_and_content_absent_refuses \
+  test_legacy_record_without_the_flag_refuses \
+  test_legacy_record_teardown_completes_when_landed_and_endpoint_dead \
+  test_legacy_record_teardown_refuses_unlanded_work \
+  test_legacy_record_teardown_refuses_an_ambiguous_endpoint \
+  test_legacy_record_rolls_the_stamp_back_when_the_marker_write_fails \
+  test_retained_legacy_stamp_still_faces_the_endpoint_gate \
+  test_legacy_record_never_accepts_a_corrupt_spawn_gen \
+  test_stale_index_lock_cleared_and_teardown_succeeds \
+  test_live_index_lock_is_never_removed_and_teardown_refuses \
+  test_lsof_error_never_clears_index_lock \
+  test_stale_index_lock_cleanup_rechecks_dirty_worktree \
+  test_non_linked_index_lock_path_is_checked_from_worktree \
+  test_index_lock_mtime_read_failure_refuses \
+  test_transient_index_lock_clears_after_first_attempt_and_retry_succeeds \
+  test_persistent_index_lock_exhausts_retries_and_refuses_loudly \
+  test_empty_retry_wait_uses_default_without_aborting \
+  test_fractional_legacy_retry_wait_refuses_without_arithmetic_error \
+  test_parked_own_run_is_aborted_before_teardown \
+  test_parked_run_advanced_past_unfetched_head_is_still_aborted \
+  test_parked_run_with_mismatched_ledger_head_is_never_aborted \
+  test_parked_run_with_malformed_ledger_row_is_never_aborted \
+  test_parked_run_with_impossible_ledger_date_is_never_aborted \
+  test_terminal_status_with_gate_never_queries_or_aborts_ledger_fallback \
+  test_parked_run_advanced_head_locally_fetched_is_still_aborted \
+  test_parked_advanced_run_without_anchor_is_never_aborted \
+  test_parked_advanced_run_ancestor_anchor_is_never_aborted \
+  test_parked_terminal_unfetched_row_is_never_aborted \
+  test_parked_run_terminal_newest_row_at_own_head_is_never_aborted \
+  test_parked_run_behind_diverged_newer_row_is_never_aborted \
+  test_parked_advanced_run_ambiguous_rows_are_never_aborted \
+  test_ledger_proven_continuation_never_aborts_active_run \
+  test_parked_own_run_refuses_when_abort_is_unconfirmed \
+  test_mismatched_run_after_abort_refuses_unconfirmed \
+  test_empty_status_after_abort_refuses_unconfirmed \
+  test_not_found_status_after_abort_confirms_completion \
+  test_another_branchs_parked_run_is_never_touched \
+  test_own_autonomous_run_is_left_alone \
+  test_leaked_worktree_process_is_reaped \
+  test_leaked_tasktmp_process_is_reaped \
+  test_lsof_absent_reaps_tmux_process_group \
+  test_lsof_error_refuses_before_removal \
+  test_reused_pid_identity_is_not_force_killed \
+  test_exec_changed_process_is_still_reaped \
+  test_process_spawned_during_grace_is_reaped_on_later_pass \
+  test_persistent_scan_refuses_after_bounded_retries \
+  test_process_exit_during_identity_lookup_does_not_refuse \
+  test_run_abort_precedes_process_reap_precedes_worktree_removal

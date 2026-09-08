@@ -64,6 +64,52 @@ pass() {
   printf 'ok - %s\n' "$1"
 }
 
+# fm_test_run_cases <case ...>
+# FM_TEST_ONLY selects one registered case; FM_TEST_LIST_CASES=1 lists them.
+# With neither set, preserve the declared full-suite order. Consume selectors
+# here so a selected case cannot accidentally filter its child fixtures.
+fm_test_run_cases() {
+  local selected=${FM_TEST_ONLY:-} list=${FM_TEST_LIST_CASES:-0} name found=0 rc
+  [ "$#" -gt 0 ] || fail "fm_test_run_cases: no cases registered"
+  case "$list" in
+    0|1) ;;
+    *) fail "fm_test_run_cases: FM_TEST_LIST_CASES must be 0 or 1" ;;
+  esac
+  [ -z "$selected" ] || [ "$list" != 1 ] \
+    || fail "fm_test_run_cases: select a case or list cases, not both"
+  for name in "$@"; do
+    case "$name" in
+      test_*) ;;
+      *) fail "fm_test_run_cases: invalid case name: $name" ;;
+    esac
+    case "$name" in
+      *[!a-zA-Z0-9_]*) fail "fm_test_run_cases: invalid case name: $name" ;;
+    esac
+    declare -F "$name" >/dev/null || fail "fm_test_run_cases: case is not defined: $name"
+    [ "$name" != "$selected" ] || found=1
+  done
+  [ -z "$selected" ] || [ "$found" -eq 1 ] \
+    || fail "fm_test_run_cases: unknown case: $selected"
+  unset FM_TEST_ONLY FM_TEST_LIST_CASES
+  if [ "$list" = 1 ]; then
+    printf '%s\n' "$@"
+    return 0
+  fi
+  for name in "$@"; do
+    [ -z "$selected" ] || [ "$name" = "$selected" ] || continue
+    "$name"
+    rc=$?
+    [ "$rc" -eq 0 ] || exit "$rc"
+  done
+}
+
+fm_test_make_symlink() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*) MSYS=winsymlinks:nativestrict ln -s "$@" ;;
+    *) ln -s "$@" ;;
+  esac
+}
+
 # --- self-cleaning temp root ------------------------------------------------
 #
 # fm_test_tmproot <prefix> echoes a fresh temp dir and registers it for removal

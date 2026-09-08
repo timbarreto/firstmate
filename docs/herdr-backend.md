@@ -16,6 +16,7 @@ Prerequisites:
 - `jq` for JSON responses.
 - The universal harness and toolchain requirements in [`configuration.md`](configuration.md#toolchain).
 - `python3` only for optional protocol-16 presentation-space ordering and native event subscription.
+- Git for Windows' `cygpath` and built-in Windows PowerShell for native Windows presentation-lock ACL verification.
 
 Herdr is dual-licensed AGPL-3.0-or-later or commercial.
 Firstmate invokes its CLI as a separate process.
@@ -49,6 +50,14 @@ The first workspace in a completely empty Herdr session must become focused beca
 
 Herdr does not enforce workspace or tab label uniqueness, so a label can never decide where a worker goes.
 Herdr 0.7.5 exports `HERDR_ENV`, `HERDR_PANE_ID`, `HERDR_SESSION`, `HERDR_SOCKET_PATH`, `HERDR_TAB_ID`, and `HERDR_WORKSPACE_ID` into every process it manages a pane for, and a Firstmate or secondmate agent's own commands inherit them.
+On Windows, Herdr supplies `HERDR_SOCKET_PATH` as a native drive path, which Firstmate normalizes through Git for Windows before comparing it with the session's live socket identity.
+On Unix-like hosts, task-copy discovery prefers `pane get`'s live `foreground_cwd` and otherwise accepts only the exact foreground group leader's cwd from `pane process-info`.
+Native Windows uses a different acquisition path because interactive `treehouse get` keeps PowerShell in the project and opens a nested `cmd.exe` in the task copy, while Herdr reports only the parent PowerShell.
+Firstmate instead acquires `treehouse get --lease --lease-holder <task-id>` itself, sends `Set-Location -LiteralPath` with the returned native path safely quoted, and requires two matching reads proving the owning PowerShell reached that exact leased copy.
+It sets task environment values in that PowerShell, then passes the complete existing POSIX worker command to the same Git Bash installation that is running Firstmate, so every supported worker keeps one launch contract across platforms.
+If launch stops before task metadata is published, Firstmate closes its new endpoint and returns that unpublished lease, retaining recovery metadata for guarded cleanup if the return fails.
+After publication, ordinary task cleanup owns the lease.
+The pane's creation-time `cwd` and cwd values from processes outside the foreground group leader are never accepted as the task copy.
 Older injection shapes are unverified, so a claimed launcher pane without the injected socket identity cannot be trusted.
 With presentation spaces disabled, a crewmate or scout is created in the exact workspace that identity currently resolves to, read live from Herdr rather than from the injected snapshot, so the worker always appears beside the agent that launched it.
 Duplicate labels elsewhere in the session are irrelevant, and the globally focused workspace is never the target.
@@ -83,7 +92,7 @@ That one-warning-per-release record is a `state/.herdr-presentation-floor-<relea
 The floor reads both the installed client's protocol and version and the selected named session's server signals while that server is running, requires both applicable releases to pass, and uses only the client when status positively reports no running server because that client will start it.
 The unconfigured default is rechecked after the server is started or adopted and before any presentation journal or workspace is created, while an unreadable server state or release is treated as unsupported rather than guessed at.
 An explicit `on` is honored below the floor, so a home that deliberately opted in is never silently downgraded; it accepts that documented focus move, and the exact prior-tab restore stays its backstop.
-The floor has a single owner, the spawn-time gate, so cleanup for a projection that already exists always runs and never strands a workspace, whatever release the home is on now.
+The floor has a single owner, the spawn-time gate, so cleanup for a projection that already exists stays eligible on every release, while an active view without a proven safe Firstmate focus target is retained for a later retry rather than closed blindly.
 Upgrading Herdr to 0.8.0 or newer is the fix; writing `off` is the immediate mitigation for a home that cannot upgrade yet.
 The setting is inherited into secondmate homes through the normal configuration-convergence owner, and the default needs no special convergence: the primary's absent file and the secondmate's absent file both mean the same unconfigured default, so leaving it converges a secondmate to that same default rather than turning it off, and only an explicit primary `off` propagates the opt-out.
 A secondmate agent itself always stays in its ordinary parent workspace; only children launched by that home are eligible.
@@ -103,34 +112,46 @@ Only the exact seeded default tab returned by the same workspace-create response
 Before and after create, prune, order, abort cleanup, and normal cleanup, Firstmate verifies exact workspace, tab, pane, and active-focus ids.
 An ambiguous response grants no mutation or cleanup authority.
 
-Protocol 16 exposes `workspace.move` over the named session socket but no CLI subcommand.
-`bin/backends/herdr-workspace-move.py` sends only that whitelisted method and verifies the complete returned workspace order.
+Protocol 16 exposes `workspace.move` over the named session transport but no CLI subcommand.
+`bin/backends/herdr-workspace-move.py` uses an AF_UNIX socket on Unix and Herdr's namespaced Windows named pipe on native Windows, sends only that whitelisted method, and verifies the complete returned workspace order.
+The small native Windows `herdr.sock` file is Herdr's server-ownership marker, not the communication endpoint; the mover maps the same configured path to the supported namespaced pipe.
 Projected children are placed in one contiguous block immediately after their owning home when the session layout, protocol, socket, `python3`, and machine-private per-session lock are all verifiable.
+The shared lock namespace must be a current-user-owned, non-symlink directory; Linux and macOS additionally require mode `0700`.
+Native Windows Git Bash reports synthetic NTFS mode bits, so Firstmate does not treat its persistent `0755` report as privacy evidence and instead requires Windows PowerShell to prove that the directory is not a reparse point, is owned by the current identity, has a non-null DACL, and grants access only to that identity, SYSTEM, and built-in Administrators.
 Existing legacy child labels may extend an already adjacent block read-only but are never renamed or migrated.
 A foreign, ambiguous, detached, or manually interleaved child makes ordering skip with a warning rather than rewriting the layout.
 
 Ordering failure never fails the task spawn.
-Firstmate does not retry, adopt, reuse, close, delete, or rename anything in response to an unavailable method, lock contention, ambiguous socket, lost response, failed move, or verification mismatch.
-The worker remains on the ordinary flat or Herdr-current-order path.
+A projected workspace begins with a top-level `fm-<id> · pending p:<token>` label that implies no parent.
+Only a verified move immediately after the exact parent and its existing contiguous child block permits the final `└ <id> · p:<token>` label and version 2 restart binding.
+Firstmate does not retry, adopt, reuse, close, or delete anything in response to an unavailable method, lock contention, ambiguous socket, lost response, failed move, or verification mismatch.
+The worker remains alive in Herdr's current order with the provisional top-level label, an explicit warning, and no restart binding.
 
 Normal task metadata remains the sole endpoint authority after creation.
 Cleanup closes only the exact recorded task pane and never calls `workspace close`.
 Herdr 0.7.5's explicit close moves focus to a neighbor whenever it empties a non-focused workspace, while its pane-death removal preserves the focused workspace whenever the dying workspace sits behind it or the focused workspace is last; both behaviors are fixed in Herdr 0.8.0, and the exact rules live in the adapter header of `bin/backends/herdr.sh`.
-Projected cleanup therefore runs under the same session lock, captures the exact active tab, refuses to delete the active tab, and treats a workspace-emptying close as a focus-safe removal: it verifies the close would empty the workspace, repositions the doomed workspace behind the focused one through the verified `workspace.move` transport when needed, proves the pane holds one lone idle shell, and ends that shell so Herdr removes the emptied workspace through its focus-preserving pane-death path.
+Projected cleanup therefore runs under the same session lock, captures the exact active tab, and treats a workspace-emptying close as a focus-safe removal: it verifies the close would empty the workspace, repositions the doomed workspace behind the focused one through the verified `workspace.move` transport when needed, proves the pane holds one lone idle shell, and ends that shell so Herdr removes the emptied workspace through its focus-preserving pane-death path.
+When the completed task presentation itself is active, the version 2 binding may identify one safe focus target only by revalidating the exact physical home, endpoint, parent workspace id and label, nested live shape, and the parent's current active tab against the named session.
+Cleanup focuses that exact parent Firstmate tab first, verifies the handoff, and then closes the task pane.
+If no safe target can be proved, cleanup returns an action-free deferred result before returning the isolated copy, writing a backlog-close record, or removing any task data.
+That result requires no captain decision or focus change.
+The first defer records a task-incarnation-bound cleanup marker, repeated cleanup stays silent while the same unsafe condition persists, and cleanup completes normally once ordinary focus or the live binding makes it safe.
+If a later step fails after the exact pane close was already confirmed, the retained version 2 binding and structured pane-not-found response let the next cleanup finish without repeating the close.
 The repositioning move-to-last preserves every surviving workspace's relative order, and removal is confirmed against the exact moved workspace rather than inferred from pane disappearance before an unconfirmed removal makes one verified attempt under the same session lock to roll the doomed workspace back to its exact original position.
 If that rollback cannot restore the verified original order, cleanup warns loudly and leaves the retained records for inspection rather than retrying the shared-layout mutation.
 The pane-death signals are pid-exact: the escalation re-reads the pane's process information and refuses unless the same shell pid still passes the strict bare-idle ownership proof, so an exited and reused pid is never signaled.
-Any ambiguity, unsupported or failed move, or unproved shell falls back to the plain explicit close, and the exact prior-tab restore remains the backstop behind every close, so degraded behavior is never worse than the pre-mitigation sub-second restore.
+After cleanup has proved the target is not active, any unsupported or failed move or unproved shell falls back to the plain explicit close, and the exact prior-tab restore remains the backstop behind every close, so degraded behavior is never worse than the pre-mitigation sub-second restore.
 Ordinary non-projected task removal serializes through the same session lock, applies the same focus-safe plan when its close would empty a non-focused workspace, keeps the legitimate plain close when the target is the active tab, and refuses an unlocked close if the lock cannot be acquired.
-Task cleanup acquires that session lock before the task's isolated copy is returned, so a contended lock refuses up front while the copy, every durable record, and the endpoint are all intact for a plain rerun.
+Task cleanup acquires that session lock and resolves any active-presentation focus handoff before the task's isolated copy is returned, so contention or an unproved safe target leaves the copy, every durable record, and the endpoint intact for a later rerun.
 Forced secondmate cleanup recursively preflights every Herdr child endpoint and acquires every affected named-session lock before mutating any child, then retains each child's durable identity unless that exact pane returns structured not-found after its close.
 Durable task records are erased only once the exact pane is confirmed gone through its structured presence: after every close path, only a structured not-found response counts as gone, while a present or unknown result retains every record with a visible, retryable error.
 Missing or malformed endpoint identity and missing confirmation machinery are ambiguity, never proof of a gone pane, and refuse record removal the same way.
-If lock, snapshot, pane identity, or restoration is ambiguous, cleanup warns and preserves the journal for manual inspection.
+Ambiguous lock, pane identity, close confirmation, or post-close restoration remains a visible retryable error with the journal retained, while focus ambiguity before the close is the action-free defer above.
 
 Recovery is deliberately conservative and presentation-only.
 An existing journal suppresses another projected create.
 Before any recovery mutation, Firstmate holds both the task spawn lock and the named-session presentation lock.
+Fresh projection waits up to five seconds for that shared lock before falling back flat, while exact restart recovery waits up to twenty seconds for another in-progress reclaim and then refuses rather than creating a competing endpoint.
 A same-identity version 2 binding may replace one exact agent-free restart husk in place only when the physical home, session, metadata endpoint, unique token match, workspace shape and labels, parent identity and placement, and non-target focus snapshot all agree.
 The replacement tab and pane are created and verified before the old pane is rechecked and closed, then the journal advances atomically to the replacement endpoint before metadata publication.
 The reclaim path never moves, closes, deletes, or renames a workspace and never touches a parent, sibling, captain, or foreign pane.
@@ -158,7 +179,7 @@ Operational compromises:
 
 - Grouping is best-effort; only an exact same-identity version 2 binding survives a Herdr restart in place.
 - A failed journal publication or projected workspace create stops that spawn instead of falling back flat, so a Herdr create failure surfaces as a spawn failure in every Herdr home rather than only in homes that opted in; every earlier degradation on the fresh projected-create path (no session server, contended presentation lock, absent or ambiguous parent) still warns and continues flat.
-- Recovery of an existing presentation journal deliberately refuses the spawn when the shared presentation lock is contended rather than falling back flat, and default-on makes that refusal reachable in any Herdr home.
+- Recovery of an existing presentation journal waits up to twenty seconds for an in-progress reclaim, then deliberately refuses the spawn if the shared presentation lock remains contended rather than falling back flat.
 - Existing layouts are not force-renamed or rearranged.
 - Missing or ambiguous restart bindings fall back to the ordinary home workspace while the old projection remains untouched.
 - Crashes, lost responses, failed exact-pane cleanup, or human renames can leave quarantined spaces; session start removes only the exact home-local, uniquely journal-correlated, childless idle-shell shape above.
@@ -167,7 +188,7 @@ Operational compromises:
 - Regaining a dedicated space after degradation requires stopping the flat task, manually checking the stale projection, and clearing its journal before a genuinely fresh launch.
 - The visible token is only a restart-stable correlator and never substitutes for the exact binding.
 
-`tests/fm-backend-herdr-presentation-e2e.test.sh` covers multi-home ordering, concurrency, lock contention, legacy coexistence, focus preservation, exact same-identity restart replacement, ambiguous bindings and tokens, and exact-pane cleanup through the guarded lab path.
+`tests/fm-backend-herdr-presentation-e2e.test.sh` covers multi-home ordering, concurrency, lock contention, legacy coexistence, focus preservation, active completed-task cleanup with and without a safe parent view, exact same-identity restart replacement, ambiguous bindings and tokens, and exact-pane cleanup through the guarded lab path.
 `tests/fm-herdr-session-cleanup.test.sh` covers every discovery, ownership, topology, process, locking, revalidation, focus, retirement, and continue-on-error boundary.
 `tests/fm-herdr-session-cleanup-e2e.test.sh` covers the restored-shell cleanup in a guarded non-default named lab.
 `tests/fm-backend-herdr-focus-flash-e2e.test.sh` reproduces the raw explicit-close focus steal on the installed release and proves the focus-safe emptying-close plan removes a doomed workspace with no wrong-focus interval; [`verification/runtime-backends.md`](verification/runtime-backends.md#workspace-removal-focus-safety) owns the active versioned evidence.

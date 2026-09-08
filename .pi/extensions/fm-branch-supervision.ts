@@ -114,6 +114,11 @@ import {
   classifyFirstmateOperationalText,
   encodeFirstmateOperationalInputWith,
 } from "./lib/fm-operational-input.ts";
+import {
+  isPidInCurrentAncestry,
+  pidAlive,
+  shellVisibleProcessPid,
+} from "./lib/fm-process-ancestry.ts";
 
 const extensionFile = fileURLToPath(import.meta.url);
 const extensionDir = dirname(extensionFile);
@@ -133,6 +138,7 @@ const wakeGrantScript = join(fmRoot, "bin", "fm-wake-grant.sh");
 const loadedMarker = join(state, ".pi-branch-extension-loaded");
 const modelPinFile = join(config, "supervision-branch-model");
 const effortPinFile = join(config, "supervision-branch-effort");
+const extensionProcessPid = shellVisibleProcessPid();
 
 // Same tool set in the same order on every request (part of the cached
 // prefix). "bash" resolves to the customTools override below, which injects
@@ -314,33 +320,17 @@ async function parentPid(pid: string): Promise<string> {
   return result.stdout.trim();
 }
 
-function parentPidSync(pid: string): string {
-  const result = spawnSync("ps", ["-o", "ppid=", "-p", pid], { encoding: "utf8" });
-  if (result.status !== 0) return "";
-  return result.stdout.trim();
-}
-
-function pidAlive(pid: string): boolean {
-  try {
-    process.kill(Number(pid), 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 let ownedLockPid = "";
 
 // Same ownership read as the watcher extension's lockOwnership(): the lock
 // names the harness pid, and this process owns it when that pid appears in
 // its own ancestry.
 //
-// The ancestry is walked in full at every boundary that asks, never cached:
-// process ancestry is not immutable (a parent exiting reparents its child,
-// and pid identity is reused), and this answer is an ownership AUTHORITY
-// rather than a hint, so a stale chain would misattribute ownership. Moving
-// delivery off Pi's render thread does not trade that away - it awaits each
-// `ps` instead of shortening the walk.
+// POSIX ancestry is walked in full at every boundary that asks because a
+// parent can exit and a pid can be reused. Windows uses the shared
+// shell-visible/native pid mapper, which validates the mapped native process
+// before returning ownership. Moving delivery off Pi's render thread keeps
+// the POSIX walk awaited rather than shortening it.
 //
 // The lock file's own answer and the verdict after the walk are shared by the
 // awaited and synchronous forms below, so the only difference between them
@@ -370,6 +360,14 @@ function ownershipVerdict(lockPid: string, ancestryMatched: boolean): LockOwners
 async function lockOwnership(): Promise<LockOwnership> {
   const { lockPid, verdict } = readLockPid();
   if (verdict) return verdict;
+  if (process.platform === "win32") {
+    if (isPidInCurrentAncestry(lockPid, LOCK_ANCESTRY_DEPTH)) {
+      const current = readLockPid();
+      if (current.verdict || current.lockPid !== lockPid) return current.verdict ?? "other";
+      return ownershipVerdict(lockPid, true);
+    }
+    return ownershipVerdict(lockPid, false);
+  }
   let pid = String(process.pid);
   for (let i = 0; i < LOCK_ANCESTRY_DEPTH; i += 1) {
     if (pid === lockPid) {
@@ -385,17 +383,16 @@ async function lockOwnership(): Promise<LockOwnership> {
 
 // Pi types its bash spawn hook as a synchronous function
 // (BashSpawnHook: (context) => context), so the guard on the BRANCH's own
-// shell commands cannot await. It keeps the synchronous walk unchanged rather
-// than caching the authority: what blocks there is one branch shell command
+// shell commands cannot await. It keeps a synchronous ownership check rather
+// than caching the verdict: what blocks there is one branch shell command
 // about to spawn a shell anyway, never an arriving outcome.
 function lockOwnershipSync(): LockOwnership {
   const { lockPid, verdict } = readLockPid();
   if (verdict) return verdict;
-  let pid = String(process.pid);
-  for (let i = 0; i < LOCK_ANCESTRY_DEPTH; i += 1) {
-    if (pid === lockPid) return ownershipVerdict(lockPid, true);
-    pid = parentPidSync(pid);
-    if (!pid || pid === "1") break;
+  if (isPidInCurrentAncestry(lockPid, LOCK_ANCESTRY_DEPTH)) {
+    const current = readLockPid();
+    if (current.verdict || current.lockPid !== lockPid) return current.verdict ?? "other";
+    return ownershipVerdict(lockPid, true);
   }
   return ownershipVerdict(lockPid, false);
 }
@@ -849,7 +846,7 @@ export default function (pi: ExtensionAPI) {
   function markLoaded(): void {
     try {
       mkdirSync(state, { recursive: true });
-      writeFileSync(loadedMarker, `${process.pid}\n`);
+      writeFileSync(loadedMarker, `${extensionProcessPid}\n`);
     } catch {
       // Diagnostic marker only; never block activation on it.
     }
@@ -876,11 +873,11 @@ export default function (pi: ExtensionAPI) {
     if (activatedGeneration !== expectedGeneration) {
       if (!(await releaseBranchLeases(expectedGeneration))) return false;
       if (!(await generationOwnsLock(expectedGeneration))) return false;
-      if (!(await activateEligibleRowsOwner(state, wakeGrantScript, process.pid, String(expectedGeneration)))) {
+      if (!(await activateEligibleRowsOwner(state, wakeGrantScript, extensionProcessPid, String(expectedGeneration)))) {
         return false;
       }
       if (!(await generationOwnsLock(expectedGeneration))) {
-        await deactivateEligibleRowsOwner(state, wakeGrantScript, process.pid, String(expectedGeneration));
+        await deactivateEligibleRowsOwner(state, wakeGrantScript, extensionProcessPid, String(expectedGeneration));
         return false;
       }
       markLoaded();
@@ -1688,7 +1685,7 @@ ${context.command}
       }
       branch = null;
     }
-    await deactivateEligibleRowsOwner(state, wakeGrantScript, process.pid, String(closingGeneration));
+    await deactivateEligibleRowsOwner(state, wakeGrantScript, extensionProcessPid, String(closingGeneration));
   });
 
   // Pi keeps /model and its own thinking selector for the captain's own

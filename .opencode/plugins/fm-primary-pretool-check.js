@@ -54,7 +54,11 @@ export const FmPrimaryPretoolCheck = async ({ directory, worktree }) => {
       const command = output?.args?.command;
       if (!command || typeof command !== "string") return;
 
-      const result = await runProcess(`${root}/bin/fm-arm-pretool-check.sh`, ["--command", command]);
+      const script = `${root}/bin/fm-arm-pretool-check.sh`;
+      const result = await runProcess(
+        process.platform === "win32" ? "bash" : script,
+        [...(process.platform === "win32" ? [script] : []), "--command", command],
+      );
       if (result.code !== 2) return;
 
       const reason = result.stderr.trim() || "denied by the watcher-arm PreToolUse seatbelt";
