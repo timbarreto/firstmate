@@ -792,7 +792,7 @@ secondmate_liveness_one() {  # <meta> <id>
   [ -n "$target" ] || target="$window"
   agent_state=$(fm_backend_agent_state "$backend" "$target" 2>/dev/null) || agent_state=unreadable
   case "$harness" in
-    claude|codex|opencode|pi|pi-signed|grok|kimi) ;;
+    claude|codex|copilot|opencode|pi|pi-signed|grok|kimi) ;;
     *)
       case "$agent_state" in dead|missing) agent_state=unverified-harness ;; esac
       ;;
@@ -933,7 +933,7 @@ tool_version_at_least() {  # <tool> <min-version>
 }
 
 x_mode_write_if_changed() {
-  local dest=$1 content=$2 mode=$3 parent tmp parent_device current_mode
+  local dest=$1 content=$2 mode=$3 parent tmp parent_device
   parent=${dest%/*}
   [ "$parent" != "$dest" ] || return 1
   [ -d "$parent" ] && [ ! -L "$parent" ] || return 1
@@ -944,18 +944,14 @@ x_mode_write_if_changed() {
   fi
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     fmx_single_link_file_valid "$dest" "$parent_device" || return 1
-    if [ "$(uname)" = Darwin ]; then
-      current_mode=$(stat -f %Lp "$dest" 2>/dev/null) || return 1
-    else
-      current_mode=$(stat -c %a "$dest" 2>/dev/null) || return 1
-    fi
-    if [ "$current_mode" = "$mode" ] && cmp -s "$dest" <(printf '%s\n' "$content"); then
+    if fmx_single_link_file_mode_valid "$dest" "$mode" "$parent_device" \
+      && cmp -s "$dest" <(printf '%s\n' "$content"); then
       return 0
     fi
   fi
   tmp=$(umask 077; mktemp "$parent/.fm-x-mode.XXXXXX" 2>/dev/null) || return 1
   if ! printf '%s\n' "$content" > "$tmp" \
-    || ! chmod "$mode" "$tmp" \
+    || ! fmx_private_path_secure "$tmp" "$mode" \
     || ! fmx_single_link_file_mode_valid "$tmp" "$mode" "$parent_device"; then
     rm -f -- "$tmp"
     return 1
@@ -1104,12 +1100,13 @@ crew_dispatch_validate() {
     return 0
   fi
   err=$(jq -r '
-    def verified($h): ["claude","codex","opencode","pi","pi-signed","grok","kimi","cursor","muse"] | index($h);
+    def verified($h): ["claude","codex","copilot","opencode","pi","pi-signed","grok","kimi","cursor","muse"] | index($h);
     def effort_ok($h; $e):
       if $e == null then true
       elif ($e | type) != "string" then false
       elif $h == "claude" then (["low","medium","high","xhigh","max"] | index($e))
       elif $h == "codex" then (["low","medium","high","xhigh"] | index($e))
+      elif $h == "copilot" then (["low","medium","high","xhigh","max"] | index($e))
       elif $h == "grok" then (["low","medium","high"] | index($e))
       elif $h == "pi" or $h == "pi-signed" then (["low","medium","high","xhigh","max"] | index($e))
       elif $h == "muse" then (["low","medium","high","xhigh","max"] | index($e))

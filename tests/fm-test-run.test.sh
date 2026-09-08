@@ -97,8 +97,11 @@ init_changed_fixture_repo() {
     fm-brief.test.sh \
     fm-ask-user-authority.test.sh \
     fm-documentation-audiences.test.sh \
+    fm-extension-binding.test.sh \
+    fm-gitignore-config.test.sh \
     fm-test-isolation-proof.test.sh \
     fm-test-run.test.sh \
+    fm-update-windows.test.sh \
     fm-cd-pretool-check.test.sh \
     fm-daemon.test.sh \
     fm-harness-adapter-instructions-live-e2e.test.sh \
@@ -122,6 +125,8 @@ init_changed_fixture_repo() {
     chmod +x "$repo/tests/$script"
   done
   : >"$repo/tests/lib.sh"
+  : >"$repo/tests/fixtures.sh"
+  printf '# tests/fixtures.sh\n' >>"$repo/tests/fm-brief.test.sh"
   : >"$repo/tests/fm-backend-herdr-eventwait.test.py"
   : >"$repo/bin/fm-supervisor-target-lib.sh"
   : >"$repo/bin/fm-control-lib.sh"
@@ -129,6 +134,10 @@ init_changed_fixture_repo() {
   : >"$repo/bin/fm-procevent-quota.sh"
   : >"$repo/bin/fm-quota-axi-lib.sh"
   : >"$repo/bin/fm-quota-choose.sh"
+  : >"$repo/bin/fm-arm-command-policy.mjs"
+  : >"$repo/bin/fm-cd-command-policy.mjs"
+  : >"$repo/bin/fm-extension-launch-barrier.mjs"
+  : >"$repo/bin/fm-ghcp-hook.ps1"
   : >"$repo/bin/unmapped-source.sh"
   # A shared helper with no curated family of its own, named by exactly ONE
   # script of the expensive real-Herdr family and consumed by one curated
@@ -141,23 +150,104 @@ init_changed_fixture_repo() {
   printf '. "$ROOT/bin/shared-probe-lib.sh"\n' >"$repo/bin/fm-watch-probe.sh"
   printf '# .claude/settings.json\n# .pi/extensions/fm-primary-turnend-guard.ts\n' \
     >>"$repo/tests/fm-cd-pretool-check.test.sh"
+  printf '# fm-arm-command-policy.mjs\n# fm-cd-command-policy.mjs\n' \
+    >>"$repo/tests/fm-cd-pretool-check.test.sh"
+  printf '# fm-ghcp-hook.ps1\n' >>"$repo/tests/fm-update-windows.test.sh"
   printf '# .pi/extensions/fm-primary-pi-watch.ts\n' >>"$repo/tests/fm-pi-watch-extension.test.sh"
   mkdir -p \
     "$repo/.agents/skills/example" \
     "$repo/.agents/skills/harness-adapters/references/common" \
-    "$repo/.claude" "$repo/.pi/extensions" "$repo/docs" "$repo/src"
+    "$repo/.claude" "$repo/.opencode/plugins" "$repo/.pi/extensions" \
+    "$repo/docs" "$repo/skills/example" "$repo/src"
   : >"$repo/.agents/skills/example/SKILL.md"
   : >"$repo/.agents/skills/harness-adapters/SKILL.md"
   : >"$repo/.agents/skills/harness-adapters/references/common/dispatch.md"
   : >"$repo/.claude/settings.json"
+  : >"$repo/.gitattributes"
+  : >"$repo/.gitignore"
+  : >"$repo/.opencode/plugins/fm-primary-cd-check.js"
   : >"$repo/.pi/extensions/fm-primary-pi-watch.ts"
   : >"$repo/.pi/extensions/fm-primary-turnend-guard.ts"
   : >"$repo/docs/fm-test-isolation-proof.md"
+  : >"$repo/skills/example/SKILL.md"
   : >"$repo/CONTRIBUTING.md"
   : >"$repo/src/unmapped.ts"
+  printf '# fm-primary-cd-check.js\n' >>"$repo/tests/fm-cd-pretool-check.test.sh"
   git -C "$repo" init -q
   git -C "$repo" add .
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
+}
+
+test_changed_reference_scan_batches_test_files() {
+  local tmp repo fake_bin grep_calls_file basename_calls_file
+  local real_grep real_basename listed grep_calls basename_calls i source
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-reference-scan.XXXXXX")
+  repo="$tmp/repo"
+  fake_bin="$tmp/fake-bin"
+  grep_calls_file="$tmp/grep-calls"
+  basename_calls_file="$tmp/basename-calls"
+  init_changed_fixture_repo "$repo"
+
+  i=1
+  while [ "$i" -le 12 ]; do
+    source=$(printf 'src/referenced-%02d.ts' "$i")
+    : >"$repo/$source"
+    printf '# %s\n' "$source" >>"$repo/tests/fm-brief.test.sh"
+    i=$((i + 1))
+  done
+  i=1
+  while [ "$i" -le 4 ]; do
+    : >"$repo/bin/shared-index-$i.sh"
+    printf '# shared-index-%s.sh\n' "$i" >"$repo/bin/fm-watch-index-$i.sh"
+    i=$((i + 1))
+  done
+  git -C "$repo" add src bin tests/fm-brief.test.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm reference-fixture
+  for source in "$repo"/src/referenced-*.ts; do
+    printf '\n' >>"$source"
+  done
+  for source in "$repo"/bin/shared-index-*.sh; do
+    printf '\n' >>"$source"
+  done
+
+  mkdir -p "$fake_bin"
+  : >"$grep_calls_file"
+  : >"$basename_calls_file"
+  real_grep=$(command -v grep)
+  real_basename=$(command -v basename)
+  cat >"$fake_bin/grep" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$FM_GREP_CALLS"
+exec "$FM_REAL_GREP" "$@"
+SH
+  cat >"$fake_bin/basename" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$FM_BASENAME_CALLS"
+exec "$FM_REAL_BASENAME" "$@"
+SH
+  chmod +x "$fake_bin/grep"
+  chmod +x "$fake_bin/basename"
+
+  listed=$(
+    cd "$repo" \
+      && PATH="$fake_bin:$PATH" \
+        FM_GREP_CALLS="$grep_calls_file" FM_REAL_GREP="$real_grep" \
+        FM_BASENAME_CALLS="$basename_calls_file" FM_REAL_BASENAME="$real_basename" \
+          bin/fm-test-run.sh --list --changed --base HEAD
+  )
+  assert_contains "$listed" "tests/fm-brief.test.sh" \
+    "a test that names the changed source must be selected"
+  assert_contains "$listed" "tests/fm-daemon.test.sh" \
+    "a mapped consumer of an unmapped helper must select its family"
+  grep_calls=$(wc -l <"$grep_calls_file" | tr -d ' ')
+  [ "$grep_calls" -le 1 ] \
+    || fail "reference lookup must scan test files once across changed paths, got $grep_calls grep calls"
+  basename_calls=$(wc -l <"$basename_calls_file" | tr -d ' ')
+  [ "$basename_calls" -eq 0 ] \
+    || fail "changed selection must not spawn basename per test, got $basename_calls calls"
+
+  rm -rf "$tmp"
+  pass "changed reference lookup scans all test files in one grep invocation"
 }
 
 test_changed_runner_surfaces_select_their_family() {
@@ -220,6 +310,13 @@ test_changed_dependency_selection_and_unmapped_failure() {
   git -C "$repo" add tests/lib.sh
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm helper-change
 
+  printf '\n' >>"$repo/tests/fixtures.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-brief.test.sh" \
+    "shared fixture helper selects referencing tests"
+  git -C "$repo" add tests/fixtures.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm fixture-helper-change
+
   printf '\n' >>"$repo/tests/fm-backend-herdr-eventwait.test.py"
   listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
   assert_contains "$listed" "tests/fm-backend-herdr-smoke.test.sh" "eventwait test selects Herdr coverage"
@@ -244,6 +341,27 @@ test_changed_dependency_selection_and_unmapped_failure() {
   assert_contains "$listed" "tests/fm-pi-watch-extension.test.sh" "Pi source selects watcher coverage"
   git -C "$repo" add .agents .claude .pi
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm non-bin-source-change
+
+  printf '\n' >>"$repo/skills/example/SKILL.md"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-brief.test.sh" \
+    "top-level skill source selects pure contract coverage"
+  git -C "$repo" add skills
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm top-level-skill-change
+
+  printf '\n' >>"$repo/.opencode/plugins/fm-primary-cd-check.js"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-cd-pretool-check.test.sh" \
+    "OpenCode adapter source selects tests that name its plugin"
+  git -C "$repo" add .opencode
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm opencode-adapter-change
+
+  printf '*.sh text eol=lf\n' >>"$repo/.gitattributes"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-gitignore-config.test.sh" \
+    "Git attributes select repository Git configuration coverage"
+  git -C "$repo" add .gitattributes
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm git-attributes-change
 
   printf '\n' >>"$repo/.agents/skills/harness-adapters/references/common/dispatch.md"
   listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
@@ -296,6 +414,27 @@ test_changed_dependency_selection_and_unmapped_failure() {
   git -C "$repo" add bin/fm-timeout-lib.sh
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm timeout-lib-change
 
+  printf '\n' >>"$repo/bin/fm-arm-command-policy.mjs"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-cd-pretool-check.test.sh" \
+    "JavaScript command policy selects tests that name its module"
+  git -C "$repo" add bin/fm-arm-command-policy.mjs
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm command-policy-change
+
+  printf '\n' >>"$repo/bin/fm-extension-launch-barrier.mjs"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-extension-binding.test.sh" \
+    "extension launch barrier selects extension binding coverage"
+  git -C "$repo" add bin/fm-extension-launch-barrier.mjs
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm extension-barrier-change
+
+  printf '\n' >>"$repo/bin/fm-ghcp-hook.ps1"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-update-windows.test.sh" \
+    "PowerShell helper selects tests that name its script"
+  git -C "$repo" add bin/fm-ghcp-hook.ps1
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm powershell-helper-change
+
   printf '\n' >>"$repo/src/unmapped.ts"
   set +e
   (cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"
@@ -342,7 +481,7 @@ test_changed_bin_reference_selects_per_script_not_per_family() {
 # Exercise begin/end markers from real fixture processes to prove the automatic
 # changed-suite default and its explicit serial override.
 test_changed_uses_bounded_automatic_concurrency() {
-  local tmp repo script serial_shape parallel_shape timeout_repo timeout_script expected_jobs rc
+  local tmp repo script serial_shape parallel_shape timeout_repo expected_jobs rc timeout_log
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-changed-consent.XXXXXX")
   repo="$tmp/repo"
   init_changed_fixture_repo "$repo"
@@ -389,34 +528,89 @@ assert serial["selection"].split(";")[-1] == "jobs=1"
 PY
 
   timeout_repo="$tmp/timeout-repo"
-  timeout_script=tests/fm-calm-pi-extension.test.sh
+  timeout_log="$tmp/automatic-timeouts.log"
   mkdir -p "$timeout_repo/bin" "$timeout_repo/tests"
   cp "$RUNNER" "$timeout_repo/bin/fm-test-run.sh"
   cat >"$timeout_repo/bin/fm-timeout-lib.sh" <<'SH'
 fm_run_timed() {
-  [ "$1" -eq 900 ] || return 99
+  local timeout=$1 script= arg expected=900
+  shift
+  for arg in "$@"; do
+    case "$arg" in tests/*.test.sh) script=$arg ;; esac
+  done
+  case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+      case "$script" in
+        tests/fm-arm-pretool-check.test.sh) expected=1800 ;;
+        tests/fm-backend-herdr.test.sh) expected=4500 ;;
+        tests/fm-captain-hold-lifecycle.test.sh) expected=7200 ;;
+      esac
+      ;;
+  esac
+  printf '%s\t%s\n' "$script" "$timeout" >>"${TIMEOUT_LOG:?}"
+  [ "$timeout" -eq "$expected" ] || return 99
   return 124
 }
 SH
-  cat >"$timeout_repo/$timeout_script" <<'SH'
+  for script in \
+    tests/fm-calm-pi-extension.test.sh \
+    tests/fm-arm-pretool-check.test.sh \
+    tests/fm-backend-herdr.test.sh \
+    tests/fm-captain-hold-lifecycle.test.sh; do
+    cat >"$timeout_repo/$script" <<'SH'
 #!/usr/bin/env bash
 touch should-not-run
 echo "not ok - automatic timeout helper was bypassed"
 SH
-  chmod +x "$timeout_repo/bin/fm-test-run.sh" "$timeout_repo/$timeout_script"
+    chmod +x "$timeout_repo/$script"
+  done
+  chmod +x "$timeout_repo/bin/fm-test-run.sh"
   git -C "$timeout_repo" init -q
   git -C "$timeout_repo" add .
   git -C "$timeout_repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
-  printf '\n' >>"$timeout_repo/$timeout_script"
+  for script in \
+    tests/fm-calm-pi-extension.test.sh \
+    tests/fm-arm-pretool-check.test.sh \
+    tests/fm-backend-herdr.test.sh \
+    tests/fm-captain-hold-lifecycle.test.sh; do
+    printf '\n' >>"$timeout_repo/$script"
+  done
   set +e
-  (cd "$timeout_repo" && bin/fm-test-run.sh --changed --base HEAD) \
+  (cd "$timeout_repo" && TIMEOUT_LOG="$timeout_log" bin/fm-test-run.sh --changed --base HEAD) \
     >"$tmp/timeout.out" 2>"$tmp/timeout.err"
   rc=$?
   set -e
-  [ "$rc" -eq 1 ] || fail "single-script automatic timeout must fail the run, got $rc"
-  grep -Eq '^FM_TEST_END .+ tests/fm-calm-pi-extension\.test\.sh exit=124 ' "$tmp/timeout.out" \
-    || fail "single unproven changed script did not receive the automatic timeout: $(cat "$tmp/timeout.out")"
-  [ ! -e "$timeout_repo/should-not-run" ] || fail "automatic timeout helper did not own the single changed script"
+  [ "$rc" -eq 1 ] || fail "automatic timeout fixture must fail the run, got $rc"
+  for script in \
+    tests/fm-calm-pi-extension.test.sh \
+    tests/fm-arm-pretool-check.test.sh \
+    tests/fm-backend-herdr.test.sh \
+    tests/fm-captain-hold-lifecycle.test.sh; do
+    grep -Eq "^FM_TEST_END .+ $script exit=124 " "$tmp/timeout.out" \
+      || fail "$script did not receive its automatic timeout: $(cat "$tmp/timeout.out")"
+  done
+  grep -q $'^tests/fm-calm-pi-extension.test.sh\t900$' "$timeout_log" \
+    || fail "the ordinary changed-script timeout was not 900s: $(cat "$timeout_log")"
+  case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+      grep -q $'^tests/fm-arm-pretool-check.test.sh\t1800$' "$timeout_log" \
+        || fail "the Windows arm timeout was not 1800s: $(cat "$timeout_log")"
+      grep -q $'^tests/fm-backend-herdr.test.sh\t4500$' "$timeout_log" \
+        || fail "the Windows Herdr timeout was not 4500s: $(cat "$timeout_log")"
+      grep -q $'^tests/fm-captain-hold-lifecycle.test.sh\t7200$' "$timeout_log" \
+        || fail "the Windows captain timeout was not 7200s: $(cat "$timeout_log")"
+      ;;
+    *)
+      grep -q $'^tests/fm-arm-pretool-check.test.sh\t900$' "$timeout_log" \
+        || fail "the non-Windows arm timeout changed: $(cat "$timeout_log")"
+      grep -q $'^tests/fm-backend-herdr.test.sh\t900$' "$timeout_log" \
+        || fail "the non-Windows Herdr timeout changed: $(cat "$timeout_log")"
+      grep -q $'^tests/fm-captain-hold-lifecycle.test.sh\t900$' "$timeout_log" \
+        || fail "the non-Windows captain timeout changed: $(cat "$timeout_log")"
+      ;;
+  esac
+  [ ! -e "$timeout_repo/should-not-run" ] \
+    || fail "automatic timeout helper did not own the selected changed scripts"
 
   rm -rf "$tmp"
   pass "changed defaults to bounded automatic scheduling with serial override"
@@ -428,14 +622,18 @@ SH
 # contract, so verifying several subjects is one bounded concurrent run rather
 # than a serial chain of separate `bash tests/X.test.sh` invocations.
 test_script_list_uses_bounded_automatic_concurrency() {
-  local tmp repo script parallel_shape serial_shape mixed_shape expected_jobs
+  local tmp repo script parallel_shape serial_shape mixed_shape expected_jobs expected_mixed_shape
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-script-list.XXXXXX")
   repo="$tmp/repo"
   init_changed_fixture_repo "$repo"
   rm -f "$repo/bin/fm-timeout-lib.sh"
   # fm-cd-pretool-check and fm-pr-merge are individually proven isolated;
   # fm-backend-orca is not, so it must still land in the serial tail.
-  for script in fm-cd-pretool-check.test.sh fm-pr-merge.test.sh fm-backend-orca.test.sh; do
+  for script in \
+    fm-cd-pretool-check.test.sh \
+    fm-pr-merge.test.sh \
+    fm-captain-hold-lifecycle.test.sh \
+    fm-backend-orca.test.sh; do
     cat >"$repo/tests/$script" <<'SH'
 #!/usr/bin/env bash
 sleep 1
@@ -459,13 +657,23 @@ SH
     || fail "explicit --jobs 1 did not force a serial script list: $serial_shape"
 
   # An unproven script in the list is scheduled around, never refused and never
-  # run beside another script.
+  # run beside another script. Git-for-Windows process-heavy scripts join that
+  # serial tail even when their state isolation is otherwise proven.
   (cd "$repo" && bin/fm-test-run.sh tests/fm-cd-pretool-check.test.sh tests/fm-pr-merge.test.sh \
-      tests/fm-backend-orca.test.sh) >"$tmp/mixed.out" 2>"$tmp/mixed.err" \
+      tests/fm-captain-hold-lifecycle.test.sh tests/fm-backend-orca.test.sh) \
+    >"$tmp/mixed.out" 2>"$tmp/mixed.err" \
     || fail "mixed proven/unproven script list failed: $(cat "$tmp/mixed.err")"
   mixed_shape=$(grep -E '^FM_TEST_(BEGIN|END)' "$tmp/mixed.out" | awk '{print $1}' | paste -sd, -)
-  [ "$mixed_shape" = FM_TEST_BEGIN,FM_TEST_BEGIN,FM_TEST_END,FM_TEST_END,FM_TEST_BEGIN,FM_TEST_END ] \
-    || fail "an unproven script was not kept in the serial tail: $mixed_shape"
+  case "$(uname -s 2>/dev/null)" in
+    MSYS*|MINGW*|CYGWIN*)
+      expected_mixed_shape=FM_TEST_BEGIN,FM_TEST_BEGIN,FM_TEST_END,FM_TEST_END,FM_TEST_BEGIN,FM_TEST_END,FM_TEST_BEGIN,FM_TEST_END
+      ;;
+    *)
+      expected_mixed_shape=FM_TEST_BEGIN,FM_TEST_BEGIN,FM_TEST_BEGIN,FM_TEST_END,FM_TEST_END,FM_TEST_END,FM_TEST_BEGIN,FM_TEST_END
+      ;;
+  esac
+  [ "$mixed_shape" = "$expected_mixed_shape" ] \
+    || fail "automatic serial-tail scheduling was wrong: $mixed_shape"
 
   expected_jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
   case "$expected_jobs" in
@@ -1296,29 +1504,51 @@ SH
 
 test_herdr_ci_family_run_has_a_step_timeout() {
   # The required Herdr lane's hang tripwire is the family-run *step* bound, not
-  # the 75-minute job cap. Parse the workflow as YAML so nested `with.name`
-  # artifact keys cannot masquerade as the step contract.
-  command -v ruby >/dev/null 2>&1 \
-    || fail "ruby is required to parse .github/workflows/ci.yml as YAML"
-  local json job_timeout step_timeout
-  json=$(ruby -ryaml -rjson -e '
-doc = YAML.load_file(ARGV[0])
-job = doc.fetch("jobs").fetch("tests-herdr")
-step = job.fetch("steps").find { |s|
-  s.is_a?(Hash) && s["name"] == "Run real-Herdr family (serial, required)"
-}
-raise "missing family-run step" if step.nil?
-raise "family-run step has no timeout-minutes" unless step.key?("timeout-minutes")
-puts JSON.generate(
-  "job_timeout" => job.fetch("timeout-minutes"),
-  "step_timeout" => step.fetch("timeout-minutes")
-)
-' "$ROOT/.github/workflows/ci.yml") \
-    || fail "could not parse tests-herdr timeouts from ci.yml"
-  job_timeout=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["job_timeout"])' <<<"$json") \
-    || fail "could not read job timeout from parsed workflow"
-  step_timeout=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["step_timeout"])' <<<"$json") \
-    || fail "could not read step timeout from parsed workflow"
+  # the 75-minute job cap. Validate the workflow as YAML first, then match exact
+  # indentation under tests-herdr so a nested `with.name` cannot masquerade as
+  # the step contract.
+  local timeouts job_timeout step_timeout
+  "$ROOT/bin/fm-lint-workflows.sh" --root "$ROOT" >/dev/null \
+    || fail "could not validate ci.yml before reading tests-herdr timeouts"
+  timeouts=$(awk '
+    /^  tests-herdr:[[:space:]]*$/ {
+      in_job = 1
+      in_steps = 0
+      target_step = 0
+      next
+    }
+    in_job && /^  [^[:space:]][^:]*:[[:space:]]*$/ {
+      in_job = 0
+      next
+    }
+    in_job && !in_steps && /^    timeout-minutes:[[:space:]]*[0-9]+[[:space:]]*$/ {
+      job_timeout = $0
+      sub(/^    timeout-minutes:[[:space:]]*/, "", job_timeout)
+      next
+    }
+    in_job && /^    steps:[[:space:]]*$/ {
+      in_steps = 1
+      next
+    }
+    in_steps && /^      - / {
+      target_step = ($0 == "      - name: Run real-Herdr family (serial, required)")
+      next
+    }
+    target_step && /^        timeout-minutes:[[:space:]]*[0-9]+[[:space:]]*$/ {
+      step_timeout = $0
+      sub(/^        timeout-minutes:[[:space:]]*/, "", step_timeout)
+    }
+    END {
+      if (job_timeout == "" || step_timeout == "") {
+        exit 1
+      }
+      print job_timeout, step_timeout
+    }
+  ' "$ROOT/.github/workflows/ci.yml") \
+    || fail "could not read tests-herdr timeouts from ci.yml"
+  read -r job_timeout step_timeout <<EOF
+$timeouts
+EOF
   [ "$job_timeout" = 75 ] \
     || fail "tests-herdr job backstop must stay 75 minutes, got $job_timeout"
   [ "$step_timeout" = 20 ] \
@@ -1374,6 +1604,7 @@ test_list_all_exact_suite_coverage
 test_family_selection
 test_single_script_selection
 test_changed_file_selection_is_conservative
+test_changed_reference_scan_batches_test_files
 test_changed_runner_surfaces_select_their_family
 test_changed_dependency_selection_and_unmapped_failure
 test_changed_bin_reference_selects_per_script_not_per_family

@@ -18,6 +18,13 @@ TEARDOWN="$ROOT/bin/fm-teardown.sh"
 REGISTER="$ROOT/bin/fm-check-register.sh"
 TMP_ROOT=$(fm_test_tmproot fm-pr-check-security)
 BASE_PATH=${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*)
+    POWERSHELL_BIN=$(command -v powershell.exe) \
+      || fail "Windows private-file tests require powershell.exe"
+    BASE_PATH="$(dirname "$POWERSHELL_BIN"):$BASE_PATH"
+    ;;
+esac
 REAL_CP=$(command -v cp)
 REAL_MV=$(command -v mv)
 REAL_STAT=$(command -v stat)
@@ -57,6 +64,67 @@ process_is_live_non_zombie() {
   return 0
 }
 
+set_custom_check_privacy_fixture() {
+  local path=$1 action=$2 native
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+      native=$(cygpath -w "$path") || return 1
+      # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+      FM_TEST_PRIVATE_NATIVE=$native FM_TEST_PRIVATE_ACTION=$action \
+        powershell.exe -NoProfile -NonInteractive -Command '
+          $ErrorActionPreference = "Stop"
+          $item = [IO.FileInfo]::new($env:FM_TEST_PRIVATE_NATIVE)
+          $acl = $item.GetAccessControl()
+          $everyone = [Security.Principal.SecurityIdentifier]::new("S-1-1-0")
+          $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+            $everyone,
+            [Security.AccessControl.FileSystemRights]::ReadAndExecute,
+            [Security.AccessControl.AccessControlType]::Allow
+          )
+          if ($env:FM_TEST_PRIVATE_ACTION -eq "private") {
+            [void]$acl.RemoveAccessRuleSpecific($rule)
+          } else {
+            [void]$acl.AddAccessRule($rule)
+          }
+          $item.SetAccessControl($acl)
+        ' >/dev/null 2>&1
+      ;;
+    *)
+      if [ "$action" = private ]; then
+        chmod 0700 "$path"
+      else
+        chmod 0755 "$path"
+      fi
+      ;;
+  esac
+}
+
+make_windows_directory_inheritance_broad() {
+  local path=$1 native
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) return 0 ;;
+  esac
+  native=$(cygpath -w "$path") || return 1
+  # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
+  FM_TEST_PRIVATE_NATIVE=$native \
+    powershell.exe -NoProfile -NonInteractive -Command '
+      $ErrorActionPreference = "Stop"
+      $item = [IO.DirectoryInfo]::new($env:FM_TEST_PRIVATE_NATIVE)
+      $acl = $item.GetAccessControl()
+      $everyone = [Security.Principal.SecurityIdentifier]::new("S-1-1-0")
+      $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+        $everyone,
+        [Security.AccessControl.FileSystemRights]::ReadAndExecute,
+        [Security.AccessControl.InheritanceFlags]"ContainerInherit, ObjectInherit",
+        [Security.AccessControl.PropagationFlags]::None,
+        [Security.AccessControl.AccessControlType]::Allow
+      )
+      [void]$acl.AddAccessRule($rule)
+      $item.SetAccessControl($acl)
+    ' >/dev/null 2>&1
+}
+
 LINK_KIND=
 LINK_TARGET=
 LINK_CONTENT=
@@ -85,7 +153,8 @@ make_private_symlink() {
       ;;
     *) fail "unknown symlink fixture kind" ;;
   esac
-  ln -s "$LINK_TARGET" "$destination"
+  fm_test_make_symlink "$LINK_TARGET" "$destination"
+  [ "$kind" = dangling ] || LINK_MODE=$(file_mode "$LINK_TARGET")
 }
 
 assert_private_symlink_unchanged() {
@@ -94,14 +163,16 @@ assert_private_symlink_unchanged() {
   case "$LINK_KIND" in
     regular)
       [ "$(cat "$LINK_TARGET")" = "$LINK_CONTENT" ] || fail "external regular target content changed"
-      [ "$(file_mode "$LINK_TARGET")" = "$LINK_MODE" ] || fail "external regular target mode changed"
+      [ "$(file_mode "$LINK_TARGET")" = "$LINK_MODE" ] \
+        || fail "external regular target mode changed from $LINK_MODE to $(file_mode "$LINK_TARGET")"
       ;;
     dangling)
       [ ! -e "$LINK_TARGET" ] || fail "dangling target was created"
       ;;
     directory)
       [ -f "$LINK_TARGET/keep" ] || fail "external directory target contents changed"
-      [ "$(file_mode "$LINK_TARGET")" = "$LINK_MODE" ] || fail "external directory target mode changed"
+      [ "$(file_mode "$LINK_TARGET")" = "$LINK_MODE" ] \
+        || fail "external directory target mode changed from $LINK_MODE to $(file_mode "$LINK_TARGET")"
       ;;
   esac
 }
@@ -221,6 +292,7 @@ run_merge_entry() {
     "$PR_MERGE" "$@"
 }
 
+CR=$(printf '\r')
 # shellcheck disable=SC2016 # Literal rejected URL bytes are parser test data.
 INVALID_URLS=(
   'https://gitlab.com/single/-/merge_requests/1'
@@ -245,9 +317,9 @@ INVALID_URLS=(
   'https://github.com/o/r/pull/1 '
   'https://github.com/o /r/pull/1'
   $'https://github.com/o/r/pull/1\t'
-  $'https://github.com/o/r/pull/1\r'
+  "https://github.com/o/r/pull/1${CR}"
   $'https://github.com/o/r/pull/1\nnext'
-  $'https://github.com/o/r/pull/1\r\nnext'
+  "https://github.com/o/r/pull/1${CR}"$'\nnext'
   $'https://github.com/o/r/pull/1\001'
   $'https://github.com/o/r/pull/1\033'
   $'https://github.com/o/r/pull/1\177'
@@ -483,7 +555,7 @@ test_invalid_entrypoints_have_zero_side_effects() {
 }
 
 test_valid_recording_and_merge_derivation() {
-  local dir expected sidecar count rc
+  local dir expected sidecar count rc state_device
   dir=$(make_case valid-recording)
   write_task_meta "$dir"
   expected=0123456789abcdef0123456789abcdef01234567
@@ -494,10 +566,22 @@ test_valid_recording_and_merge_derivation() {
     || fail "canonical pr metadata was not exact"
   grep -qxF "pr_head=$expected" "$dir/home/state/task-a.meta" || fail "PR head metadata was not exact"
   cmp -s "$POLL" "$dir/home/state/task-a.check.sh" || fail "published check was not byte-for-byte static"
-  [ "$(file_mode "$dir/home/state/task-a.check.sh")" = 600 ] || fail "published check mode was not 0600"
-  [ "$(file_mode "$dir/home/state/task-a.pr-poll")" = 600 ] || fail "published sidecar mode was not 0600"
-  [ "$(file_mode "$dir/home/state/task-a.pr-poll-registration")" = 600 ] \
-    || fail "published registration mode was not 0600"
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+      state_device=$(fm_pr_file_device "$dir/home/state") || fail "could not read the state device"
+      fm_pr_private_files_valid "$state_device" \
+        "$dir/home/state/task-a.check.sh" 600 \
+        "$dir/home/state/task-a.pr-poll" 600 \
+        "$dir/home/state/task-a.pr-poll-registration" 600 \
+        || fail "published poll artifacts were not private to the Windows owner"
+      ;;
+    *)
+      [ "$(file_mode "$dir/home/state/task-a.check.sh")" = 600 ] || fail "published check mode was not 0600"
+      [ "$(file_mode "$dir/home/state/task-a.pr-poll")" = 600 ] || fail "published sidecar mode was not 0600"
+      [ "$(file_mode "$dir/home/state/task-a.pr-poll-registration")" = 600 ] \
+        || fail "published registration mode was not 0600"
+      ;;
+  esac
   [ "$(fm_pr_file_link_count "$dir/home/state/task-a.check.sh")" = 1 ] \
     && [ "$(fm_pr_file_link_count "$dir/home/state/task-a.pr-poll")" = 1 ] \
     && [ "$(fm_pr_file_link_count "$dir/home/state/task-a.pr-poll-registration")" = 1 ] \
@@ -616,8 +700,13 @@ SH
 
 run_watcher_bounded() {
   local home=$1 fakebin=$2 check_interval=${FM_TEST_CHECK_INTERVAL:-0} watch_root=${FM_TEST_WATCH_ROOT:-$ROOT}
+  local watch_timeout=10
   shift 2
-  perl -e 'my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } local $SIG{ALRM}=sub { kill "TERM", $pid; waitpid $pid, 0; exit 124 }; alarm 10; waitpid $pid, 0; alarm 0; exit($? >> 8)' \
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) watch_timeout=300 ;;
+  esac
+  FM_TEST_WATCH_TIMEOUT=$watch_timeout \
+    perl -e 'my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } local $SIG{ALRM}=sub { kill "TERM", $pid; waitpid $pid, 0; exit 124 }; alarm $ENV{FM_TEST_WATCH_TIMEOUT}; waitpid $pid, 0; alarm 0; exit($? >> 8)' \
     env FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" FM_CHECK_TIMEOUT=1 \
       FM_POLL=0.02 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 PATH="$fakebin:$BASE_PATH" "$WATCH" "$@"
 }
@@ -869,7 +958,8 @@ test_live_artifact_single_link_and_privacy_validation() {
   dir=$(make_case single-link-custom-check-registration)
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "custom-ready\\n"\n' > "$state/custom.check.sh"
-  chmod 0700 "$state/custom.check.sh"
+  fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+    || fail "could not secure the custom check source"
   alias="$dir/custom-check.alias"
   ln "$state/custom.check.sh" "$alias"
   set +e
@@ -900,23 +990,54 @@ test_live_artifact_single_link_and_privacy_validation() {
   dir=$(make_case private-custom-check-source)
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "custom-ready\\n"\n' > "$state/custom.check.sh"
-  chmod 0755 "$state/custom.check.sh"
+  fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+    || fail "could not secure the custom check source"
+  set_custom_check_privacy_fixture "$state/custom.check.sh" broad \
+    || fail "could not make the custom check source non-private"
   set +e
   FM_HOME="$dir/home" "$REGISTER" custom > "$dir/register.out" 2> "$dir/register.err"
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "custom check registration accepted a non-private source"
   [ ! -e "$state/custom.check-trust" ] || fail "non-private custom check received a trust record"
-  chmod 0700 "$state/custom.check.sh"
+  set_custom_check_privacy_fixture "$state/custom.check.sh" private \
+    || fail "could not restore the private custom check source"
   FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
     || fail "could not register private custom check fixture"
-  chmod 0755 "$state/custom.check.sh"
+  set_custom_check_privacy_fixture "$state/custom.check.sh" broad \
+    || fail "could not make the registered custom check non-private"
   ! fm_custom_check_registered "$state" custom \
     || fail "registered custom check remained authenticated after becoming non-private"
   ! fm_custom_check_snapshot_prepare "$state" custom \
     || fail "watcher snapshot accepted a non-private custom check source"
   fm_custom_check_snapshot_cleanup
   pass "live poll and custom-check artifacts require private single-link files"
+}
+
+test_windows_pr_publication_removes_broad_inheritance() {
+  local dir state device
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *)
+      pass "Windows PR publication privacy is not applicable"
+      return
+      ;;
+  esac
+
+  dir=$(make_case windows-pr-private-publication)
+  state="$dir/home/state"
+  write_task_meta "$dir"
+  make_windows_directory_inheritance_broad "$state" \
+    || fail "could not create the broad Windows inheritance fixture"
+
+  run_check_entry "$dir" task-a https://github.com/o/r/pull/1 >/dev/null \
+    || fail "PR publication did not secure inherited Windows ACLs"
+  device=$(fm_pr_file_device "$state") || fail "could not inspect the Windows state device"
+  fm_pr_private_file_valid "$state/task-a.meta" 600 "$device" \
+    || fail "PR publication left metadata with broad Windows access"
+  fm_pr_poll_artifacts_valid "$state" task-a "$POLL" \
+    || fail "PR publication left poll artifacts with broad Windows access"
+  pass "PR publication removes broad inherited Windows ACLs"
 }
 
 install_final_publication_fault() {
@@ -929,9 +1050,38 @@ last=${!#}
 case "${FM_TEST_FINAL_ACTION:?}" in
   type)
     rm -f -- "$last"
-    ln -s "${FM_TEST_FAULT_LINK_TARGET:?}" "$last"
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*)
+        target_mode=$("${FM_TEST_REAL_STAT:?}" -c %a "${FM_TEST_FAULT_LINK_TARGET:?}") || exit $?
+        MSYS=winsymlinks:nativestrict ln -s "${FM_TEST_FAULT_LINK_TARGET:?}" "$last" || exit $?
+        "${FM_TEST_REAL_CHMOD:?}" "$target_mode" "${FM_TEST_FAULT_LINK_TARGET:?}" || exit $?
+        "${FM_TEST_REAL_STAT:?}" -c %a "${FM_TEST_FAULT_LINK_TARGET:?}" \
+          > "${FM_TEST_FAULT_LINK_MODE_FILE:?}" || exit $?
+        ;;
+      *) ln -s "${FM_TEST_FAULT_LINK_TARGET:?}" "$last" ;;
+    esac
     ;;
-  mode) "${FM_TEST_REAL_CHMOD:?}" 0644 "$last" ;;
+  mode)
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*)
+        FM_TEST_FINAL_NATIVE=$(cygpath -w "$last") \
+          powershell.exe -NoProfile -NonInteractive -Command '
+            $ErrorActionPreference = "Stop"
+            $item = [IO.FileInfo]::new($env:FM_TEST_FINAL_NATIVE)
+            $acl = $item.GetAccessControl()
+            $everyone = [Security.Principal.SecurityIdentifier]::new("S-1-1-0")
+            $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+              $everyone,
+              [Security.AccessControl.FileSystemRights]::ReadAndExecute,
+              [Security.AccessControl.AccessControlType]::Allow
+            )
+            [void]$acl.AddAccessRule($rule)
+            $item.SetAccessControl($acl)
+          '
+        ;;
+      *) "${FM_TEST_REAL_CHMOD:?}" 0644 "$last" ;;
+    esac
+    ;;
   content) printf 'faulted final bytes\n' > "$last" ;;
   device) : > "${FM_TEST_FAULT_GATE:?}" ;;
   *) exit 2 ;;
@@ -961,7 +1111,8 @@ assert_no_final_poll() {
 }
 
 test_postrename_poll_validation_revokes_and_retries() {
-  local artifact action dir state destination link_target gate
+  local artifact action dir state destination link_target link_target_mode_file
+  local gate link_target_mode expected_link_target_mode
   for artifact in data registration check; do
     for action in type mode device content; do
       dir=$(make_case "poll-final-$artifact-$action")
@@ -979,20 +1130,31 @@ test_postrename_poll_validation_revokes_and_retries() {
         check) destination="$state/task-a.check.sh" ;;
       esac
       link_target="$dir/external-sentinel"
+      link_target_mode_file="$dir/external-sentinel.mode"
       gate="$dir/device-fault"
       printf 'external sentinel\n' > "$link_target"
       chmod 0644 "$link_target"
+      rm -f "$link_target_mode_file"
       install_final_publication_fault "$dir"
       if FM_TEST_FINAL_PATH="$destination" FM_TEST_FINAL_ACTION="$action" \
-        FM_TEST_FAULT_LINK_TARGET="$link_target" FM_TEST_FAULT_GATE="$gate" \
+        FM_TEST_FAULT_LINK_TARGET="$link_target" FM_TEST_FAULT_LINK_MODE_FILE="$link_target_mode_file" \
+        FM_TEST_FAULT_GATE="$gate" \
         FM_TEST_REAL_MV="$REAL_MV" FM_TEST_REAL_STAT="$REAL_STAT" FM_TEST_REAL_CHMOD="$REAL_CHMOD" \
         PATH="$dir/fakebin:$BASE_PATH" fm_pr_poll_publish_prepared; then
         fail "post-rename $artifact $action fault was reported as success"
       fi
       fm_pr_poll_cleanup
       assert_no_final_poll "$state"
-      [ "$(cat "$link_target")" = 'external sentinel' ] || fail "poll type fault changed an external target"
-      [ "$(file_mode "$link_target")" = 644 ] || fail "poll type fault changed an external target mode"
+      if [ "$action" = type ]; then
+        [ "$(cat "$link_target")" = 'external sentinel' ] \
+          || fail "poll type fault changed an external target"
+        link_target_mode=$(file_mode "$link_target")
+        expected_link_target_mode=644
+        [ ! -f "$link_target_mode_file" ] \
+          || expected_link_target_mode=$(cat "$link_target_mode_file")
+        [ "$link_target_mode" = "$expected_link_target_mode" ] \
+          || fail "poll $artifact type fault changed an external target mode from $expected_link_target_mode to $link_target_mode"
+      fi
 
       fm_pr_poll_prepare "$state" task-a github https://github.com/o/r/pull/2 github.com o/r 2 "$POLL" \
         || fail "could not prepare poll retry"
@@ -1029,7 +1191,10 @@ test_bootstrap_leaves_unauthenticated_checks() {
 }
 
 test_custom_snapshot_cleanup_on_signal() {
-  local dir state child_pid_file pid child_pid i rc
+  local dir state child_pid_file pid child_pid i rc wait_attempts=100
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) wait_attempts=1000 ;;
+  esac
   dir=$(make_case custom-snapshot-signal)
   state="$dir/home/state"
   child_pid_file="$dir/custom-child.pid"
@@ -1037,7 +1202,8 @@ test_custom_snapshot_cleanup_on_signal() {
   printf '%s\n' '#!/usr/bin/env bash' 'trap "" TERM' \
     'printf "%s\n" "$$" > "$FM_TEST_CUSTOM_CHILD_PID"' 'while :; do sleep 1; done' \
     > "$state/custom.check.sh"
-  chmod 0700 "$state/custom.check.sh"
+  fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+    || fail "could not secure the signal-cleanup custom check"
   cat > "$dir/fakebin/timeout" <<'SH'
 #!/usr/bin/env bash
 shift
@@ -1056,7 +1222,7 @@ SH
     > "$dir/watch.out" 2> "$dir/watch.err" &
   pid=$!
   i=0
-  while [ "$i" -lt 100 ]; do
+  while [ "$i" -lt "$wait_attempts" ]; do
     [ -s "$child_pid_file" ] && break
     kill -0 "$pid" 2>/dev/null || break
     sleep 0.02
@@ -1068,7 +1234,7 @@ SH
   child_pid=$(cat "$child_pid_file")
   kill -TERM "$pid" 2>/dev/null || fail "could not signal watcher during custom check"
   i=0
-  while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 100 ]; do
+  while kill -0 "$pid" 2>/dev/null && [ "$i" -lt "$wait_attempts" ]; do
     sleep 0.02
     i=$((i + 1))
   done
@@ -1090,7 +1256,11 @@ SH
 }
 
 test_returned_custom_check_descendants_are_drained() {
-  local backend dir state fakebin ready direct_done child_pid_file sentinel watcher_pid child_pid i rc alive force_fallback
+  local backend dir state fakebin ready direct_done child_pid_file sentinel watcher_pid child_pid
+  local i rc alive force_fallback wait_attempts=200
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) wait_attempts=1000 ;;
+  esac
   for backend in installed-timeout fallback-timeout; do
     dir=$(make_case "returned-custom-descendant-$backend")
     state="$dir/home/state"
@@ -1106,7 +1276,8 @@ printf '%s\n' "$!" > "$FM_TEST_DESCENDANT_PID"
 while [ ! -s "$FM_TEST_DESCENDANT_READY" ]; do sleep 0.01; done
 : > "$FM_TEST_DIRECT_DONE"
 SH
-    chmod 0700 "$state/custom.check.sh"
+    fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+      || fail "could not secure the $backend returned-descendant check"
     FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
       || fail "could not register $backend returned-descendant check"
     if [ "$backend" = installed-timeout ]; then
@@ -1130,7 +1301,7 @@ SH
       > "$dir/watch.out" 2> "$dir/watch.err" &
     watcher_pid=$!
     i=0
-    while [ "$i" -lt 200 ]; do
+    while [ "$i" -lt "$wait_attempts" ]; do
       [ -s "$ready" ] && [ -s "$child_pid_file" ] && [ -e "$direct_done" ] \
         && [ -e "$state/.last-check" ] && break
       kill -0 "$watcher_pid" 2>/dev/null || break
@@ -1143,7 +1314,7 @@ SH
     child_pid=$(cat "$child_pid_file")
     kill -TERM "$watcher_pid" 2>/dev/null || fail "could not stop $backend watcher"
     i=0
-    while process_is_live_non_zombie "$watcher_pid" && [ "$i" -lt 150 ]; do
+    while process_is_live_non_zombie "$watcher_pid" && [ "$i" -lt "$wait_attempts" ]; do
       sleep 0.02
       i=$((i + 1))
     done
@@ -1373,14 +1544,14 @@ EOF
   : > "$dir/glab.log"
   # The merge path needs jq before it reads anything, so this case supplies it
   # and the refusal below is the unreadable state rather than a missing tool.
-  ln -sf "$REAL_JQ" "$dir/fakebin/jq"
+  fm_test_make_symlink -f "$REAL_JQ" "$dir/fakebin/jq"
   set +e
   run_merge_entry "$dir" task-c "$url" >/dev/null 2> "$dir/merge-c.err"
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "merge wrapper merged a GitLab merge request it could not read"
   grep -qF 'could not read the GitLab merge request state before merging' "$dir/merge-c.err" \
-    || fail "merge wrapper refused for some reason other than the state it could not read"
+    || fail "merge wrapper refused for some reason other than the state it could not read: $(cat "$dir/merge-c.err")"
   [ ! -s "$dir/gh-axi.log" ] || fail "merge wrapper reached the GitHub CLI for a GitLab URL"
   grep -qF "mr view 7 -R https://gitlab.example/group/subgroup/project" "$dir/glab.log" \
     || fail "merge wrapper did not read the merge request through glab at its own instance"
@@ -1404,12 +1575,13 @@ seed_canonical_poll() {
 }
 
 add_stop_custom_check() {
-  local dir=$1 state
+  local dir=$1 state register_output
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "stop-cycle\\n"\n' > "$state/z-stop.check.sh"
-  chmod 0700 "$state/z-stop.check.sh"
-  FM_HOME="$dir/home" "$REGISTER" z-stop >/dev/null \
-    || fail "could not register stop-cycle custom check"
+  fm_pr_private_file_secure "$state/z-stop.check.sh" 700 \
+    || fail "could not secure the stop-cycle custom check"
+  register_output=$(FM_HOME="$dir/home" "$REGISTER" z-stop 2>&1) \
+    || fail "could not register stop-cycle custom check: ${register_output:-no diagnostic}"
 }
 
 assert_poll_absent() {
@@ -1449,7 +1621,7 @@ test_merged_poll_retires_once() {
   FM_TEST_GH_STATE=MERGED run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch-1.out" 2> "$dir/watch-1.err"
   rc=$?
   set -e
-  [ "$rc" -eq 0 ] || fail "merged retirement watcher failed: $(cat "$dir/watch-1.err")"
+  [ "$rc" -eq 0 ] || fail "merged retirement watcher failed with exit $rc: $(cat "$dir/watch-1.err")"
   first=$(cat "$dir/watch-1.out")
   case "$first" in check:*task-a.check.sh:*merged) ;; *) fail "first merged notification was not preserved: $first" ;; esac
   ack_watcher_cycle "$state" || fail "first merged notification handling acknowledgement failed"
@@ -2037,7 +2209,8 @@ test_retirement_refuses_replacement_and_nonterminal_results() {
   dir=$(make_case custom-merged-not-retired)
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "merged\\n"\n' > "$state/custom.check.sh"
-  chmod 0700 "$state/custom.check.sh"
+  fm_pr_private_file_secure "$state/custom.check.sh" 700 \
+    || fail "could not secure the merged custom check"
   FM_HOME="$dir/home" "$REGISTER" custom >/dev/null || fail "could not register merged custom check"
   set +e
   run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/custom.out" 2> "$dir/custom.err"
@@ -2094,7 +2267,7 @@ test_retirement_queue_failure_and_receipt_tampering() {
   rm -f "$state/task-a.pr-poll-retirement"
   external="$dir/external-receipt"
   printf 'external\n' > "$external"
-  ln -s "$external" "$state/task-a.pr-poll-retirement"
+  fm_test_make_symlink "$external" "$state/task-a.pr-poll-retirement"
   before=$(state_snapshot "$state")
   fm_pr_poll_retirement_recover_one "$state" task-a "$POLL" \
     && fail "receipt symlink authorized poll deletion"
@@ -2143,6 +2316,7 @@ test_atomic_interruption_leaves_no_partial_artifact
 test_concurrent_watcher_sees_only_complete_publication
 test_poll_publication_refuses_unsafe_destinations
 test_live_artifact_single_link_and_privacy_validation
+test_windows_pr_publication_removes_broad_inheritance
 test_postrename_poll_validation_revokes_and_retries
 test_bootstrap_leaves_unauthenticated_checks
 test_custom_snapshot_cleanup_on_signal

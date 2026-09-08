@@ -17,13 +17,114 @@
 . "$(dirname -- "${BASH_SOURCE[0]}")/fm-cursor-lib.sh"
 
 # Known harness command names; extend when a new adapter is verified.
-FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^pi$|^pi-signed$'
+FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^copilot(\.exe)?$|^pi$|^pi-signed$'
 
 # The same harnesses as exact executable names. Keep in sync with
 # FM_HARNESS_RE. Used only for the stricter path evidence below, where the
 # loose regex would also match ordinary firstmate paths such as
 # bin/fm-claude-stop-autoarm.sh.
-FM_HARNESS_NAMES=(claude codex opencode grok kimi pi-signed pi)
+FM_HARNESS_NAMES=(claude codex opencode grok kimi copilot copilot.exe pi-signed pi)
+
+fm_session_process_comm() {  # <pid>
+  local pid=$1 proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
+  if [ -r "$proc_root/$pid/status" ]; then
+    sed -n 's/^Name:[[:space:]]*//p' "$proc_root/$pid/status" | head -1
+    return
+  fi
+  ps -o comm= -p "$pid" 2>/dev/null
+}
+
+fm_session_process_args() {  # <pid>
+  local pid=$1 proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
+  if [ -r "$proc_root/$pid/cmdline" ]; then
+    tr '\0' ' ' < "$proc_root/$pid/cmdline"
+    return
+  fi
+  ps -o args= -p "$pid" 2>/dev/null
+}
+
+fm_session_process_ppid() {  # <pid>
+  local pid=$1 proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
+  if [ -r "$proc_root/$pid/status" ]; then
+    sed -n 's/^PPid:[[:space:]]*//p' "$proc_root/$pid/status" | head -1
+    return
+  fi
+  ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' '
+}
+
+# Git for Windows crosses from the native copilot.exe process into an MSYS
+# shell with PPID=1, so ordinary POSIX ancestry cannot see the owner. Copilot
+# publishes the native loader PID and a session id to every child tool. Accept
+# that bridge only when every marker is well formed and the native process table
+# still identifies that exact Windows PID as copilot.exe.
+# Cached across calls in this process: session start used to pay a full
+# `ps -W` (every Windows process) once per lock, ancestry, and liveness check.
+_FM_COPILOT_WINPID=
+_FM_COPILOT_WINPID_RC=
+fm_copilot_windows_pid_matches() {  # <native-windows-pid>
+  local pid=$1 image
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  if [ "$pid" = "${_FM_COPILOT_WINPID:-}" ]; then
+    return "${_FM_COPILOT_WINPID_RC:-1}"
+  fi
+  _FM_COPILOT_WINPID=$pid
+  _FM_COPILOT_WINPID_RC=1
+  # Prefer a single-pid query. Unfiltered `ps -W` lists every Windows process
+  # and was a multi-second Git Bash spawn on the session-start lock path.
+  # Fall back to `ps -W` when tasklist misses (including Copilot fixture PIDs
+  # that exist only in the fake process table).
+  if command -v tasklist.exe >/dev/null 2>&1; then
+    image=$(MSYS_NO_PATHCONV=1 tasklist.exe /FI "PID eq $pid" /FO CSV /NH 2>/dev/null \
+      | tr -d '\r' \
+      | awk -F, '{ gsub(/"/, ""); print $1; exit }')
+    case "$image" in
+      copilot.exe)
+        _FM_COPILOT_WINPID_RC=0
+        return 0
+        ;;
+      ''|INFO:*)
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  fi
+  image=$(LC_ALL=C ps -W 2>/dev/null | awk -v p="$pid" '
+    NR > 1 && $4 == p { print $NF; exit }
+  ') || return 1
+  case "$image" in
+    copilot.exe|*\\copilot.exe|*/copilot.exe)
+      _FM_COPILOT_WINPID_RC=0
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+fm_copilot_loader_pid() {
+  local pid=${COPILOT_LOADER_PID:-} session=${COPILOT_AGENT_SESSION_ID:-}
+  [ "${COPILOT_CLI:-}" = 1 ] || return 1
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  case "$session" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac
+  if kill -0 "$pid" 2>/dev/null; then
+    local comm args argv0 name
+    comm=$(fm_session_process_comm "$pid") || return 1
+    args=$(fm_session_process_args "$pid")
+    argv0=${args%% *}
+    name=
+    case "$(basename -- "$comm")" in
+      copilot|copilot.exe) name=copilot ;;
+    esac
+    if [ -z "$name" ]; then
+      name=$(fm_harness_path_name "$comm" 2>/dev/null || \
+        fm_harness_path_name "$argv0" 2>/dev/null || true)
+    fi
+    case "$name" in copilot|copilot.exe) ;; *) return 1 ;; esac
+  else
+    fm_copilot_windows_pid_matches "$pid" || return 1
+  fi
+  printf '%s\n' "$pid"
+}
 
 # Print the exact harness name carried by executable path $1 - its own basename
 # or any directory component - or return 1.
@@ -108,9 +209,14 @@ fm_harness_process_matches() {  # <comm> <args>
 # reported and the callers below decide what they need from it.
 fm_harness_ancestry_pids() {
   local pid=$$ comm args extending=0 printed=0
+  if pid=$(fm_copilot_loader_pid 2>/dev/null); then
+    printf '%s\n' "$pid"
+    return 0
+  fi
+  pid=$$
   for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
-    comm=$(ps -o comm= -p "$pid" 2>/dev/null) || break
-    args=$(ps -o args= -p "$pid" 2>/dev/null)
+    comm=$(fm_session_process_comm "$pid") || break
+    args=$(fm_session_process_args "$pid")
     if fm_harness_process_matches "$comm" "$args"; then
       printf '%s\n' "$pid"
       printed=1
@@ -119,7 +225,7 @@ fm_harness_ancestry_pids() {
     elif [ "$extending" -eq 1 ]; then
       break
     fi
-    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+    pid=$(fm_session_process_ppid "$pid")
     [ -n "$pid" ] && [ "$pid" -gt 1 ] || break
   done
   [ "$printed" -eq 1 ]
@@ -146,9 +252,12 @@ EOF
 # True if $1 is a live process that looks like a verified harness.
 fm_harness_pid_alive() {
   local pid=$1 comm args
-  kill -0 "$pid" 2>/dev/null || return 1
-  comm=$(ps -o comm= -p "$pid" 2>/dev/null) || return 1
-  args=$(ps -o args= -p "$pid" 2>/dev/null)
+  if ! kill -0 "$pid" 2>/dev/null; then
+    fm_copilot_windows_pid_matches "$pid"
+    return
+  fi
+  comm=$(fm_session_process_comm "$pid") || return 1
+  args=$(fm_session_process_args "$pid")
   fm_harness_process_matches "$comm" "$args"
 }
 

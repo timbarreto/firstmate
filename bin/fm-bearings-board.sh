@@ -155,7 +155,7 @@ command_build() {
   board=$(board_path)
   (umask 077; mkdir -p "${board%/*}") || fail "cannot create ${board%/*}"
   tmp=$(umask 077; mktemp "${board%/*}/.board.XXXXXX") || fail "cannot stage the board"
-  if ! BOARD_JSON="$json" perl -pe "s/^\\Q$PLACEHOLDER\\E\$/\$ENV{BOARD_JSON}/" "$TEMPLATE" > "$tmp"; then
+  if ! BOARD_JSON="$json" perl -pe "s/^\\Q$PLACEHOLDER\\E\\r?\$/\$ENV{BOARD_JSON}/" "$TEMPLATE" > "$tmp"; then
     rm -f -- "$tmp"
     fail "cannot inject the board data"
   fi

@@ -8,7 +8,9 @@
 #   fm_timeout_mechanism
 #       Prints the mechanism fm_run_timed will use on this host: "timeout",
 #       "gtimeout", "perl", or "bash". Set FM_TIMEOUT_MECHANISM_OVERRIDE=bash
-#       to force the dependency-free fallback.
+#       to force the dependency-free fallback. Git-for-Windows always selects
+#       that fallback because its native/MSYS PID split makes GNU timeout's
+#       process-group completion unreliable for nested shell commands.
 #
 #   fm_run_timed <seconds> <command> [args...]
 #       Runs the command with a hard bound. Exit status is the command's own,
@@ -29,6 +31,8 @@ set -u
 
 fm_timeout_mechanism() {
   if [ "${FM_TIMEOUT_MECHANISM_OVERRIDE:-}" = bash ]; then
+    printf 'bash\n'
+  elif case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) true ;; *) false ;; esac; then
     printf 'bash\n'
   elif command -v timeout >/dev/null 2>&1; then
     printf 'timeout\n'

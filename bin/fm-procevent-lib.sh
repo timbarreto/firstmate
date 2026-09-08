@@ -148,7 +148,7 @@ fm_procevent_registration_publish_locked() {  # <state> <adapter> <source-id> <a
     printf 'argc=%s\n' "$#"
     printf 'argv:\n'
     printf '%s\n' "$@"
-  } > "$tmp" && chmod 0600 "$tmp" && mv -f -- "$tmp" "$dest"; then
+  } > "$tmp" && fm_pr_private_file_secure "$tmp" 600 && mv -f -- "$tmp" "$dest"; then
     return 0
   fi
   rm -f -- "$tmp"
@@ -188,7 +188,7 @@ fm_procevent_extension_registration_publish_locked() {  # <state> <adapter> <sou
     printf 'registration_token=%s\n' "$registration_token"
     printf 'argc=0\n'
     printf 'argv:\n'
-  } > "$tmp" && chmod 0600 "$tmp" && mv -f -- "$tmp" "$dest"; then
+  } > "$tmp" && fm_pr_private_file_secure "$tmp" 600 && mv -f -- "$tmp" "$dest"; then
     return 0
   fi
   rm -f -- "$tmp"
@@ -494,7 +494,7 @@ fm_procevent_claim_acquire_locked() {
     printf '%s\n%s\n%s\n%s\n%s\n%s\nactive\n%s\n%s\n%s\n%s\n%s\n' \
       "$home" "$pid" "$token" "$identity" "$reg_dir" "$reg_identity" \
       "$state_root" "$state_device" "$state_inode" "$state_owner" "$state_mode" > "$tmp" || status=1
-    [ "$status" -ne 0 ] || chmod 0600 "$tmp" || status=1
+    [ "$status" -ne 0 ] || fm_pr_private_file_secure "$tmp" 600 || status=1
     [ "$status" -ne 0 ] || mv -f -- "$tmp" "$claim" || status=1
     if [ "$status" -eq 0 ]; then
       FM_PROCEVENT_CLAIM_TOKEN=$token
@@ -522,7 +522,7 @@ fm_procevent_claim_mark_terminal_locked() {
       "$FM_PROCEVENT_CLAIM_REG_IDENTITY" "$FM_PROCEVENT_CLAIM_STATE_ROOT" \
       "$FM_PROCEVENT_CLAIM_STATE_DEVICE" "$FM_PROCEVENT_CLAIM_STATE_INODE" \
       "$FM_PROCEVENT_CLAIM_STATE_OWNER" "$FM_PROCEVENT_CLAIM_STATE_MODE" > "$tmp" \
-      && chmod 0600 "$tmp" \
+      && fm_pr_private_file_secure "$tmp" 600 \
       && mv -f -- "$tmp" "$claim"; then
       return 0
     else
@@ -534,7 +534,7 @@ fm_procevent_claim_mark_terminal_locked() {
     "$FM_PROCEVENT_CLAIM_HOME" "$FM_PROCEVENT_CLAIM_PID" "$FM_PROCEVENT_CLAIM_TOKEN" \
     "$FM_PROCEVENT_CLAIM_IDENTITY" "$FM_PROCEVENT_CLAIM_REG_DIR" \
     "$FM_PROCEVENT_CLAIM_REG_IDENTITY" > "$tmp" \
-    && chmod 0600 "$tmp" \
+    && fm_pr_private_file_secure "$tmp" 600 \
     && mv -f -- "$tmp" "$claim"; then
     return 0
   else
@@ -739,11 +739,12 @@ fm_procevent_capture() {
     rm -f -- "$tmp" "$adapter_tmp" "$extension_tmp"
     return 1
   fi
-  if ! chmod 0600 "$tmp" "$adapter_tmp"; then
+  if ! fm_pr_private_file_secure "$tmp" 600 \
+    || ! fm_pr_private_file_secure "$adapter_tmp" 600; then
     rm -f -- "$tmp" "$adapter_tmp" "$extension_tmp"
     return 1
   fi
-  if [ "$#" -eq 9 ] && ! chmod 0600 "$extension_tmp"; then
+  if [ "$#" -eq 9 ] && ! fm_pr_private_file_secure "$extension_tmp" 600; then
     rm -f -- "$tmp" "$adapter_tmp" "$extension_tmp"
     return 1
   fi
@@ -839,7 +840,7 @@ fm_procevent_mark_handled() {
   marker=$(fm_procevent_handled_marker "$state" "$id" "$seq")
   [ ! -L "$marker" ] || return 2
   tmp=$(umask 077; mktemp "$inbox/.handled.XXXXXX") || return 2
-  if ! chmod 0600 "$tmp"; then
+  if ! fm_pr_private_file_secure "$tmp" 600; then
     rm -f -- "$tmp"
     return 2
   fi

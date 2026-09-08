@@ -205,7 +205,7 @@ test_kimi_launch_then_send_is_verified() {
   assert_contains "$out" "spawned $id harness=kimi" "kimi spawn did not report success"
 
   launch=$(cat "$CASE_DIR/launch.log")
-  [ "$launch" = "env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI '$FAKEBIN_DIR/kimi' --model 'kimi-code/k3' --auto" ] \
+  [ "$launch" = "env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI -u COPILOT_CLI -u COPILOT_AGENT_SESSION_ID -u COPILOT_LOADER_PID '$FAKEBIN_DIR/kimi' --model 'kimi-code/k3' --auto" ] \
     || fail "kimi launch did not use the absolute binary, model, and --auto only: $launch"
   assert_not_contains "$launch" "--effort" "kimi launch emitted a nonexistent effort flag"
   assert_not_contains "$launch" "turn-ended" "kimi launch embedded a turn-end path"
@@ -462,7 +462,7 @@ test_kimi_falls_back_to_expanded_home_binary() {
   rc=$?
   expect_code 0 "$rc" "Kimi HOME fallback spawn should succeed"
   launch=$(cat "$CASE_DIR/launch.log")
-  [ "$launch" = "env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI '$fallback' --auto" ] \
+  [ "$launch" = "env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI -u COPILOT_CLI -u COPILOT_AGENT_SESSION_ID -u COPILOT_LOADER_PID '$fallback' --auto" ] \
     || fail "Kimi fallback did not expand HOME into an absolute executable: $launch"
   pass "fm-spawn: Kimi fallback expands the active HOME"
 }
@@ -571,13 +571,15 @@ exit 1
 SH
   chmod +x "$fakebin/ps"
 
-  FM_HOME="$home" PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" \
+  FM_HOME="$home" FM_PROC_ROOT_OVERRIDE="$fakebin/no-proc" \
+    PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" \
     || fail "fm-lock did not acquire from Kimi ancestry"
   case "$(cat "$home/state/.lock")" in
     ''|*[!0-9]*) fail "fm-lock did not record the Kimi harness ancestor" ;;
   esac
   printf '%s\n' "$$" > "$home/state/.lock"
-  out=$(FM_HOME="$home" PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" status)
+  out=$(FM_HOME="$home" FM_PROC_ROOT_OVERRIDE="$fakebin/no-proc" \
+    PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" status)
   assert_contains "$out" "lock: held by live harness pid" \
     "fm-lock did not recognize Kimi as a live holder"
   pass "fm-lock recognizes Kimi ancestry and live lock holders"

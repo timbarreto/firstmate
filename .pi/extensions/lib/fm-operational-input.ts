@@ -24,11 +24,14 @@ type OperationalInputCommand = "encode" | "classify" | "kind";
 // The one owner of how each command is invoked and how its exit status and
 // stdout become an answer, shared by the synchronous and awaited callers
 // below so the two can never drift.
-function operationalInputArgs(
+function operationalInputInvocation(
   command: OperationalInputCommand,
   kind?: FirstmateCurrentOperationalKind,
-): string[] {
-  return command === "encode" ? [command, kind ?? ""] : [command];
+): { command: string; args: string[] } {
+  const args = command === "encode" ? [command, kind ?? ""] : [command];
+  return process.platform === "win32"
+    ? { command: "bash", args: [operationalInputScript, ...args] }
+    : { command: operationalInputScript, args };
 }
 
 function operationalInputAnswer(
@@ -45,7 +48,8 @@ function runOperationalInputCommand(
   content: string,
   kind?: FirstmateCurrentOperationalKind,
 ): string | undefined {
-  const result = spawnSync(operationalInputScript, operationalInputArgs(command, kind), {
+  const invocation = operationalInputInvocation(command, kind);
+  const result = spawnSync(invocation.command, invocation.args, {
     encoding: "utf8",
     input: content,
     maxBuffer: 1024 * 1024,
@@ -85,7 +89,8 @@ export async function encodeFirstmateOperationalInputWith(
   kind: FirstmateCurrentOperationalKind,
   content: string,
 ): Promise<string> {
-  const result = await run(operationalInputScript, operationalInputArgs("encode", kind), { input: content });
+  const invocation = operationalInputInvocation("encode", kind);
+  const result = await run(invocation.command, invocation.args, { input: content });
   const encoded = operationalInputAnswer("encode", result.status, result.stdout);
   if (encoded === undefined) throw encodeFailure(kind);
   return encoded;

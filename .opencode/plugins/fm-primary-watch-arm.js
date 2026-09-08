@@ -2,14 +2,23 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { encodeFirstmateOperationalInput } from "./lib/fm-operational-input.js";
+import {
+  isPidInCurrentAncestry,
+  signalWatchArmProcess,
+  terminateWatchArmProcessTree,
+} from "./lib/fm-process-ancestry.js";
 
 const COORDINATOR_KEY = "__firstmateOpenCodeWatchArm";
-// 35s on Windows so the budget stays above arm's MSYS confirm default (30s in
+// 100s on Windows so the budget stays above arm's MSYS confirm default (90s in
 // bin/fm-watch-arm.sh): a slow but successful Git Bash cold start must not be
 // SIGTERMed mid-confirmation. Conditioned on win32 so other platforms keep 12s.
-const ARM_READY_TIMEOUT_DEFAULT_MS = process.platform === "win32" ? 35000 : 12000;
+const ARM_READY_TIMEOUT_DEFAULT_MS = process.platform === "win32" ? 100000 : 12000;
 const ARM_READY_TIMEOUT_MS = positiveInteger("FM_OPENCODE_ARM_READY_TIMEOUT_MS", ARM_READY_TIMEOUT_DEFAULT_MS);
-const ARM_RETIRE_TIMEOUT_MS = positiveInteger("FM_WATCH_ARM_RETIRE_TIMEOUT_MS", 1000);
+const ARM_RETIRE_TIMEOUT_MS = positiveInteger(
+  "FM_WATCH_ARM_RETIRE_TIMEOUT_MS",
+  process.platform === "win32" ? 10000 : 1000,
+);
+const ARM_FORCE_RETIRE_TIMEOUT_MS = positiveInteger("FM_WATCH_ARM_FORCE_RETIRE_TIMEOUT_MS", 10000);
 const REARM_RETRY_BASE_MS = positiveInteger("FM_WATCH_REARM_RETRY_BASE_MS", 250);
 const REARM_RETRY_MAX_MS = positiveInteger("FM_WATCH_REARM_RETRY_MAX_MS", 4000);
 const REARM_RETRY_LIMIT = positiveInteger("FM_WATCH_REARM_RETRY_LIMIT", 5);
@@ -23,6 +32,8 @@ let restorationInFlight = null;
 let armClose = new WeakMap();
 let armReadiness = new WeakMap();
 let armRecovery = new WeakMap();
+let armOwnerToken = new WeakMap();
+let nextArmOwnerId = 0;
 
 function positiveInteger(name, fallback) {
   const value = Number(process.env[name]);
@@ -119,15 +130,7 @@ async function sessionOwnsLock(paths) {
     return false;
   }
   if (!/^[0-9]+$/.test(lockPid) || lockPid === "1") return false;
-  let pid = String(process.pid);
-  for (let i = 0; i < 8; i += 1) {
-    if (pid === lockPid) return true;
-    const result = await runProcess("ps", ["-o", "ppid=", "-p", pid]);
-    if (result.code !== 0) return false;
-    pid = result.stdout.trim();
-    if (!pid || pid === "1") return false;
-  }
-  return false;
+  return isPidInCurrentAncestry(lockPid);
 }
 
 function classifyArmClose(stdout, stderr, code, signal) {
@@ -267,11 +270,22 @@ function waitForRetry(attempt) {
 
 async function retireArm(armChild) {
   if (!armChild) return true;
-  armChild.kill("SIGTERM");
+  if (!signalWatchArmProcess(armChild.pid, armOwnerToken.get(armChild))) {
+    terminateWatchArmProcessTree(armChild.pid, armOwnerToken.get(armChild));
+  }
   const closed = armClose.get(armChild);
   if (!closed) return false;
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), ARM_RETIRE_TIMEOUT_MS);
+    const timer = setTimeout(() => {
+      if (process.platform === "win32") {
+        const forceTimer = setTimeout(() => {
+          terminateWatchArmProcessTree(armChild.pid, armOwnerToken.get(armChild));
+        }, ARM_FORCE_RETIRE_TIMEOUT_MS);
+        forceTimer.unref();
+        void closed.then(() => clearTimeout(forceTimer));
+      }
+      resolve(false);
+    }, ARM_RETIRE_TIMEOUT_MS);
     timer.unref();
     void closed.then(() => {
       clearTimeout(timer);
@@ -335,19 +349,25 @@ async function scheduleRetry(paths, sessionID, client, reason, predecessorArmPid
 
 function spawnArm(paths, sessionID, client, predecessorArmPid = "") {
   setArmStatus("starting");
+  const ownerToken = `opencode-${process.pid}-${Date.now()}-${++nextArmOwnerId}`;
   const env = {
     ...process.env,
     FM_HOME: paths.home,
     FM_ROOT_OVERRIDE: paths.root,
     FM_CONFIG_OVERRIDE: paths.config,
+    FM_WATCH_ARM_OWNER_TOKEN: ownerToken,
     FM_WATCH_PREDECESSOR_ARM_PID: predecessorArmPid,
   };
-  const armChild = spawn("bash", ["-lc", 'config_dir="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"; [ -f "$config_dir/x-mode.env" ] && . "$config_dir/x-mode.env"; exec "$FM_ROOT_OVERRIDE/bin/fm-watch-arm.sh" --restart'], {
+  // Explicit Bash keeps the arm script in this child on Windows; executing
+  // the shebang path directly can leave an unretired MSYS descendant.
+  const armChild = spawn("bash", ["-lc", 'config_dir="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"; [ -f "$config_dir/x-mode.env" ] && . "$config_dir/x-mode.env"; exec bash "$FM_ROOT_OVERRIDE/bin/fm-watch-arm.sh" --restart --arm-owner-token "$FM_WATCH_ARM_OWNER_TOKEN"'], {
     cwd: paths.root,
     env,
     stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
   });
   child = armChild;
+  armOwnerToken.set(armChild, ownerToken);
   let stdout = "";
   let stderr = "";
   let settled = false;
