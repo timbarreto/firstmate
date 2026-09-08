@@ -403,6 +403,13 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      - name: Install tasks-axi for the rollback fixture
+        if: matrix.subject == 'legacy-rollback'
+        shell: bash
+        run: |
+          set -eu
+          npm install -g tasks-axi@0.2.5
+          tasks-axi --version
       - name: Run focused native Windows contracts
         if: matrix.subject == 'core'
         shell: bash

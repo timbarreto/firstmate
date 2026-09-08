@@ -16,6 +16,7 @@ project="$TMP_ROOT/project"
 mkdir -p "$project/.pi/extensions/lib" "$project/bin" "$project/state"
 cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$project/.pi/extensions/"
 cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" \
+  "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" \
   "$ROOT/.pi/extensions/lib/fm-sessionstart-supervisor.mjs" "$project/.pi/extensions/lib/"
 
 cat >"$project/bin/fm-sessionstart-run.sh" <<'SH'
@@ -114,6 +115,6 @@ for (const expected of [
 JS
 )
 status=$?
-expect_code 0 "$status" "native-Windows Pi shell seams"
+expect_code 0 "$status" "native-Windows Pi shell seams${out:+: $out}"
 [ -z "$out" ] || fail "native-Windows Pi shell seam test printed output: $out"
 pass "Pi session-start, pre-tool, turn-end, and operational-input seams invoke Bash owners on native Windows"

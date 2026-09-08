@@ -169,7 +169,7 @@ SH
 
   # Bare origin so the clone has an `origin` remote and origin/HEAD.
   git init -q --bare "$case_dir/origin.git"
-  git -C "$case_dir/origin.git" symbolic-ref HEAD refs/heads/main
+  git --git-dir="$case_dir/origin.git" symbolic-ref HEAD refs/heads/main
   # Seed origin with one commit BEFORE cloning so the clone is not empty.
   git clone -q "$case_dir/origin.git" "$case_dir/_seed" 2>/dev/null
   git -C "$case_dir/_seed" -c user.email=t@t -c user.name=t \
@@ -637,12 +637,16 @@ run_teardown() {
 # no tasks-axi stub, so PATH resolves the installed one).
 seed_backlog_in_flight() {
   local case_dir=$1 kind=${2:-ship}
+  command -v tasks-axi >/dev/null 2>&1 \
+    || fail "tasks-axi is required for teardown backlog fixtures"
   mkdir -p "$case_dir/data"
   printf '%s\n' '# Backlog' '' '## In flight' '' '## Queued' '' '## Done' \
     > "$case_dir/data/backlog.md"
   tasks-axi add task-x1 "teardown fixture task" --kind "$kind" \
-    --file "$case_dir/data/backlog.md" >/dev/null
-  tasks-axi start task-x1 --file "$case_dir/data/backlog.md" >/dev/null
+    --file "$case_dir/data/backlog.md" >/dev/null \
+    || fail "could not add the teardown fixture backlog task"
+  tasks-axi start task-x1 --file "$case_dir/data/backlog.md" >/dev/null \
+    || fail "could not start the teardown fixture backlog task"
 }
 
 backlog_row_state() {
