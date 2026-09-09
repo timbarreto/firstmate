@@ -7,13 +7,10 @@
 # against the installed CLI.
 set -u
 
-if [ "${FM_COPILOT_HOOKS_LIVE_E2E:-0}" != 1 ]; then
-  echo "skip: set FM_COPILOT_HOOKS_LIVE_E2E=1 to run the live Copilot hook discovery guard"
-  exit 0
-fi
-
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+fm_live_gate opt-in FM_COPILOT_HOOKS_LIVE_E2E
 
 COPILOT_BIN=${FM_COPILOT_BIN:-$(command -v copilot || true)}
 [ -n "$COPILOT_BIN" ] && [ -x "$COPILOT_BIN" ] \

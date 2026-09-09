@@ -27,6 +27,7 @@ cat > "$BLOCKER" <<'SH'
 # event; nothing here polls on a schedule. The wait is bounded so a stub that
 # escapes its test cannot keep spawning processes indefinitely.
 trigger=$1; shift
+[ -z "${BLOCKER_READY:-}" ] || printf 'ready\n' > "$BLOCKER_READY"
 while [ ! -e "$trigger" ]; do
   [ "$SECONDS" -lt "${FM_TEST_STUB_MAX_BLOCK_SECONDS:-120}" ] || exit 75
   sleep 0.05
@@ -1028,15 +1029,18 @@ pass "retiring a never-completing source stops its runner and its blocked child"
 
 # reconcile must also stop a runner whose registration was removed out from under it.
 TRIG4="$TMP_ROOT/trigger-four"
+ORPHAN_READY="$TMP_ROOT/orphan-ready"
 HZ="$TMP_ROOT/hz"; new_home "$HZ"
 pe_register "$HZ" lavish orphan-src -- "$BLOCKER" "$TRIG4" "orphan" >/dev/null
-pe "$HZ" reconcile >/dev/null
+BLOCKER_READY="$ORPHAN_READY" pe "$HZ" reconcile >/dev/null
 wait_for "$FM_PROCEVENT_CLAIM_ROOT/orphan-src.claim" \
   || fail "orphan fixture runner did not publish its claim"
 orphan_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/orphan-src.claim" 2>/dev/null)
 if [ -z "$orphan_pid" ] || ! kill -0 "$orphan_pid" 2>/dev/null; then
   fail "orphan fixture runner did not start"
 fi
+# A claim precedes launch-floor validation; exercise an already-running child.
+wait_for "$ORPHAN_READY" || fail "orphan fixture child did not start"
 rm -f "$HZ/state/procevent/orphan-src.source"
 out=$(pe "$HZ" reconcile)
 assert_contains "$out" "stopped=1" "reconcile stops a runner whose registration was removed"
