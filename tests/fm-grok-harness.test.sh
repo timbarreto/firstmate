@@ -107,7 +107,8 @@ esac
 exit 1
 SH
   chmod +x "$fakebin/ps"
-  out=$(FM_HOME="$home" PATH="$fakebin:$PATH" "$ROOT/bin/fm-lock.sh" status)
+  out=$(FM_HOME="$home" FM_PROC_ROOT_OVERRIDE="$fakebin/no-proc" \
+    PATH="$fakebin:$PATH" "$ROOT/bin/fm-lock.sh" status)
   assert_contains "$out" "lock: held by live harness pid" "fm-lock did not recognize grok as a live holder"
   pass "fm-lock recognizes grok harness processes"
 }
