@@ -619,6 +619,28 @@ The CLI matrix was checked directly:
 All destructive verification used `bin/fm-herdr-lab.sh` with a non-default `fm-lab-` name and a byte-identical default-session tripwire.
 No ambient `herdr server stop` command is a supported test operation.
 
+### Client selection
+
+Measured 2026-09-08 on a macOS aarch64 host running a Herdr 0.9.0 server (protocol 22) for the `fm-remote` session while `~/.local/bin/herdr` still held the self-updated 0.8.2 client (protocol 20) ahead of the Nix-managed 0.9.0 client on the remote-job `PATH`.
+
+```sh
+~/.local/bin/herdr --version
+~/.local/bin/herdr pane get wCY:p2 --session fm-remote; echo "rc=$?"
+~/.local/bin/herdr status --json --session fm-remote | jq -c '{c:.client.protocol,s:{running:.server.running,protocol:.server.protocol,compatible:.server.compatible}}'
+herdr status --json --session fm-remote | jq -c '{c:.client.protocol,s:{running:.server.running,protocol:.server.protocol,compatible:.server.compatible}}'
+```
+
+```text
+herdr 0.8.2
+{"id":"cli:pane:get","error":{"code":"protocol_mismatch","message":"client protocol 20 is older than server protocol 22; upgrade the Herdr client before using this command"}}
+rc=1
+{"c":20,"s":{"running":true,"protocol":22,"compatible":false}}
+{"c":22,"s":{"running":true,"protocol":22,"compatible":true}}
+```
+
+The refusal is a JSON error on stderr with exit 1 and empty stdout, and both client generations report `.server.compatible` and `.server.protocol` per named session, which is what the selection in `bin/backends/herdr.sh` reads.
+`tests/fm-backend-herdr.test.sh` pins the bypass, same-process same-session caching, cross-session isolation, forced reselection, and both status shapes against fakes; `tests/fm-backend-herdr-smoke.test.sh` refreshes the real status normalization against the installed binary's running lab server.
+
 ### Windows presentation-lock namespace
 
 The native Windows namespace proof was verified on 2026-08-27 against Herdr 0.8.2, Git for Windows 2.55.0, and Windows PowerShell 5.1.26100.9168.
@@ -1144,15 +1166,25 @@ That command is the guard that refreshes this record; run it after every Herdr u
 
 ### Away-mode transport
 
-The Pi/Herdr return and injection path was reverified on Herdr 0.7.3 and Pi 0.80.7:
+The away daemon is no longer launched on Pi; the away posture there is the record `bin/fm-afk-contract.sh` owns.
+The Pi/Herdr away posture and return path was verified on 2026-09-08 against a real Pi primary in an isolated Herdr lab session, Herdr 0.9.0 and Pi 0.82.0:
 
 ```sh
 FM_AFK_PI_HERDR_E2E=1 HERDR_LAB_HELPER=bin/fm-herdr-lab.sh \
   tests/fm-afk-pi-herdr-return-e2e.test.sh
 ```
 
-Observed guarantees: pending composer input refused injection and raised one alert; idle Pi accepted one marked escalation; the return gate refused ordinary work while a live blocker remained; resolving the blocker allowed the return flow.
-The dedicated Herdr daemon workspace topology is covered by `tests/fm-afk-launch.test.sh` and preserves the captain tab's pane count.
+```
+ok - real Pi primary: the away posture is recorded with no daemon launched
+ok - real Pi/Herdr: nothing injects into the captain pane under the away posture
+ok - real unmarked Pi return renders the brief, opens catch-up, and blocks Bearings before the unresolved blocker can be deferred
+ok - resolved return catch-up allows Bearings and a clean idempotent away re-entry
+evidence: herdr=herdr 0.9.0 pi=0.82.0 target=fm-lab-fm-afk-pi-return-37189-7133:w1:p1 archived-records=2
+```
+
+Observed guarantees: `fm-afk-launch.sh start` refused on the Pi primary and `confirm` recorded the posture with no daemon pid, flag, or terminal; a pending real Pi draft was left untouched with nothing submitted into the captain pane; the unmarked return request was recognized as the return, rendered the brief health first, opened the catch-up gate on the live blocker, and refused Bearings; resolving the blocker cleared the gate, and a clean re-entry and return left exactly one archived record per away window.
+The fixture captures submitted input through Pi's `input` extension hook, so the lab agent directory needs no provider credentials.
+The daemon injection transport into a live composer keeps its coverage in `tests/fm-afk-inject-herdr-e2e.test.sh` for the harnesses that still run the daemon, and the dedicated Herdr daemon workspace topology is covered by `tests/fm-afk-launch.test.sh` and preserves the captain tab's pane count.
 
 ## Zellij
 
@@ -1634,6 +1666,21 @@ It names the installed version and the floor rather than degrading quietly, and 
 The same guard against the pre-change extension in the same lab measured a 676.9 ms worst keystroke echo while delivering two outcomes and a 295.3 ms worst echo with nothing to deliver, against a 49.2 ms extension-free floor, and failed as designed.
 Measured through the same real `fm_branch_report` tool and real `bin/` scripts with a 1 ms interval timer, the largest single block of the JavaScript thread fell from 273 ms to 2.0 ms for a routine outcome, from 286 ms to 2.0 ms for a captain outcome, and from 134 ms to 1.9 ms for main's acknowledgement, against a 1.3-2.2 ms idle-loop floor.
 Those absolute figures are specific to this host and Pi version; the guards assert the relationship (delivery must stay in the class of the same machine's own floor) rather than a remembered millisecond number.
+
+## Native Codex through Pi
+
+Verified on 2026-09-08 with Pi 0.85.1 and the installed `pi-codex-native` 0.2.1 adapter.
+Run this token-free guard after updating Pi, Codex, or the adapter:
+
+```sh
+FM_PI_CODEX_NATIVE_LIVE=1 bash tests/fm-pi-codex-native.test.sh
+```
+
+Observed result: `"result": "PASS"`.
+The guard runs the real Pi runtime, native adapter, three FirstMate primary extensions, native MCP transport, and FirstMate's durable outcome scripts in an isolated home.
+It verifies native `ultra` on initial and operational turns and after restart, startup operational input, watcher arming, a notification while main is idle, outcome read and one acknowledgement, refusal of a duplicate acknowledgement, and no reprocessing after restart.
+Its native App Server peer and watcher-close process are deterministic fixtures; it does not claim a real backend or a live model was tested by that command.
+`tests/fm-busy-state.test.sh`, `tests/fm-busy-adapter-wiring.test.sh`, and `tests/fm-watch-triage.test.sh` cover separate progress notification, unchanged semantic busy state, rejection of a superseded worker's events, and progress refreshing the busy-age bound without fabricating a completed turn.
 
 ## Oh My Pi (omp)
 

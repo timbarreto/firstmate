@@ -377,6 +377,65 @@ test_shell_line_ending_policy_selects_runner_contract() {
   pass "shell line-ending policy selects runner coverage"
 }
 
+test_mail_sources_select_mail_coverage() {
+  local tmp repo script source listed
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-mail.XXXXXX")
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  for script in fm-mail.test.sh fm-mail-check.test.sh; do
+    printf '#!/usr/bin/env bash\n' >"$repo/tests/$script"
+    chmod +x "$repo/tests/$script"
+  done
+  git -C "$repo" add tests/fm-mail.test.sh tests/fm-mail-check.test.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm mail-tests
+
+  for source in fm-mail.sh fm-mail.py fm-mail-check.sh; do
+    printf '\n' >"$repo/bin/$source"
+    listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+      || fail "$source must have a changed-test mapping"
+    assert_contains "$listed" "tests/fm-mail.test.sh" "$source selects mail behavior"
+    assert_contains "$listed" "tests/fm-mail-check.test.sh" "$source selects standing-poll behavior"
+    assert_contains "$listed" "tests/fm-daemon.test.sh" "$source keeps watcher coverage"
+    rm "$repo/bin/$source"
+  done
+  rm -rf "$tmp"
+  pass "all mail-plane sources select mail, standing-poll, and watcher coverage"
+}
+
+test_changed_shared_fixtures_select_consumers() {
+  local tmp repo fixture listed code
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-shared-fixture.XXXXXX")
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  for fixture in herdr-client-pair-fixture.sh remote-herdr-fixture.sh; do
+    printf '# %s\n' "$fixture" >>"$repo/tests/fm-backend.test.sh"
+    printf '# %s\n' "$fixture" >>"$repo/tests/fm-secondmate-safety.test.sh"
+  done
+  git -C "$repo" add tests/fm-backend.test.sh tests/fm-secondmate-safety.test.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm fixture-consumers
+
+  for fixture in herdr-client-pair-fixture.sh remote-herdr-fixture.sh; do
+    printf '\n' >"$repo/tests/$fixture"
+    listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+      || fail "$fixture must select its consumers"
+    assert_contains "$listed" "tests/fm-backend.test.sh" "$fixture selects backend coverage"
+    assert_contains "$listed" "tests/fm-secondmate-safety.test.sh" "$fixture selects secondmate coverage"
+    rm "$repo/tests/$fixture"
+  done
+
+  printf '\n' >"$repo/tests/unreferenced-fixture.sh"
+  if listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD 2>&1); then
+    fail "an unreferenced shared fixture must not silently select nothing"
+  else
+    code=$?
+  fi
+  expect_code 2 "$code" "unreferenced fixture mapping exit code"
+  assert_contains "$listed" "no changed-test mapping for source path: tests/unreferenced-fixture.sh" \
+    "unreferenced fixture refusal identifies its source"
+  rm -rf "$tmp"
+  pass "shared fixtures select consumer families and reject unreferenced additions"
+}
+
 test_changed_dependency_selection_and_unmapped_failure() {
   local tmp repo listed rc
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-changed.XXXXXX")
@@ -1848,6 +1907,8 @@ fm_test_run_cases \
   test_changed_reference_scan_batches_test_files \
   test_changed_runner_surfaces_select_their_family \
   test_shell_line_ending_policy_selects_runner_contract \
+  test_mail_sources_select_mail_coverage \
+  test_changed_shared_fixtures_select_consumers \
   test_changed_dependency_selection_and_unmapped_failure \
   test_changed_bin_reference_selects_per_script_not_per_family \
   test_changed_uses_bounded_automatic_concurrency \

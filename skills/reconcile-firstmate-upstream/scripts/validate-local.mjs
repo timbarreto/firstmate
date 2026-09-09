@@ -3,7 +3,7 @@
 // fm-timeout-lib.sh still owns process-group deadlines.
 //
 // node validate-local.mjs --plan <json> --state-dir <outside-repo-dir>
-//   [--root <checkout>] [--bash <recorded-bash>] [--budget-seconds 1200]
+//   [--root <checkout>] [--bash <recorded-bash>] [--budget-seconds 2400]
 //   [--max-timeouts 2] [--resume] [--preflight-only]
 //
 // Plan: { context: { fork: "<sha>", upstream: "<sha>" }, checks: [
@@ -56,7 +56,7 @@ function atomicJson(file, value) {
   fs.renameSync(temporary, file);
 }
 function options(args) {
-  const result = { root: process.cwd(), bash: "bash", budget: 1200, maxTimeouts: 2 };
+  const result = { root: process.cwd(), bash: "bash", budget: 2400, maxTimeouts: 2 };
   for (let index = 0; index < args.length; index++) {
     const argument = args[index];
     if (argument === "--resume") result.resume = true;

@@ -32,7 +32,8 @@ function fixture(t) {
   function run(checks, options = {}) {
     fs.writeFileSync(planFile, JSON.stringify({ context: options.context ?? context, checks }));
     const result = spawnSync(process.execPath, [controller, "--plan", planFile, "--root", repo,
-      "--state-dir", state, "--bash", bash, "--budget-seconds", String(options.budget ?? 30),
+      "--state-dir", state, "--bash", bash,
+      ...(options.defaultBudget ? [] : ["--budget-seconds", String(options.budget ?? 30)]),
       ...(options.resume ? ["--resume"] : []), ...(options.preflight ? ["--preflight-only"] : [])],
     { encoding: "utf8", timeout: 60000, env: { ...process.env, ...options.env } });
     assert.equal(result.error, undefined, result.error?.message);
@@ -41,6 +42,20 @@ function fixture(t) {
   }
   return { repo, state, marker, temporary, check, run };
 }
+
+test("the default wall budget is 40 minutes and explicit overrides are honored", (t) => {
+  const f = fixture(t);
+  for (const [options, expected] of [
+    [{ defaultBudget: true }, 2400],
+    [{ budget: 45 }, 45],
+  ]) {
+    const result = f.run([f.check()], options);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(result.document.budgetSeconds, expected);
+    assert.equal(result.document.results[0].status, "passed");
+  }
+  assert.equal(fs.readFileSync(f.marker, "utf8"), "run\nrun\n");
+});
 
 test("preflight defers a missing prerequisite without executing the check", (t) => {
   const f = fixture(t);

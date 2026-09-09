@@ -210,8 +210,10 @@ Use the script's preflight-only mode when establishing host capability.
 An absent prerequisite is reported and routed to an equipped CI job; install a dependency locally only when local proof is necessary and the missing dependency has been demonstrated.
 Respect optional live-test gates and keep credentialed harness work out of this external-maintainer workflow.
 
-Use the validator's default 20-minute command budget and two-timeout circuit breaker unless the user explicitly chooses another budget.
-It invokes `fm-timeout-lib.sh` for real cancellation during a command, including preparation, rather than relying on the runner's post-run `--max-wall-ms` check.
+Use the validator's default 40-minute (2,400-second) command budget and two-timeout circuit breaker unless the user explicitly chooses another budget.
+Reserve time for the selected conflict-resolution cases after accounting for preflight, inventory, the four repository gates, and Git-for-Windows process-launch overhead.
+Charge preflight and all validation attempts against this shared total; when continuing after an interruption or user-approved increase, pass only the remaining seconds to `--budget-seconds`.
+The validator invokes `fm-timeout-lib.sh` for real cancellation during a command, including preparation, rather than relying on the runner's post-run `--max-wall-ms` check.
 Budget exhaustion or the timeout circuit breaker defers remaining local commands to their CI owners and advances toward PR creation; it neither certifies them nor ends the reconciliation.
 Do not compensate by increasing concurrency, repeatedly resetting the budget, or widening production deadlines.
 One serial representative-case retry and, when needed, one frozen-upstream differential share the same local budget.

@@ -39,7 +39,7 @@ This preference is local to each Firstmate home and is not part of secondmate in
 On a Pi primary, an in-process supervision branch handles eligible task-local wake rows and selected heartbeat reviews while keeping main-only rows on the captain-facing path; [docs/pi-supervision-branch.md](pi-supervision-branch.md) owns its conversation lifecycle, row eligibility, mixed-queue dispatch, heartbeat routing, and pre-drain recheck.
 Supervision is default-on: once a Pi primary session owns this home's fleet lock, the branch is eligible for every task with no captain grant file required.
 A genuinely no-op heartbeat is absorbed in bash and never reaches Pi, and every watcher-failure alarm stays on the captain-facing main path.
-Away mode still declines every wake offer, and a broken branch still falls back to today's wake-to-main path.
+A legacy `state/.afk` daemon flag still declines every wake offer, the away-posture record alone does not, and a broken branch still falls back to today's wake-to-main path.
 The branch's role stays bounded exactly as the captain-approved architecture set it: it cannot merge a PR, land local work, or freshly spawn, and every existing captain gate remains unchanged.
 Homes on any other primary harness never load this feature and are entirely unaffected.
 `AGENTS.md`'s `state/` inventory routes the branch's runtime files to their format and lifecycle owners.
@@ -63,11 +63,15 @@ A provider that exists only because an extension registered it inside the captai
 Stored OAuth and API-key credentials retain their native credential type because Firstmate never copies, converts, installs, or overwrites credentials for the branch runtime.
 The file holds one `<provider>/<model-id>` line followed by one newline, split at the first `/` so a provider-qualified model id such as `openrouter/anthropic/claude-sonnet-4-5` survives intact.
 An absent, unreadable, or unparseable file means no pin, and the branch then follows main's own current model, applied explicitly and live whenever main changes models mid-session.
+When main uses `codex-native`, following main explicitly selects the same model through ordinary Pi's `openai-codex` provider, so the background branch owns an independent Pi conversation.
+If that ordinary Pi model is unavailable, the branch refuses to build and returns the notification to main; it never inherits the main native thread or silently selects a different model.
+Picking "Follow main" under a `codex-native` main reports that same `openai-codex` model, or that same refusal, because the command and the branch build share one follow rule.
+A `codex-native` branch pin is refused and excluded from the picker.
 A valid pin wins over main and remains unaffected by main's model changes.
 Picking "Follow main" removes the file, and the command writes a pin at mode `0600` and replaces it atomically so a failed write leaves the current choice unchanged rather than claiming persistence.
 The file's current state decides the branch model on every branch build - the new conversation each main session start opens and the reopen after a model or effort change inside one session - and it overrides Pi's restore of whatever model a reopened branch session recorded, so the choice survives all of them.
 That override is what keeps "Follow main" honest: a branch conversation that ran under an earlier pin still records that model, so clearing the file explicitly applies main's model rather than letting the reopened session restore the old one.
-Only when main's own model is unknown, or this home's stored credentials cannot run it in the isolated branch runtime, does an unpinned build fall back to passing no override at all, which is the behavior from before this file existed; the wake is never lost over model choice, and the command says plainly when main's model could not be applied instead of reporting a change that did not take effect.
+For ordinary Pi providers, only when main's own model is unknown, or this home's stored credentials cannot run it in the isolated branch runtime, does an unpinned build fall back to passing no override at all, which is the behavior from before this file existed; the wake is never lost over model choice, and the command says plainly when main's model could not be applied instead of reporting a change that did not take effect.
 A pin naming a model Pi cannot hand back, because the model is unknown or has no configured credentials, is never silently downgraded onto main's model: the branch refuses to build and rejects the accepted wake to the watcher's captain-facing main path, exactly as any other unreachable branch does.
 Picking also releases the live branch so the next wake reopens this session's own branch conversation under the new model without waiting for a session replacement.
 
@@ -405,7 +409,7 @@ This section is the single owner of the canonical schema and its per-field seman
     {
       "when": "<natural-language condition describing a kind of task>",
       "use": [
-        { "harness": "<adapter>", "model": "<optional model>", "effort": "<low|medium|high|xhigh|max, optional>" }
+        { "harness": "<adapter>", "model": "<optional model>", "effort": "<low|medium|high|xhigh|max|ultra, optional>" }
       ],
       "why": "<optional rationale that helps firstmate choose>"
     }
@@ -420,10 +424,12 @@ Per rule, `when` and `use` are required.
 Both `use` and the optional top-level `default` accept either one profile object or a non-empty array of profile objects.
 The single-object form stays fully backward-compatible, and every profile needs `harness`.
 Profile `model` and `effort` fields and rule `why` are optional.
+`ultra` is native-only: the model-aware validation contract and launch mapping are owned by `bin/fm-harness.sh validate-native-effort` and `bin/fm-spawn.sh` respectively.
 An omitted model or effort means the selected harness uses its own default for that axis.
 Every profile array is an implicit quota-aware choice resolved through `quota-array-dispatch`.
 If no dispatch rule fits, firstmate resolves `default` through the same object-or-array path before falling back to `config/crew-harness`.
-If a selected profile carries an effort value the chosen harness does not accept, `fm-spawn.sh` records the requested `effort=` in task meta for traceability but omits the launch flag, and bootstrap reports the invalid harness/effort pair as a `CREW_DISPATCH` diagnostic when it is visible in the file.
+Except for `ultra`, which refuses unsupported profiles under the native-effort contract above, an effort value the chosen harness does not accept is recorded as `effort=` in task meta for traceability but omitted from the launch flags.
+Bootstrap reports unsupported harness/model/effort combinations as a `CREW_DISPATCH` diagnostic when they are visible in the file.
 See [`docs/examples/crew-dispatch.json`](examples/crew-dispatch.json) for a starting point to copy into local `config/crew-dispatch.json`.
 When the file exists, bootstrap validates it with `jq`.
 Valid files stay silent by default; with `FM_BOOTSTRAP_VERBOSE_FACTS=1`, bootstrap emits `BOOTSTRAP_INFO: crew dispatch active config/crew-dispatch.json`, one `BOOTSTRAP_INFO:` fact per rule, and one fact for the optional default profile set.
@@ -536,6 +542,38 @@ The sweep must finish inside `FM_CHECK_TIMEOUT` (default 30), because a run the 
 So a budget larger than that timeout allows is cut down to what fits instead of being refused, and the cut is reported in the report line.
 A budget that is not a whole number from 1 to 120 is still refused outright.
 
+## Mail plane (.env)
+
+The mail plane (bin/fm-mail.sh) reads unseen IMAP messages and sends one SMTP message.
+Its `poll` command surfaces each new message as a durable `check: mail <uid>` wake, which is also what the standing received-mail check runs each watcher cycle.
+Poll emission is exactly-once-recovering: a published wake always carries a durable journal record, and a poll interrupted before recording its uid is healed from that journal, so inbound mail is never silently missed.
+A duplicate wake is possible if the process is killed between the queue append and the journal write and the drain acknowledges that row before the next poll heals it, or under a triple write fault that leaves a queued row with no durable record; neither case drops mail.
+IMAP and SMTP use implicit TLS on the default ports 993 and 465 (`IMAP4_SSL` / `SMTP_SSL`).
+STARTTLS and port 587 are not supported.
+It is off unless the home's gitignored `.env` provides the connection values.
+This section is the single owner of the mail-plane configuration schema; for direct invocations, environment values override `.env`, matching the Relay contract.
+
+Required, in the home's gitignored `.env`:
+
+```sh
+FM_MAIL_USER=   # IMAP/SMTP login
+FM_MAIL_PASS=   # IMAP/SMTP password
+FM_IMAP_HOST=   # IMAP server hostname
+FM_SMTP_HOST=   # SMTP server hostname
+```
+
+`FM_IMAP_PORT` (default 993), `FM_SMTP_PORT` (default 465), `FM_MAIL_TIMEOUT` (default 20 seconds), and `FM_MAIL_POLL_MAX_WAKES` (default 20, valid 1..200) are optional.
+The per-poll wake cap bounds the wakes of one `poll` run; header fetches scan a larger bounded window of new unseen uids plus already-surfaced retry-set uids, so a flood or large backlog still makes bounded progress every poll, keeping the durable wake queue bounded without ever dropping mail.
+A message whose header cannot be fetched is surfaced with a degraded summary instead of being skipped, so it is never missed and cannot block later mail.
+A later poll retries that fetch and, on success, surfaces the real sender and subject; a persistently unfetchable message stays degraded without repeating that wake.
+
+A home that wants mail polled unattended arms the standing check in the live home: `bin/fm-mail-check.sh arm`.
+Arming writes `state/mail.check.sh` and registers it with the watcher's slow-check cadence (`FM_CHECK_INTERVAL`), so the plane's `poll` runs on its own: new mail still surfaces as `check: mail <uid>` wakes from the poll, and the standing check itself also prints a line (and the watcher turns that line into a wake) unless the poll is a proven no-op.
+Same-line silence is only for a proven no-op: a successful poll with no new mail, or a repeated identical pre-wake failure that cannot have queued mail.
+A fail-closed poll that already queued a wake, and a timeout, always print so the watcher wakes to drain it.
+`FM_MAIL_CHECK_BUDGET` (default 15, valid 5..25) bounds one standing poll and is cut down to fit `FM_CHECK_TIMEOUT`.
+`bin/fm-mail-check.sh disarm` removes the standing check.
+
 ## Relay (.env)
 
 Relay lets a firstmate instance answer public mentions and act on normal reversible mention requests through firstmate's normal lifecycle.
@@ -565,7 +603,7 @@ The watcher accepts the shim only when its bytes match the expected generated co
 This section is the single owner of the Relay cadence contract: a Relay instance polls every 30 seconds instead of the default 300, only a Relay instance speeds up because a non-Relay home has no `config/x-mode.env`, and the session-start supervision operating block includes the cadence instruction when that file exists.
 The active primary-harness supervision protocol owns how that sourced cadence reaches the watcher process.
 Because `bin/fm-watch.sh` reads `FM_CHECK_INTERVAL` only at process start, a cadence transition - opt-in while a watcher is already running, or opt-out - is applied by restarting the home-scoped watcher through the emitted harness protocol; bootstrap deliberately never restarts the watcher itself.
-While away mode is active the daemon owns the watcher and its default cadence applies; away-mode Relay cadence is a deferred follow-up.
+While a legacy daemon flag is active the daemon owns the watcher and its default cadence applies; on Pi the away-posture record alone leaves the ordinary Relay watcher cadence active, and daemon-backed Relay cadence remains a deferred follow-up.
 When the token is removed or empty, the next locked session-start bootstrap step removes those artifacts.
 Steady-state off is silent and writes nothing.
 Relay remains additive to non-Relay lifecycle behavior: homes without the generated artifacts keep the default watcher cadence and do not run the Relay poll.
@@ -914,6 +952,9 @@ FM_CHECK_INTERVAL=300   # seconds between slow checks (authenticated merge polls
 FM_TASK_INBOX_GRACE_SECS=90   # seconds an unhandled steering-inbox message may sit before the watcher attempts doorbell delivery on an idle pane; also the minimum spacing between attempts
 FM_TASK_INBOX_RING_MAX=3      # watcher delivery attempts without an acknowledgement before the task surfaces as a stale wake for recovery
 FM_CHECK_TIMEOUT=30     # seconds allowed per slow check script
+FM_MAIL_CHECK_BUDGET=15   # seconds allowed for one standing mail poll; valid 5..25, cut to fit FM_CHECK_TIMEOUT
+FM_MAIL_POLL_MAX_WAKES=20   # per-poll wake cap for a mail poll; valid 1..200, keeps a flood from flooding firstmate
+FM_MAIL_TIMEOUT=20   # mail-plane IMAP/SMTP socket timeout in seconds; invalid or non-positive values become 20
 FM_TOOL_UPDATE_INTERVAL=900   # seconds between watched-tool probe sweeps; 0 probes on every run, other values must be 60..86400
 FM_TOOL_UPDATE_PROBE_SECS=5   # 1..30 seconds allowed for one version or git probe
 FM_TOOL_UPDATE_BUDGET_SECS=20   # 1..120 seconds allowed for a whole watched-tool sweep; cut to fit FM_CHECK_TIMEOUT, and the cut is reported
@@ -930,6 +971,12 @@ FM_TEARDOWN_NM_TIMEOUT=10    # seconds allowed per no-mistakes query or abort in
 FM_CREW_STATE_RUNS_LIMIT=200  # recent no-mistakes run rows scanned when axi status cannot be attributed directly
 FM_TEARDOWN_NM_RUNS_LIMIT=200  # recent no-mistakes run rows scanned to prove an unresolved-head parked run belongs to teardown's task
 FM_CREW_STATE_BIN=bin/fm-crew-state.sh   # test override for the current-state reader used by working/paused watcher triage
+FM_MAIL_USER=      # mail-plane IMAP/SMTP login, from .env or environment (docs/configuration.md "Mail plane")
+FM_MAIL_PASS=      # mail-plane IMAP/SMTP password
+FM_IMAP_HOST=      # mail-plane IMAP server hostname
+FM_IMAP_PORT=993   # mail-plane IMAP server port
+FM_SMTP_HOST=      # mail-plane SMTP server hostname
+FM_SMTP_PORT=465   # mail-plane SMTP server port
 FMX_PAIRING_TOKEN=      # Relay pairing token; .env opt-in authorizes replies and eligible lifecycle actions
 FMX_RELAY_URL=https://myfirstmate.io   # optional Relay endpoint override, mainly for local relay development
 FMX_ENV_FILE=           # optional alternate .env file for direct Relay client invocations; bootstrap still checks $FM_HOME/.env
@@ -962,8 +1009,8 @@ FM_TURNEND_CHURN_ABSORB_SECS=900   # longest one endpoint's bare turn-ends may b
 FM_CAPTAIN_RE='done:|needs-decision:|blocked:|failed:|PR ready|checks green|ready in branch|merged'   # captain-relevant status regex; nonterminal progress verbs remain excluded even when their prose matches
 FM_CLASSIFY_PAUSED_VERB=paused     # leading status verb for a declared external wait; excluded from FM_CAPTAIN_RE and distinct from blocked
 FM_STALE_ESCALATE_SECS=240         # idle seconds before a provably-working stale pane escalates; stale panes whose crew is not provably working surface immediately unless admitted directly to the declared-wait cadence, while a live idle declared wait still surfaces once before that cadence bounds repeats
-FM_BUSY_TURN_MAX_SECS=3600         # maximum age of a busy pane's latest state/<id>.turn-ended marker, or its state/<id>.meta spawn record before any turn completes, before the same wedge escalation used for a provably-working non-busy stale takes over; inspection-only, never an automatic interrupt or restart; a declared external wait or verified captain-held transfer takes the FM_PAUSE_RESURFACE_SECS recheck below instead
-FM_PAUSE_RESURFACE_SECS=3600       # seconds between bounded rechecks of a declared external wait or verified captain-held transfer, and between repeated new-hash stale alarms for an ordinary crew task with an open backlog captain call; this includes a live idle pane after its first inconclusive stale wake and a live busy pane past FM_BUSY_TURN_MAX_SECS, while the away-mode daemon uses the same setting and ages its window against the crew's own latest status line rather than pane busy state
+FM_BUSY_TURN_MAX_SECS=3600         # maximum age without a completed turn or explicit native-harness progress (bin/fm-watch.sh owns marker selection), before the same wedge escalation used for a provably-working non-busy stale takes over; inspection-only, never an automatic interrupt or restart; a declared external wait or attended verified captain-held transfer takes the FM_PAUSE_RESURFACE_SECS recheck below instead
+FM_PAUSE_RESURFACE_SECS=14400      # four hours between bounded rechecks of a declared external wait or verified captain-held transfer, and between repeated new-hash stale alarms for an ordinary crew task with an open backlog captain call; a structured until time can make an external-wait recheck occur sooner but cannot extend this bound; this includes a live idle pane after its first inconclusive stale wake and a live busy pane past FM_BUSY_TURN_MAX_SECS, while the away-mode daemon uses the same setting and ages its window against the crew's own latest status line rather than pane busy state; a captain-held transfer is never rechecked while the away-posture record exists
 FM_SECONDMATE_WAKE_STALL_SECS=180  # minimum interval with no change of the oldest actionable foreign wake-queue row (it advances as the mate drains, and a queue reprovisioned under the same task id starts a fresh interval at whatever sequence it restarts) before an endpoint-recorded local secondmate produces one durable parent wake-loop-stall notification for that no-progress episode; a mate that is provably inside an active turn (an exact busy verdict, bounded by the same FM_BUSY_TURN_MAX_SECS above) never escalates whatever this interval says, declared external-wait pause rows are excluded, and zero or invalid values use 180
 FM_WEDGE_DEMAND_INSPECT_COUNT=3    # consecutive provably-working stale escalations on the same unchanged pane before demand-deep-inspection is added
 FM_WORKTREE_WRITE_PRUNE='.git node_modules .venv venv __pycache__ .mypy_cache .pytest_cache .ruff_cache .tox target dist build .next .cache vendor'   # directory names the wedge detector's task-worktree write probe skips; the default keeps .git out so a supervisor's own read-only git command can never look like crew progress; set it to the empty string to prune nothing, which widens the probe to the whole depth-bounded tree rather than disabling it
