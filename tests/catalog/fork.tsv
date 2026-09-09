@@ -1,6 +1,7 @@
 version	1
 # Fork additions and overrides. Metadata never grants concurrency admission.
 test	tests/fm-test-catalog.test.sh	pure-contract-unit
+test	tests/fm-remote-job-wait.test.sh	pure-contract-unit
 map	route-catalog	10	bin/fm-test-catalog-lib.sh|tests/catalog/*|tests/catalog-helpers.sh	pure-contract-unit
 map	route-pilot-modules	20	bin/fm-harness-lib.sh|bin/harnesses/*	pure-contract-unit,backend-dispatch,watcher-wake-lock,session-bootstrap,pr-forge,standalone,live-harness-optin
 map	route-private-path-modules	30	bin/fm-private-path-lib.sh|bin/platform/windows-private-path.ps1	pr-forge,pure-contract-unit,backend-dispatch,real-herdr-gated
@@ -10,7 +11,7 @@ test	tests/fm-reconcile-validation.test.sh	pure-contract-unit
 test	tests/fm-update-windows.test.sh	session-bootstrap
 test	tests/fm-copilot-hooks-live-e2e.test.sh	live-harness-optin
 duration	tests/fm-copilot-hooks-live-e2e.test.sh	20
-duration	tests/fm-reconcile-validation.test.sh	27000
+duration	tests/fm-reconcile-validation.test.sh	15825
 map	route-skills-reconcile-firstmate-upstream-scripts	100	skills/reconcile-firstmate-upstream/scripts/*|tests/fm-reconcile-validation.test.mjs	__script__:fm-reconcile-validation.test.sh
 override-map	route-bin-fm-watch	1100	bin/fm-watch*|bin/fm-wake*|bin/fm-inactive-reconcile.sh|bin/fm-classify-lib.sh|bin/fm-daemon*|bin/fm-turnend-guard*|bin/fm-guard.sh	watcher-wake-lock	1100	bin/fm-watch*|bin/fm-wake*|bin/fm-inactive-reconcile.sh|bin/fm-mail.sh|bin/fm-mail.py|bin/fm-mail-check.sh|bin/fm-classify-lib.sh|bin/fm-daemon*|bin/fm-turnend-guard*|bin/fm-guard.sh	watcher-wake-lock
 map	route-bin-fm-install-windows-ps1	1600	bin/fm-install-windows.ps1|bin/fm-session-start.sh|bin/fm-bootstrap.sh|bin/fm-fleet-sync.sh|bin/fm-sessionstart-nudge.sh|bin/fm-startup-network.sh|bin/fm-tangle*|bin/fm-update.sh|bin/fm-gate-refuse*|bin/fm-lock*	session-bootstrap
@@ -20,3 +21,134 @@ map	route-github-workflows-fork-ci-yml	3800	.github/workflows/fork-ci.yml	pure-c
 override-map	route-github	4100	.github/*|.gitattributes|.tasks.toml|AGENTS.md|CLAUDE.md|CONTRIBUTING.md|docs/configuration.md|docs/supervision-protocols/*	pure-contract-unit	4100	.github/*|.tasks.toml|AGENTS.md|CLAUDE.md|CONTRIBUTING.md|docs/configuration.md|docs/supervision-protocols/*	pure-contract-unit
 map	route-gitattributes	4200	.gitattributes	pure-contract-unit,__script__:fm-gitignore-config.test.sh
 map	route-gitignore	4300	.gitignore	__script__:fm-gitignore-config.test.sh
+override-duration	tests/fm-afk-contract.test.sh	3000	10536
+override-duration	tests/fm-afk-inject-e2e.test.sh	35792	35736
+override-duration	tests/fm-afk-return.test.sh	1837	17336
+override-duration	tests/fm-ask-user-authority.test.sh	128	96
+override-duration	tests/fm-backend-cmux.test.sh	3657	3458
+duration	tests/fm-backend-herdr-treehouse.test.sh	83
+override-duration	tests/fm-backend-orca.test.sh	19253	20228
+override-duration	tests/fm-backend-tmux-smoke.test.sh	393	428
+override-duration	tests/fm-backend-zellij.test.sh	9418	9517
+override-duration	tests/fm-backend.test.sh	20061	21125
+override-duration	tests/fm-backlog-atomicity.test.sh	161989	154772
+override-duration	tests/fm-backlog-handoff.test.sh	52291	52436
+override-duration	tests/fm-bearings-board-render.test.sh	1528	16782
+override-duration	tests/fm-bearings-board.test.sh	4195	60625
+override-duration	tests/fm-bearings-snapshot.test.sh	116374	117383
+override-duration	tests/fm-bootstrap-network-parallel.test.sh	8214	9572
+override-duration	tests/fm-bootstrap.test.sh	25208	45638
+override-duration	tests/fm-branch-supervision.test.sh	5729	8791
+override-duration	tests/fm-busy-adapter-wiring.test.sh	49731	30242
+override-duration	tests/fm-busy-state.test.sh	2926	2976
+override-duration	tests/fm-calm-pi-extension.test.sh	256	49878
+override-duration	tests/fm-check-unregister.test.sh	481	467
+override-duration	tests/fm-classify-corr-token.test.sh	38742	20971
+override-duration	tests/fm-classify-decision-key.test.sh	1167	1184
+override-duration	tests/fm-claude-stop-autoarm.test.sh	60709	60510
+duration	tests/fm-claude-trust.test.sh	5780
+override-duration	tests/fm-control-relaunch.test.sh	48210	52141
+override-duration	tests/fm-control.test.sh	54301	39166
+duration	tests/fm-copilot-harness.test.sh	1471
+override-duration	tests/fm-cursor-harness.test.sh	30103	30087
+override-duration	tests/fm-cursor-primary.test.sh	54947	45742
+override-duration	tests/fm-daemon.test.sh	26870	27502
+override-duration	tests/fm-documentation-audiences.test.sh	732	805
+override-duration	tests/fm-extension-binding.test.sh	7398	9060
+override-duration	tests/fm-fleet-snapshot-view.test.sh	8547	8056
+override-duration	tests/fm-fleet-sync.test.sh	37749	37858
+override-duration	tests/fm-gate-refuse.test.sh	4977	5318
+duration	tests/fm-gemini-harness.test.sh	658
+override-duration	tests/fm-gitignore-config.test.sh	62	50
+override-duration	tests/fm-gotmp.test.sh	1310	1367
+override-duration	tests/fm-guard-stale-banner.test.sh	32981	11780
+override-duration	tests/fm-harness-adapter-references.test.sh	55	44
+override-duration	tests/fm-harness-liveness-drift-live-e2e.test.sh	21	850
+override-duration	tests/fm-herdr-session-cleanup.test.sh	6704	5898
+override-duration	tests/fm-home-summary-refresh.test.sh	34793	36197
+override-duration	tests/fm-inactive-reconcile.test.sh	74399	48886
+override-duration	tests/fm-kimi-harness.test.sh	18015	18395
+override-duration	tests/fm-lint-workflows.test.sh	855	822
+override-duration	tests/fm-live-gate.test.sh	6000	1346
+duration	tests/fm-mail-check.test.sh	6998
+duration	tests/fm-mail.test.sh	9604
+override-duration	tests/fm-muse-harness.test.sh	55572	40438
+duration	tests/fm-nm-test-contract.test.sh	2265
+override-duration	tests/fm-omp-harness.test.sh	59969	47510
+override-duration	tests/fm-on.test.sh	34087	11740
+override-duration	tests/fm-operational-input.test.sh	231	221
+override-duration	tests/fm-peek-remote.test.sh	1018	997
+override-duration	tests/fm-pending-reply.test.sh	86711	28448
+override-duration	tests/fm-pi-branch-extension.test.sh	22239	62493
+override-duration	tests/fm-pi-branch-responsiveness-live-e2e.test.sh	21	12941
+override-duration	tests/fm-pi-watch-extension.test.sh	42970	52575
+override-duration	tests/fm-pr-check-security.test.sh	172215	163968
+override-duration	tests/fm-procevent-quota.test.sh	1949	2064
+override-duration	tests/fm-procevent-when.test.sh	17392	20495
+override-duration	tests/fm-procevent.test.sh	69715	169604
+override-duration	tests/fm-project-origin.test.sh	137	162
+override-duration	tests/fm-public-followup.test.sh	196745	145685
+override-duration	tests/fm-quota-choose.test.sh	1461	1524
+override-duration	tests/fm-remote-backlog-handoff.test.sh	41432	42724
+override-duration	tests/fm-remote-doctor.test.sh	5198	9722
+override-duration	tests/fm-remote-entrypoint.test.sh	132	101
+override-duration	tests/fm-remote-job-orphan-reap.test.sh	2972	2986
+override-duration	tests/fm-remote-job.test.sh	59603	59321
+override-duration	tests/fm-remote-reply.test.sh	101690	52747
+override-duration	tests/fm-remote-secondmate-lifecycle-e2e.test.sh	209631	231939
+override-duration	tests/fm-remote-secondmate-parent-binding.test.sh	29562	30431
+override-duration	tests/fm-remote-secondmate-trace-context.test.sh	67096	55748
+override-duration	tests/fm-remote-transport-lanes.test.sh	63976	64494
+duration	tests/fm-rovo-harness.test.sh	13681
+override-duration	tests/fm-secondmate-harness.test.sh	151589	157338
+override-duration	tests/fm-secondmate-lifecycle-e2e.test.sh	8793	7998
+override-duration	tests/fm-secondmate-liveness.test.sh	18146	17287
+override-duration	tests/fm-secondmate-reconcile.test.sh	62726	97896
+override-duration	tests/fm-secondmate-restart.test.sh	119085	44984
+override-duration	tests/fm-secondmate-safety.test.sh	57689	56507
+override-duration	tests/fm-secondmate-sync.test.sh	17183	53341
+override-duration	tests/fm-send-inbox.test.sh	38956	38759
+override-duration	tests/fm-send-remote-delivery.test.sh	27686	28598
+override-duration	tests/fm-send-resolve-key.test.sh	19619	29404
+override-duration	tests/fm-send-secondmate-marker.test.sh	6252	5467
+override-duration	tests/fm-session-lock-ancestry.test.sh	1414	1188
+override-duration	tests/fm-session-start.test.sh	156952	137999
+override-duration	tests/fm-sessionstart-nudge.test.sh	66194	53916
+override-duration	tests/fm-shared-captain-inheritance.test.sh	6108	5159
+override-duration	tests/fm-spawn-dispatch-profile.test.sh	63996	123693
+override-duration	tests/fm-spawn-pool-base-freshen.test.sh	34920	55533
+override-duration	tests/fm-spawn-worktree-settle.test.sh	5687	8446
+override-duration	tests/fm-startup-memory-budget.test.sh	6964	6951
+override-duration	tests/fm-startup-network.test.sh	62274	51410
+duration	tests/fm-stat-shadowing.test.sh	33
+override-duration	tests/fm-stow-cascade.test.sh	3101	3185
+override-duration	tests/fm-subagent-pretool-check.test.sh	1030	985
+override-duration	tests/fm-supervision-events.test.sh	719	585
+override-duration	tests/fm-tangle-guard.test.sh	9662	7491
+override-duration	tests/fm-task-delivery.test.sh	5952	14065
+override-duration	tests/fm-task-inbox.test.sh	25369	28928
+override-duration	tests/fm-teardown-endpoint-safety.test.sh	4620	31804
+override-duration	tests/fm-teardown.test.sh	97603	154376
+duration	tests/fm-test-catalog.test.sh	886
+override-duration	tests/fm-test-fixture-cleanup.test.sh	915	1070
+override-duration	tests/fm-test-fixtures.test.sh	151	157
+override-duration	tests/fm-test-isolation-proof.test.sh	2567	2059
+override-duration	tests/fm-tmux-agent-liveness.test.sh	1516	2717
+override-duration	tests/fm-tool-update-check.test.sh	14176	19326
+override-duration	tests/fm-trace-context-spawn.test.sh	44702	47551
+override-duration	tests/fm-turnend-guard.test.sh	42565	22534
+override-duration	tests/fm-update.test.sh	5212	9510
+override-duration	tests/fm-vendor-auth-probe.test.sh	43316	43405
+override-duration	tests/fm-voice-relay.test.sh	28699	28752
+override-duration	tests/fm-wake-daemon-lifecycle-e2e.test.sh	7381	7666
+override-duration	tests/fm-wake-drain-open-decisions-cursor.test.sh	20629	22350
+override-duration	tests/fm-wake-drain-open-decisions.test.sh	6240	7308
+override-duration	tests/fm-wake-drain-outcome-backstop.test.sh	15182	43821
+override-duration	tests/fm-wake-drain-unread-status.test.sh	35078	17199
+override-duration	tests/fm-wake-queue.test.sh	56674	78507
+override-duration	tests/fm-watch-arm.test.sh	69464	70265
+override-duration	tests/fm-watch-checkpoint.test.sh	5779	5896
+override-duration	tests/fm-watch-recovery-loop.test.sh	58731	58677
+override-duration	tests/fm-watch-triage.test.sh	262626	577386
+override-duration	tests/fm-watcher-lock.test.sh	88554	65163
+duration	tests/herdr-workspace-move.test.sh	135
