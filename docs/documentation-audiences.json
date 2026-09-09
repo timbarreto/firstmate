@@ -105,6 +105,10 @@
     {
       "source": "docs/trace-context.md",
       "target": "docs/verification/trace-context.md"
+    },
+    {
+      "source": "CONTRIBUTING.md",
+      "target": "docs/fork/verification.md"
     }
   ],
   "surfaces": [
@@ -359,6 +363,10 @@
     {
       "path": "docs/fork/upstream-plan.md",
       "audience": "maintainer-architecture"
+    },
+    {
+      "path": "docs/fork/verification.md",
+      "audience": "maintainer-verification"
     },
     {
       "path": "docs/gitlab-merge-watch.md",

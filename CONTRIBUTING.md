@@ -96,7 +96,7 @@ Its header and `--help` own the flags, family labels, lanes, and changed-file ma
 Portable shard balance evidence lives in `docs/fm-test-portable-shards.md`.
 Family selection is the ordinary local path; `--all` is deliberate full regression only.
 CI owns broad regression across required portable parallel shards, the portable serial lane's separate-runner shards, the Herdr lane, lint, invariants, the coverage guard, and stock macOS Bash compatibility in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
-CI also installs pinned Pi and OpenCode packages in a non-credentialed compatibility job so package API drift and missing runner CLIs fail pull requests explicitly.
+[Fork verification](docs/fork/verification.md) owns the additional Windows and non-credentialed pinned Pi/OpenCode compatibility checks in [`.github/workflows/fork-ci.yml`](.github/workflows/fork-ci.yml).
 The upstream repository additionally requires a no-mistakes signature workflow, but this fork intentionally omits that pull-request policy because ordinary pull requests remain supported and no-mistakes is optional here.
 Use `bin/fm-test-run.sh --list-lanes` for exact lane names and `--help` for `--jobs` rules and required gate-skip flags when reproducing a lane locally.
 Leave the `sleep 0.1` cadence in the suites' bounded condition waits alone.

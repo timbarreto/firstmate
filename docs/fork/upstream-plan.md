@@ -1,10 +1,12 @@
 # Firstmate fork-locality implementation plan
 
-**Status:** Plan approved; implementation has not started. No repository implementation, publication, settings changes, or live Firstmate operations are authorized by this plan alone.
+**Status:** Implementation authorized separately; the first CI-isolation slice is in progress.
+Settings changes, merges, and live Firstmate operations remain outside this implementation request.
 
 **Repository plan:** `docs\fork\upstream-plan.md`.
 
-**Next step:** Begin `isolation-baseline` after a separate implementation request. All nine implementation todos remain pending.
+**Next step:** Complete the baseline and first follow-up PR before starting the test-catalog slice from the landed CI change.
+Delivery evidence and the remaining implementation todos are tracked in session/PR artifacts.
 
 ## Problem and intended outcome
 

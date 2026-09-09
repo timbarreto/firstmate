@@ -362,6 +362,49 @@ test_changed_runner_surfaces_select_their_family() {
   pass "runner and its documentation surfaces select their curated family, not just their contract owners"
 }
 
+test_fork_workflow_selects_its_contracts() {
+  local tmp repo script listed expected
+  tmp=$(fm_test_tmproot fm-test-run-fork-ci)
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  for script in \
+    fm-update-windows.test.sh \
+    fm-reconcile-validation.test.sh \
+    fm-backend-herdr-treehouse.test.sh \
+    fm-pi-windows-shell-invocation.test.sh \
+    fm-spawn-dispatch-profile.test.sh \
+    fm-teardown.test.sh \
+    fm-pi-primary-types.test.sh \
+    fm-pi-branch-extension.test.sh; do
+    printf '#!/usr/bin/env bash\n' >"$repo/tests/$script"
+  done
+  mkdir -p "$repo/.github/workflows"
+  printf 'name: Fork CI\n' >"$repo/.github/workflows/fork-ci.yml"
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm fork-ci-fixture
+
+  printf '\n' >>"$repo/.github/workflows/fork-ci.yml"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+    || fail "fork workflow change must have a changed-test mapping"
+  expected=$(
+    "$repo/bin/fm-test-run.sh" --list --family pure-contract-unit
+    printf 'tests/%s\n' \
+      fm-update-windows.test.sh \
+      fm-reconcile-validation.test.sh \
+      fm-backend-herdr-treehouse.test.sh \
+      fm-pi-windows-shell-invocation.test.sh \
+      fm-spawn-dispatch-profile.test.sh \
+      fm-teardown.test.sh \
+      fm-pi-primary-types.test.sh \
+      fm-pi-branch-extension.test.sh
+  )
+  expected=$(printf '%s\n' "$expected" | LC_ALL=C sort -u)
+  [ "$listed" = "$expected" ] \
+    || fail "fork workflow must select the lint/runner family and every relocated subject, without unrelated live families"$'\n'"$listed"
+  rm -rf "$tmp"
+  pass "fork workflow selects every relocated contract plus the lint/runner family"
+}
+
 test_shell_line_ending_policy_selects_runner_contract() {
   local tmp repo listed
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-attributes.XXXXXX")
@@ -1906,6 +1949,7 @@ fm_test_run_cases \
   test_task_marker_refuses_the_primary_checkout \
   test_changed_reference_scan_batches_test_files \
   test_changed_runner_surfaces_select_their_family \
+  test_fork_workflow_selects_its_contracts \
   test_shell_line_ending_policy_selects_runner_contract \
   test_mail_sources_select_mail_coverage \
   test_changed_shared_fixtures_select_consumers \
