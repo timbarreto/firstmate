@@ -2469,28 +2469,32 @@ pass "retiring a source reaps its reparented listener and every descendant under
 # gave up after one attempt would walk away from a still-running expired runner.
 #
 # The unprovable attempt is injected through the signal the real path actually
-# reads: `ps` answers ONE process-group query for the runner with a group it
+# reads: Perl answers ONE process-group query for the runner with a group it
 # does not lead, which is exactly how a stop that cannot be proved is reported.
-# Every other `ps` call, and every later one, is the real command.
+# Every other Perl call, and every later query, runs the real interpreter.
 
 RETRY_HOME="$TMP_ROOT/stop-retry"; new_home "$RETRY_HOME"
 fm_test_track_procevent_home "$RETRY_HOME"
 RETRY_STATE="$TMP_ROOT/stop-retry-state"; mkdir -p "$RETRY_STATE"
 RETRY_BIN=$(fm_fakebin "$TMP_ROOT/stop-retry-bin")
-REAL_PS=$(command -v ps) || fail "this host has no ps to build the retry fixture on"
-cat > "$RETRY_BIN/ps" <<SH
+REAL_PERL=$(command -v perl) || fail "this host has no perl to build the retry fixture on"
+cat > "$RETRY_BIN/perl" <<SH
 #!/usr/bin/env bash
-if [ "\$1" = -o ] && [ "\$2" = "pgid=" ] && [ "\$3" = -p ] \\
+if [ "\$#" -eq 3 ] && [ "\$1" = -we ] \\
   && [ -s "\$STOP_RETRY_STATE/target" ] \\
-  && [ "\$4" = "\$(cat "\$STOP_RETRY_STATE/target")" ] \\
+  && [ "\$3" = "\$(cat "\$STOP_RETRY_STATE/target")" ] \\
   && [ ! -e "\$STOP_RETRY_STATE/spent" ]; then
-  : > "\$STOP_RETRY_STATE/spent"
-  printf ' 999999\n'
-  exit 0
+  case "\$2" in
+    *getpgrp*)
+      : > "\$STOP_RETRY_STATE/spent"
+      printf ' 999999\n'
+      exit 0
+      ;;
+  esac
 fi
-exec "$REAL_PS" "\$@"
+exec "$REAL_PERL" "\$@"
 SH
-chmod +x "$RETRY_BIN/ps"
+chmod +x "$RETRY_BIN/perl"
 
 retry_pe() {  # <command...>
   PATH="$RETRY_BIN:$PATH" STOP_RETRY_STATE="$RETRY_STATE" \
