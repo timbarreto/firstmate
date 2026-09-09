@@ -2,17 +2,17 @@ version	1
 # Shared registrations; fork changes and explicit prior-value overrides live in fork.tsv.
 family	pure-contract-unit	none
 family	watcher-wake-lock	none
-family	real-herdr-gated	none
+family	real-herdr-gated	herdr
 family	secondmate	none
 family	session-bootstrap	none
-family	live-harness-optin	none
+family	live-harness-optin	live-capability
 family	backend-dispatch	none
 family	pr-forge	none
 family	afk	none
-family	snapshot-bearings	none
-family	cmux	none
-family	zellij	none
-family	orca	none
+family	snapshot-bearings	optional-binary
+family	cmux	optional-binary
+family	zellij	optional-binary
+family	orca	optional-binary
 family	standalone	none
 family	unclassified	none
 test	tests/fm-arm-pretool-check.test.sh	pure-contract-unit

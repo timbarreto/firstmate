@@ -43,6 +43,23 @@ expect_bad_catalog() {
   assert_contains "$out" "$expected" "catalog refusal must be actionable"
 }
 
+test_catalog_preserves_existing_gate_classes() {
+  local family expected
+  fm_test_catalog_load "$ROOT" || fail "real catalogs must load"
+  while IFS= read -r family; do
+    [ -n "$family" ] || continue
+    case "$family" in
+      real-herdr-gated) expected=herdr ;;
+      live-harness-optin) expected=live-capability ;;
+      cmux|zellij|orca|snapshot-bearings) expected=optional-binary ;;
+      *) expected=none ;;
+    esac
+    fm_test_catalog_get family "$family" || fail "family gate missing: $family"
+    assert_equals "$expected" "$FM_TEST_CATALOG_VALUE" "existing gate class changed for $family"
+  done <<<"$FM_TEST_CATALOG_FAMILIES"
+  pass "every existing family retains its pre-extraction gate class"
+}
+
 test_catalog_overrides_and_ordering() {
   local tmp repo selected
   tmp=$(fm_test_tmproot fm-catalog-order)
@@ -237,6 +254,7 @@ test_catalog_module_reference_and_lint_membership() {
 }
 
 fm_test_run_cases \
+  test_catalog_preserves_existing_gate_classes \
   test_catalog_overrides_and_ordering \
   test_catalog_rejects_invalid_records \
   test_catalog_missing_dependencies_refuse \

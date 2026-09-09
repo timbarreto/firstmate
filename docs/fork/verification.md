@@ -35,6 +35,7 @@ Run `bin/fm-test-run.sh tests/fm-test-catalog.test.sh` for strict metadata, over
 The existing runner and isolation-proof suites retain scheduler, named-case, JSON, reference-selection, and proof integration coverage.
 
 Before adding new registrations during a metadata extraction, compare old and new listing, family, scheduled-order, lane, and JSON results on identical inventory and metadata inputs.
+Include every family's expected gate-skip class; JSON fixtures covering only ungated families cannot establish gate compatibility.
 After registering new tests, re-run the coverage guard and inspect the five serial shards; legitimate rebalancing is distinct from an identical-input mismatch.
 Keep the immutable comparison inputs and exact outputs in session or PR evidence.
 Broad runner coverage remains in portable CI, stock Bash parsing remains in the macOS job, and native worker privacy remains in Windows coverage.
