@@ -9,6 +9,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/catalog-helpers.sh
+. "$ROOT/tests/catalog-helpers.sh"
 
 RUNNER="$ROOT/bin/fm-test-run.sh"
 
@@ -176,6 +178,7 @@ init_changed_fixture_repo() {
   : >"$repo/CONTRIBUTING.md"
   : >"$repo/src/unmapped.ts"
   printf '# fm-primary-cd-check.js\n' >>"$repo/tests/fm-cd-pretool-check.test.sh"
+  fm_test_install_catalog "$repo"
   git -C "$repo" init -q
   git -C "$repo" add .
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
@@ -198,6 +201,7 @@ init_primary_and_linked_worktree() {
 echo "ok - probe suite"
 : >"$tree/ran"
 PROBE
+    fm_test_install_catalog "$tree"
     chmod +x "$tree/tests/probe.test.sh"
   done
 }
@@ -380,6 +384,7 @@ test_fork_workflow_selects_its_contracts() {
   done
   mkdir -p "$repo/.github/workflows"
   printf 'name: Fork CI\n' >"$repo/.github/workflows/fork-ci.yml"
+  fm_test_install_catalog "$repo"
   git -C "$repo" add .
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm fork-ci-fixture
 
@@ -429,7 +434,8 @@ test_mail_sources_select_mail_coverage() {
     printf '#!/usr/bin/env bash\n' >"$repo/tests/$script"
     chmod +x "$repo/tests/$script"
   done
-  git -C "$repo" add tests/fm-mail.test.sh tests/fm-mail-check.test.sh
+  fm_test_install_catalog "$repo"
+  git -C "$repo" add tests/fm-mail.test.sh tests/fm-mail-check.test.sh tests/catalog bin/fm-test-isolation-proof.sh
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm mail-tests
 
   for source in fm-mail.sh fm-mail.py fm-mail-check.sh; do
@@ -761,6 +767,7 @@ SH
     chmod +x "$timeout_repo/$script"
   done
   chmod +x "$timeout_repo/bin/fm-test-run.sh"
+  fm_test_install_catalog "$timeout_repo"
   git -C "$timeout_repo" init -q
   git -C "$timeout_repo" add .
   git -C "$timeout_repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
@@ -926,6 +933,7 @@ SH
   # An unproven script in the list is scheduled around, never refused and never
   # run beside another script. Git-for-Windows process-heavy scripts join that
   # serial tail even when their state isolation is otherwise proven.
+  fm_test_install_catalog "$repo"
   (cd "$repo" && bin/fm-test-run.sh tests/fm-cd-pretool-check.test.sh tests/fm-pr-merge.test.sh \
       tests/fm-captain-hold-lifecycle.test.sh tests/fm-backend-orca.test.sh) \
     >"$tmp/mixed.out" 2>"$tmp/mixed.err" \
@@ -987,6 +995,7 @@ SH
     chmod +x "$repo/tests/$script"
   done
 
+  fm_test_install_catalog "$repo"
   (cd "$repo" && bin/fm-test-run.sh \
       tests/fm-pr-check-security.test.sh tests/fm-calm-pi-extension.test.sh \
       tests/fm-teardown.test.sh tests/fm-vendor-auth-probe.test.sh --jobs 4) \
@@ -1526,6 +1535,7 @@ test_unmapped_new_test_never_inherits_family_concurrency() {
     printf '#!/usr/bin/env bash\necho "ok - %s fixture"\n' "$script" >"$repo/tests/$script"
     chmod +x "$repo/tests/$script"
   done
+  fm_test_install_catalog "$repo"
 
   set +e
   (cd "$repo" && bin/fm-test-run.sh --jobs 2 \
@@ -1605,6 +1615,7 @@ sh -c 'trap "" TERM; echo $$ >"$1"; sleep 600' _ "$GRANDCHILD_PID" &
 sleep 600
 SH
   chmod +x "$runner" "$repo/$hang"
+  fm_test_install_catalog "$repo"
 
   began=$(date +%s)
   set +e
@@ -1665,6 +1676,7 @@ sleep 1
 echo "ok - budget fixture"
 SH
   chmod +x "$runner" "$repo/$fast"
+  fm_test_install_catalog "$repo"
 
   # Comfortably inside budget: the run passes and states the budget it met.
   set +e
@@ -1769,6 +1781,7 @@ touch "$SCHED_EVIDENCE/replacement-started"
 echo "ok - replacement fixture started before slow fixture finished"
 SH
   chmod +x "$runner" "$repo/$a" "$repo/$b" "$repo/$c" "$fake_bin/stat"
+  fm_test_install_catalog "$repo"
   set +e
   PATH="$fake_bin:$PATH" SCHED_EVIDENCE="$evidence" SCHED_WAIT_FOR_REPLACEMENT=1 \
     "$runner" --jobs 2 --json "$tmp/timing.json" \
@@ -1824,6 +1837,7 @@ echo "skip: herdr not found" >&2
 exit 0
 SH
   chmod +x "$repo/$d"
+  fm_test_install_catalog "$repo"
   set +e
   "$runner" --jobs 2 --fail-on-gate-skip 'herdr not found' "$d" >"$tmp/out5" 2>"$tmp/err5"
   rc=$?

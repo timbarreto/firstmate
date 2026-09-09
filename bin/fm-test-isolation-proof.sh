@@ -15,6 +15,7 @@
 # Usage:
 #   fm-test-isolation-proof.sh [--pool <name>] [--jobs N] [--json path] [--list]
 #   fm-test-isolation-proof.sh --list-exclusions
+#   fm-test-isolation-proof.sh --list-family-admissions
 #   fm-test-isolation-proof.sh -h | --help
 #
 # Options:
@@ -28,6 +29,9 @@
 #                run; fm_test_run_jobs_enabled is true only for a successful
 #                concurrent run within that pool's recorded admission cap
 #   --list       print the proven candidate paths (one per line) and exit 0
+#   --list-family-admissions
+#                print frozen family<TAB>test admissions without loading the
+#                runner or catalogs; classification cannot enlarge a proof
 #   --list-exclusions
 #                print basename + reason for scripts deliberately kept serial
 #                relative to the scout-proposed parallel pool, then exit 0
@@ -154,6 +158,137 @@ exclusion_reason() {
       return 1
       ;;
   esac
+}
+
+# Family membership frozen at the existing recorded proofs, independent of catalogs.
+# Reclassifying or adding a test cannot extend these admissions without new proof.
+list_family_admissions() {
+  cat <<'EOF'
+pure-contract-unit	tests/fm-arm-pretool-check.test.sh
+pure-contract-unit	tests/fm-ask-user-authority.test.sh
+pure-contract-unit	tests/fm-bearings-board.test.sh
+pure-contract-unit	tests/fm-brief.test.sh
+pure-contract-unit	tests/fm-vendor-auth-probe.test.sh
+pure-contract-unit	tests/fm-calm-pi-extension.test.sh
+pure-contract-unit	tests/fm-cd-pretool-check.test.sh
+pure-contract-unit	tests/fm-classify-decision-key.test.sh
+pure-contract-unit	tests/fm-composer-ghost.test.sh
+pure-contract-unit	tests/fm-composer-lib.test.sh
+pure-contract-unit	tests/fm-crew-state.test.sh
+pure-contract-unit	tests/fm-captain-hold-lifecycle.test.sh
+pure-contract-unit	tests/fm-copilot-harness.test.sh
+pure-contract-unit	tests/fm-reconcile-validation.test.sh
+pure-contract-unit	tests/fm-documentation-audiences.test.sh
+pure-contract-unit	tests/fm-ensure-agents-md.test.sh
+pure-contract-unit	tests/fm-grok-harness.test.sh
+pure-contract-unit	tests/fm-kimi-harness.test.sh
+pure-contract-unit	tests/fm-muse-harness.test.sh
+pure-contract-unit	tests/fm-rovo-harness.test.sh
+pure-contract-unit	tests/fm-omp-harness.test.sh
+pure-contract-unit	tests/fm-herdr-lab.test.sh
+pure-contract-unit	tests/fm-lint.test.sh
+pure-contract-unit	tests/fm-lint-workflows.test.sh
+pure-contract-unit	tests/fm-operational-input.test.sh
+pure-contract-unit	tests/fm-pi-primary-types.test.sh
+pure-contract-unit	tests/fm-harness-adapter-references.test.sh
+pure-contract-unit	tests/fm-send-popup-settle.test.sh
+pure-contract-unit	tests/fm-send-settle.test.sh
+pure-contract-unit	tests/fm-subagent-pretool-check.test.sh
+pure-contract-unit	tests/fm-supervision-instructions.test.sh
+pure-contract-unit	tests/fm-task-delivery.test.sh
+pure-contract-unit	tests/fm-tmux-submit-busy.test.sh
+pure-contract-unit	tests/fm-trace-context-lib.test.sh
+pure-contract-unit	tests/fm-transition-lib.test.sh
+pure-contract-unit	tests/fm-test-run.test.sh
+pure-contract-unit	tests/fm-test-isolation-proof.test.sh
+watcher-wake-lock	tests/fm-daemon.test.sh
+watcher-wake-lock	tests/fm-guard-stale-banner.test.sh
+watcher-wake-lock	tests/fm-pi-watch-extension.test.sh
+watcher-wake-lock	tests/fm-session-lock-ancestry.test.sh
+watcher-wake-lock	tests/fm-cursor-primary.test.sh
+watcher-wake-lock	tests/fm-supervision-events.test.sh
+watcher-wake-lock	tests/fm-turnend-guard.test.sh
+watcher-wake-lock	tests/fm-wake-daemon-lifecycle-e2e.test.sh
+watcher-wake-lock	tests/fm-wake-drain-unread-status.test.sh
+watcher-wake-lock	tests/fm-tool-update-check.test.sh
+watcher-wake-lock	tests/fm-mail.test.sh
+watcher-wake-lock	tests/fm-mail-check.test.sh
+watcher-wake-lock	tests/fm-wake-queue.test.sh
+watcher-wake-lock	tests/fm-watch-arm.test.sh
+watcher-wake-lock	tests/fm-watch-checkpoint.test.sh
+watcher-wake-lock	tests/fm-watch-recovery-loop.test.sh
+watcher-wake-lock	tests/fm-watch-triage.test.sh
+watcher-wake-lock	tests/fm-task-inbox.test.sh
+watcher-wake-lock	tests/fm-watcher-lock.test.sh
+watcher-wake-lock	tests/fm-inactive-reconcile.test.sh
+secondmate	tests/fm-backlog-handoff.test.sh
+secondmate	tests/fm-on.test.sh
+secondmate	tests/fm-remote-backlog-handoff.test.sh
+secondmate	tests/fm-remote-doctor.test.sh
+secondmate	tests/fm-remote-job.test.sh
+secondmate	tests/fm-remote-job-orphan-reap.test.sh
+secondmate	tests/fm-remote-transport-lanes.test.sh
+secondmate	tests/fm-remote-reply.test.sh
+secondmate	tests/fm-remote-secondmate-lifecycle-e2e.test.sh
+secondmate	tests/fm-remote-secondmate-trace-context.test.sh
+secondmate	tests/fm-secondmate-harness.test.sh
+secondmate	tests/fm-secondmate-lifecycle-e2e.test.sh
+secondmate	tests/fm-secondmate-liveness.test.sh
+secondmate	tests/fm-secondmate-reconcile.test.sh
+secondmate	tests/fm-secondmate-restart.test.sh
+secondmate	tests/fm-secondmate-safety.test.sh
+secondmate	tests/fm-secondmate-sync.test.sh
+secondmate	tests/fm-startup-memory-budget.test.sh
+secondmate	tests/fm-stow-cascade.test.sh
+secondmate	tests/fm-send-secondmate-marker.test.sh
+secondmate	tests/fm-shared-captain-inheritance.test.sh
+session-bootstrap	tests/fm-backlog-atomicity.test.sh
+session-bootstrap	tests/fm-bootstrap.test.sh
+session-bootstrap	tests/fm-bootstrap-network-parallel.test.sh
+session-bootstrap	tests/fm-fleet-sync.test.sh
+session-bootstrap	tests/fm-gate-refuse.test.sh
+session-bootstrap	tests/fm-gotmp.test.sh
+session-bootstrap	tests/fm-session-start.test.sh
+session-bootstrap	tests/fm-sessionstart-nudge.test.sh
+session-bootstrap	tests/fm-startup-network.test.sh
+session-bootstrap	tests/fm-tangle-guard.test.sh
+session-bootstrap	tests/fm-update.test.sh
+session-bootstrap	tests/fm-update-windows.test.sh
+pr-forge	tests/fm-check-unregister.test.sh
+pr-forge	tests/fm-pr-check-security.test.sh
+pr-forge	tests/fm-pr-merge.test.sh
+pr-forge	tests/fm-review-diff.test.sh
+pr-forge	tests/fm-teardown.test.sh
+pr-forge	tests/fm-x-mode.test.sh
+standalone	tests/fm-branch-supervision.test.sh
+standalone	tests/fm-busy-adapter-wiring.test.sh
+standalone	tests/fm-busy-state.test.sh
+standalone	tests/fm-classify-corr-token.test.sh
+standalone	tests/fm-claude-stop-autoarm.test.sh
+standalone	tests/fm-cursor-harness.test.sh
+standalone	tests/fm-extension-binding.test.sh
+standalone	tests/fm-gitignore-config.test.sh
+standalone	tests/fm-peek-remote.test.sh
+standalone	tests/fm-pending-reply.test.sh
+standalone	tests/fm-pi-branch-extension.test.sh
+standalone	tests/fm-procevent-quota.test.sh
+standalone	tests/fm-procevent-when.test.sh
+standalone	tests/fm-procevent.test.sh
+standalone	tests/fm-live-gate.test.sh
+standalone	tests/fm-project-origin.test.sh
+standalone	tests/fm-public-followup.test.sh
+standalone	tests/fm-quota-choose.test.sh
+standalone	tests/fm-remote-entrypoint.test.sh
+standalone	tests/fm-remote-secondmate-parent-binding.test.sh
+standalone	tests/fm-send-remote-delivery.test.sh
+standalone	tests/fm-spawn-pool-base-freshen.test.sh
+standalone	tests/fm-test-fixture-cleanup.test.sh
+standalone	tests/fm-test-fixtures.test.sh
+standalone	tests/fm-voice-relay.test.sh
+standalone	tests/fm-wake-drain-open-decisions-cursor.test.sh
+standalone	tests/fm-wake-drain-open-decisions.test.sh
+standalone	tests/fm-wake-drain-outcome-backstop.test.sh
+EOF
 }
 
 # Exact candidate set from the archived concurrent proof. Adding or removing a
@@ -306,6 +441,10 @@ while [ "$#" -gt 0 ]; do
     --pool=*)
       POOL=${1#--pool=}
       shift
+      ;;
+    --list-family-admissions)
+      list_family_admissions
+      exit 0
       ;;
     --list)
       LIST_ONLY=1
