@@ -267,7 +267,11 @@ else
   fi
 
   if [ "$full_lint" -eq 1 ]; then
-    ROOTS=(bin/*.sh bin/backends/*.sh bin/harnesses/*.sh bin/platform/*.sh tests/*.sh)
+    ROOTS=()
+    for canonical_root in bin/*.sh bin/backends/*.sh bin/harnesses/*.sh bin/platform/*.sh tests/*.sh; do
+      [ -f "$canonical_root" ] || continue
+      ROOTS+=("$canonical_root")
+    done
   else
     CHANGED_MODE=1
     ROOTS=()

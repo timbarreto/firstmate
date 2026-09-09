@@ -190,6 +190,12 @@ test_catalog_module_reference_and_lint_membership() {
   repo="$tmp/repo"
   catalog_fixture "$repo"
   cp "$ROOT/bin/fm-lint.sh" "$repo/bin/"
+  mkdir -p "$repo/bin/backends"
+  printf '#!/usr/bin/env bash\n' >"$repo/bin/backends/stub.sh"
+  full=$(CI=true "$repo/bin/fm-lint.sh" --list-files) || fail "full lint listing failed"
+  while IFS= read -r path; do
+    [ -f "$repo/$path" ] || fail "full lint listed a nonexistent input: $path"
+  done <<<"$full"
   mkdir -p "$repo/bin/harnesses" "$repo/bin/platform"
   printf '%s\n' \
     $'override-map\tbroad\t20\tbin/*\tpure-contract-unit\t20\tlegacy/*\tpure-contract-unit' \
