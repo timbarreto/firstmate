@@ -1800,6 +1800,18 @@ families_for_changed_path() {
     .agents/skills/*/SKILL.md|skills/*/SKILL.md)
       printf '%s\n' pure-contract-unit
       ;;
+    .github/workflows/fork-ci.yml)
+      printf '%s\n' pure-contract-unit
+      printf '__script__:%s\n' \
+        fm-update-windows.test.sh \
+        fm-reconcile-validation.test.sh \
+        fm-backend-herdr-treehouse.test.sh \
+        fm-pi-windows-shell-invocation.test.sh \
+        fm-spawn-dispatch-profile.test.sh \
+        fm-teardown.test.sh \
+        fm-pi-primary-types.test.sh \
+        fm-pi-branch-extension.test.sh
+      ;;
     .github/workflows/ci.yml|.no-mistakes.yaml)
       printf '%s\n' pure-contract-unit
       printf '%s\n' real-herdr-gated
