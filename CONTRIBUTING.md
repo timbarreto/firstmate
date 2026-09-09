@@ -88,10 +88,11 @@ EOF
 tmp=$(mktemp -d) && printf 'done: smoke\n' > "$tmp/smoke.status" && FM_STATE_OVERRIDE="$tmp" FM_SIGNAL_GRACE=1 FM_POLL=1 FM_HEARTBEAT=999999 bin/fm-watch-arm.sh  # watcher re-arm smoke test (prints arm status, then an actionable signal)
 ```
 
-`bin/fm-test-run.sh` is the single owner of behavior-suite selection, portable CI lane composition, bounded concurrency admission, per-script timing markers, family totals, the coverage guard, and the optional JSON timing artifact.
+`bin/fm-test-run.sh` owns behavior-suite execution, portable CI lane composition, bounded scheduling, per-script timing markers, family totals, the coverage guard, and the optional JSON timing artifact.
+The [test registration seam](docs/fork/architecture.md#test-registration-seam) separates catalog metadata from runner algorithms and independent proof admission.
 Suites registered with `fm_test_run_cases` support the shared named-case and case-listing interface documented in `tests/lib.sh`; use it through the behavior runner when investigating one failure.
 The public [`reconcile-firstmate-upstream`](skills/reconcile-firstmate-upstream/SKILL.md) skill owns the bounded, resumable local-check and early-PR workflow for upstream reconciliation, while existing GitHub Actions lanes retain broad coverage and merge-readiness checks.
-Its header and `--help` own the flags, family labels, lanes, and changed-file map; this section only documents the entry points.
+The runner's header and `--help` own runner flags and lanes; the catalog loader header owns metadata records and ordered changed-path registration.
 `bin/fm-test-isolation-proof.sh` remains the single owner of the portable candidate proof and reusable family proof harness; see `docs/fm-test-isolation-proof.md`.
 Portable shard balance evidence lives in `docs/fm-test-portable-shards.md`.
 Family selection is the ordinary local path; `--all` is deliberate full regression only.

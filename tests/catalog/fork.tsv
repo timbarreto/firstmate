@@ -1,0 +1,22 @@
+version	1
+# Fork additions and overrides. Metadata never grants concurrency admission.
+test	tests/fm-test-catalog.test.sh	pure-contract-unit
+map	route-catalog	10	bin/fm-test-catalog-lib.sh|tests/catalog/*|tests/catalog-helpers.sh	pure-contract-unit
+map	route-pilot-modules	20	bin/fm-harness-lib.sh|bin/harnesses/*	pure-contract-unit,backend-dispatch,watcher-wake-lock,session-bootstrap,pr-forge,standalone,live-harness-optin
+map	route-private-path-modules	30	bin/fm-private-path-lib.sh|bin/platform/windows-private-path.ps1	pr-forge,pure-contract-unit,backend-dispatch,real-herdr-gated
+map	route-process-modules	40	bin/fm-platform-process-lib.sh|bin/platform/*|.pi/extensions/lib/fm-process-ancestry.ts|.opencode/plugins/lib/fm-process-ancestry.js	pure-contract-unit,watcher-wake-lock,standalone,backend-dispatch,session-bootstrap,live-harness-optin
+test	tests/fm-copilot-harness.test.sh	pure-contract-unit
+test	tests/fm-reconcile-validation.test.sh	pure-contract-unit
+test	tests/fm-update-windows.test.sh	session-bootstrap
+test	tests/fm-copilot-hooks-live-e2e.test.sh	live-harness-optin
+duration	tests/fm-copilot-hooks-live-e2e.test.sh	20
+duration	tests/fm-reconcile-validation.test.sh	27000
+map	route-skills-reconcile-firstmate-upstream-scripts	100	skills/reconcile-firstmate-upstream/scripts/*|tests/fm-reconcile-validation.test.mjs	__script__:fm-reconcile-validation.test.sh
+override-map	route-bin-fm-watch	1100	bin/fm-watch*|bin/fm-wake*|bin/fm-inactive-reconcile.sh|bin/fm-classify-lib.sh|bin/fm-daemon*|bin/fm-turnend-guard*|bin/fm-guard.sh	watcher-wake-lock	1100	bin/fm-watch*|bin/fm-wake*|bin/fm-inactive-reconcile.sh|bin/fm-mail.sh|bin/fm-mail.py|bin/fm-mail-check.sh|bin/fm-classify-lib.sh|bin/fm-daemon*|bin/fm-turnend-guard*|bin/fm-guard.sh	watcher-wake-lock
+map	route-bin-fm-install-windows-ps1	1600	bin/fm-install-windows.ps1|bin/fm-session-start.sh|bin/fm-bootstrap.sh|bin/fm-fleet-sync.sh|bin/fm-sessionstart-nudge.sh|bin/fm-startup-network.sh|bin/fm-tangle*|bin/fm-update.sh|bin/fm-gate-refuse*|bin/fm-lock*	session-bootstrap
+override-map	route-bin-fm-extension-mjs	2300	bin/fm-extension.mjs|bin/fm-extension.sh|docs/examples/process-event-extension/*	__script__:fm-extension-binding.test.sh	2300	bin/fm-extension.mjs|bin/fm-extension-launch-barrier.mjs|bin/fm-extension.sh|docs/examples/process-event-extension/*	__script__:fm-extension-binding.test.sh
+override-map	route-agents-skills-skill-md	3700	.agents/skills/*/SKILL.md	pure-contract-unit	3700	.agents/skills/*/SKILL.md|skills/*/SKILL.md	pure-contract-unit
+map	route-github-workflows-fork-ci-yml	3800	.github/workflows/fork-ci.yml	pure-contract-unit,__script__:fm-update-windows.test.sh,__script__:fm-reconcile-validation.test.sh,__script__:fm-backend-herdr-treehouse.test.sh,__script__:fm-pi-windows-shell-invocation.test.sh,__script__:fm-spawn-dispatch-profile.test.sh,__script__:fm-teardown.test.sh,__script__:fm-pi-primary-types.test.sh,__script__:fm-pi-branch-extension.test.sh
+override-map	route-github	4100	.github/*|.gitattributes|.tasks.toml|AGENTS.md|CLAUDE.md|CONTRIBUTING.md|docs/configuration.md|docs/supervision-protocols/*	pure-contract-unit	4100	.github/*|.tasks.toml|AGENTS.md|CLAUDE.md|CONTRIBUTING.md|docs/configuration.md|docs/supervision-protocols/*	pure-contract-unit
+map	route-gitattributes	4200	.gitattributes	pure-contract-unit,__script__:fm-gitignore-config.test.sh
+map	route-gitignore	4300	.gitignore	__script__:fm-gitignore-config.test.sh

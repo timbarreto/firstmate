@@ -2,7 +2,9 @@
 
 This record owns concurrent isolation evidence for the portable parallel candidate set and admitted runner families.
 `bin/fm-test-isolation-proof.sh` is the authoritative harness and `docs/fm-test-isolation-proof.json` is the portable pool's machine-readable result.
-`bin/fm-test-run.sh` owns production lane partitioning and family concurrency admission.
+`bin/fm-test-run.sh` owns production lane partitioning and enforces concurrency admission.
+The proof command's `--list-family-admissions` output owns frozen family membership independently of catalog classification, just as `--list` owns portable candidates.
+Both list-only interfaces stay independent of runner loading.
 
 ## Verification
 
@@ -197,8 +199,8 @@ Both proof runs above were taken while the machine carried a five-minute load av
 | 2 | `FM_ISOLATION_SUMMARY total=28 failed=0 concurrency=4 duration_ms=250230` |
 
 This family is the residual set that used to sit in `unclassified`, and it exists because the catch-all itself must never be admitted.
-`unclassified` is the family map's `*)` arm, so admitting it would silently grant concurrency to every test added afterwards, which is exactly the population with no proof.
-`standalone` enumerates its 28 members instead, and `unclassified` stays the always-serial home for anything nobody has classified yet.
+`unclassified` is the catalog lookup fallback and stays the always-serial home for anything nobody has classified yet.
+The recorded `standalone` proof covered 28 members; new catalog registrations cannot extend frozen admissions without a new proof.
 `tests/fm-test-run.test.sh` covers that split behaviorally: two `standalone` members run concurrently while an unmapped basename is refused under `--jobs` and still runs serially.
 
 Two scripts left the residual set rather than joining it.

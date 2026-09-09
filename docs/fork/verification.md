@@ -27,3 +27,16 @@ Keep commands, timings, exact base/head identifiers, and deferred-check outcomes
 
 Live vendor checks remain separately gated and require explicit authorization in controlled fixtures.
 [Runtime backend verification](../verification/runtime-backends.md) owns empirical backend evidence; moving CI jobs does not establish new vendor or native-platform guarantees.
+
+## Catalog compatibility
+
+[Fork architecture](architecture.md) owns the registration seam and its integration patches.
+Run `bin/fm-test-run.sh tests/fm-test-catalog.test.sh` for strict metadata, override, dependency, ordered-map, lightweight-listing, and proof-admission contracts.
+The existing runner and isolation-proof suites retain scheduler, named-case, JSON, reference-selection, and proof integration coverage.
+
+Before adding new registrations during a metadata extraction, compare old and new listing, family, scheduled-order, lane, and JSON results on identical inventory and metadata inputs.
+Include every family's expected gate-skip class; JSON fixtures covering only ungated families cannot establish gate compatibility.
+Measure repeated successful lookups as well as parser counts; in-process string matching can still make selection expensive.
+After registering new tests, re-run the coverage guard and inspect the five serial shards; legitimate rebalancing is distinct from an identical-input mismatch.
+Keep the immutable comparison inputs and exact outputs in session or PR evidence.
+Broad runner coverage remains in portable CI, stock Bash parsing remains in the macOS job, and native worker privacy remains in Windows coverage.
