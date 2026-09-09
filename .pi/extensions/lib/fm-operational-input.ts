@@ -21,17 +21,23 @@ export type FirstmateCurrentOperationalKind =
 
 type OperationalInputCommand = "encode" | "classify" | "kind";
 
+export function firstmateShellInvocation(
+  script: string,
+  args: readonly string[],
+): { command: string; args: string[] } {
+  return process.platform === "win32"
+    ? { command: "bash", args: [script, ...args] }
+    : { command: script, args: [...args] };
+}
+
 // The one owner of how each command is invoked and how its exit status and
 // stdout become an answer, shared by the synchronous and awaited callers
 // below so the two can never drift.
-function operationalInputInvocation(
+function operationalInputArgs(
   command: OperationalInputCommand,
   kind?: FirstmateCurrentOperationalKind,
-): { command: string; args: string[] } {
-  const args = command === "encode" ? [command, kind ?? ""] : [command];
-  return process.platform === "win32"
-    ? { command: "bash", args: [operationalInputScript, ...args] }
-    : { command: operationalInputScript, args };
+): string[] {
+  return command === "encode" ? [command, kind ?? ""] : [command];
 }
 
 function operationalInputAnswer(
@@ -48,13 +54,20 @@ function runOperationalInputCommand(
   content: string,
   kind?: FirstmateCurrentOperationalKind,
 ): string | undefined {
-  const invocation = operationalInputInvocation(command, kind);
-  const result = spawnSync(invocation.command, invocation.args, {
-    encoding: "utf8",
-    input: content,
-    maxBuffer: 1024 * 1024,
-  });
-  return operationalInputAnswer(command, result.status, result.stdout);
+  const invocation = firstmateShellInvocation(
+    operationalInputScript,
+    operationalInputArgs(command, kind),
+  );
+  try {
+    const result = spawnSync(invocation.command, invocation.args, {
+      encoding: "utf8",
+      input: content,
+      maxBuffer: 1024 * 1024,
+    });
+    return operationalInputAnswer(command, result.status, result.stdout ?? "");
+  } catch {
+    return undefined;
+  }
 }
 
 function encodeFailure(kind: FirstmateCurrentOperationalKind): Error {
@@ -89,7 +102,10 @@ export async function encodeFirstmateOperationalInputWith(
   kind: FirstmateCurrentOperationalKind,
   content: string,
 ): Promise<string> {
-  const invocation = operationalInputInvocation("encode", kind);
+  const invocation = firstmateShellInvocation(
+    operationalInputScript,
+    operationalInputArgs("encode", kind),
+  );
   const result = await run(invocation.command, invocation.args, { input: content });
   const encoded = operationalInputAnswer("encode", result.status, result.stdout);
   if (encoded === undefined) throw encodeFailure(kind);

@@ -16,14 +16,16 @@
 # shellcheck source=bin/fm-cursor-lib.sh
 . "$(dirname -- "${BASH_SOURCE[0]}")/fm-cursor-lib.sh"
 
-# Known harness command names; extend when a new adapter is verified.
-FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^copilot(\.exe)?$|^pi$|^pi-signed$'
+# Known harness command names; extend when a new adapter is verified. omp is
+# anchored exactly like pi: its process name is the bare word `omp` (verified,
+# omp 18.1.11), and a substring match would claim ompd or comp.
+FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^copilot(\.exe)?$|^pi$|^pi-signed$|^omp$'
 
 # The same harnesses as exact executable names. Keep in sync with
 # FM_HARNESS_RE. Used only for the stricter path evidence below, where the
 # loose regex would also match ordinary firstmate paths such as
 # bin/fm-claude-stop-autoarm.sh.
-FM_HARNESS_NAMES=(claude codex opencode grok kimi copilot copilot.exe pi-signed pi)
+FM_HARNESS_NAMES=(claude codex opencode grok kimi copilot copilot.exe pi-signed pi omp)
 
 fm_session_process_comm() {  # <pid>
   local pid=$1 proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
@@ -125,7 +127,6 @@ fm_copilot_loader_pid() {
   fi
   printf '%s\n' "$pid"
 }
-
 # Print the exact harness name carried by executable path $1 - its own basename
 # or any directory component - or return 1.
 #

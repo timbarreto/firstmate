@@ -110,12 +110,11 @@ test_unpublished_lease_return_failure_is_visible() {
   pass "an unpublished lease return failure remains visible to spawn recovery"
 }
 
-test_acquisition_mode_leases_only_on_native_windows
-test_enter_worktree_command_quotes_literal_path
-test_environment_command_quotes_literal_value
-test_bash_script_command_quotes_literal_paths
-test_acquire_lease_uses_project_and_holder
-test_unpublished_lease_closes_endpoint_before_return
-test_unpublished_lease_return_failure_is_visible
-
-echo "# all native Windows Herdr Treehouse tests passed"
+fm_test_run_cases \
+  test_acquisition_mode_leases_only_on_native_windows \
+  test_enter_worktree_command_quotes_literal_path \
+  test_environment_command_quotes_literal_value \
+  test_bash_script_command_quotes_literal_paths \
+  test_acquire_lease_uses_project_and_holder \
+  test_unpublished_lease_closes_endpoint_before_return \
+  test_unpublished_lease_return_failure_is_visible

@@ -38,6 +38,10 @@
 #   (o) fm-pr-check rerun after HEAD moved                      -> no stale pr_head
 #   (p) fm-pr-check when local HEAD lags                        -> record remote PR head
 #   (q) no-mistakes + NO pr= recorded, PR discovered by branch  -> ALLOW  (yolo/no-CI merge)
+#   (q2) no-mistakes + squash-merged, local followed pipeline rebase -> ALLOW
+#   (q3) no-mistakes + squash-merged, same file, different content   -> REFUSE
+#   (q4) no-mistakes + squash-merged rebased local plus extra commit -> REFUSE
+#   (q5) gh down + squash-merged stale local, content not in default -> REFUSE
 #
 # Also covers backlog teardown-lock-race: a git index.lock left in the worktree by a
 # killed crew process (bin/fm-teardown.sh's teardown_treehouse_return).
@@ -165,7 +169,7 @@ SH
 
   # Bare origin so the clone has an `origin` remote and origin/HEAD.
   git init -q --bare "$case_dir/origin.git"
-  git -C "$case_dir/origin.git" symbolic-ref HEAD refs/heads/main
+  git --git-dir="$case_dir/origin.git" symbolic-ref HEAD refs/heads/main
   # Seed origin with one commit BEFORE cloning so the clone is not empty.
   git clone -q "$case_dir/origin.git" "$case_dir/_seed" 2>/dev/null
   git -C "$case_dir/_seed" -c user.email=t@t -c user.name=t \
@@ -269,6 +273,94 @@ echo "error: pull request not found" >&2
 exit 1
 SH
   chmod +x "$case_dir/fakebin/gh-axi" "$case_dir/fakebin/gh"
+}
+
+# Squash-merged history whose pipeline rebased the branch onto a newer main that
+# edited the same shared file. A local copy left behind by that rebase holds
+# different content for the shared file, so its per-commit patch ids against the
+# PR head differ and merge-tree against main conflicts; teardown refuses it on
+# purpose rather than reading a shared path as proof the local content landed.
+# local_mode: rebased | stale | rebased-plus-unlanded
+# Echoes: <pr_head>
+setup_squash_rebased_history() {
+  local case_dir=$1 local_mode=$2 tmp local_head pr_head
+  tmp="$case_dir/_shared_base"
+  git clone -q "$case_dir/origin.git" "$tmp"
+  printf '%s\n' base > "$tmp/shared.txt"
+  git -C "$tmp" add -- shared.txt
+  git -C "$tmp" -c user.email=t@t -c user.name=t commit -q -m "shared base"
+  git -C "$tmp" push -q origin main
+  git -C "$case_dir/wt" fetch -q origin
+  git -C "$case_dir/wt" reset -q --hard origin/main
+  rm -rf "$tmp"
+
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  printf '%s\n' base feature-edit > "$case_dir/wt/shared.txt"
+  git -C "$case_dir/wt" add -- shared.txt
+  git -C "$case_dir/wt" -c user.email=t@t -c user.name=t \
+    commit -q -m "edit shared from feature"
+  local_head=$(git -C "$case_dir/wt" rev-parse HEAD)
+
+  tmp="$case_dir/_main_move"
+  git clone -q "$case_dir/origin.git" "$tmp"
+  printf '%s\n' base main-edit > "$tmp/shared.txt"
+  git -C "$tmp" add -- shared.txt
+  git -C "$tmp" -c user.email=t@t -c user.name=t commit -q -m "main edits shared"
+  git -C "$tmp" push -q origin main
+  rm -rf "$tmp"
+
+  tmp="$case_dir/_pipeline"
+  git clone -q "$case_dir/origin.git" "$tmp"
+  git -C "$tmp" checkout -q -b fm/task-x1
+  printf '%s\n' hello > "$tmp/feature.txt"
+  git -C "$tmp" add -- feature.txt
+  git -C "$tmp" -c user.email=t@t -c user.name=t commit -q -m "add feature"
+  printf '%s\n' base main-edit feature-edit > "$tmp/shared.txt"
+  git -C "$tmp" add -- shared.txt
+  git -C "$tmp" -c user.email=t@t -c user.name=t \
+    commit -q -m "edit shared from feature"
+  pr_head=$(git -C "$tmp" rev-parse HEAD)
+  git -C "$tmp" push -q origin "HEAD:refs/pull/7/head"
+  git -C "$tmp" checkout -q main
+  git -C "$tmp" merge -q --squash fm/task-x1 >/dev/null
+  git -C "$tmp" -c user.email=t@t -c user.name=t commit -q -m "feat: squash (#7)"
+  git -C "$tmp" push -q origin main
+  rm -rf "$tmp"
+
+  git -C "$case_dir/project" fetch -q origin
+  git -C "$case_dir/wt" fetch -q origin "refs/pull/7/head:refs/fm-test/pr-head"
+  case "$local_mode" in
+    rebased)
+      git -C "$case_dir/wt" reset -q --hard "$pr_head"
+      ;;
+    stale)
+      git -C "$case_dir/wt" reset -q --hard "$local_head"
+      ;;
+    rebased-plus-unlanded)
+      git -C "$case_dir/wt" reset -q --hard "$pr_head"
+      wt_commit_file "$case_dir" later.txt local-only "local follow-up"
+      ;;
+    *)
+      fail "setup_squash_rebased_history: unknown local_mode $local_mode"
+      ;;
+  esac
+  printf '%s\n' "$pr_head"
+}
+
+# A refusal must leave every recovery route intact: the isolated copy, its task
+# branch still at the unlanded commit, and the durable task record. A completed
+# teardown detaches and deletes that branch and removes the record, so these hold
+# only while nothing destructive ran before the refusal was reported.
+# Args: case_dir label head-before-teardown
+assert_refusal_retained_task_state() {
+  local case_dir=$1 label=$2 head=$3
+  [ -d "$case_dir/wt" ] || fail "$label: refusal removed the isolated copy"
+  [ "$(git -C "$case_dir/wt" rev-parse --abbrev-ref HEAD 2>/dev/null)" = fm/task-x1 ] \
+    || fail "$label: refusal dropped the task branch"
+  [ "$(git -C "$case_dir/wt" rev-parse HEAD 2>/dev/null)" = "$head" ] \
+    || fail "$label: refusal moved the task branch off the unlanded commit"
+  [ -e "$case_dir/state/task-x1.meta" ] \
+    || fail "$label: refusal erased the durable task record"
 }
 
 append_pr_meta_for_current_head() {
@@ -545,12 +637,16 @@ run_teardown() {
 # no tasks-axi stub, so PATH resolves the installed one).
 seed_backlog_in_flight() {
   local case_dir=$1 kind=${2:-ship}
+  command -v tasks-axi >/dev/null 2>&1 \
+    || fail "tasks-axi is required for teardown backlog fixtures"
   mkdir -p "$case_dir/data"
   printf '%s\n' '# Backlog' '' '## In flight' '' '## Queued' '' '## Done' \
     > "$case_dir/data/backlog.md"
   tasks-axi add task-x1 "teardown fixture task" --kind "$kind" \
-    --file "$case_dir/data/backlog.md" >/dev/null
-  tasks-axi start task-x1 --file "$case_dir/data/backlog.md" >/dev/null
+    --file "$case_dir/data/backlog.md" >/dev/null \
+    || fail "could not add the teardown fixture backlog task"
+  tasks-axi start task-x1 --file "$case_dir/data/backlog.md" >/dev/null \
+    || fail "could not start the teardown fixture backlog task"
 }
 
 backlog_row_state() {
@@ -851,6 +947,98 @@ test_merged_pr_with_later_local_commit_refuses() {
   pass "merged PR does not allow teardown after a later local commit"
 }
 
+test_squash_merged_rebased_branch_allows() {
+  local case_dir rc pr_head
+  case_dir=$(make_case squash-rebased)
+  write_meta "$case_dir" no-mistakes ship
+  pr_head=$(setup_squash_rebased_history "$case_dir" rebased)
+  printf '%s\n' \
+    'pr=https://github.com/example/repo/pull/7' \
+    "pr_head=$pr_head" >> "$case_dir/state/task-x1.meta"
+  add_gh_pr_merged_for_head "$case_dir" "$pr_head"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "squash-rebased: teardown should succeed when the worktree followed the pipeline rebase"$'\n'"$(cat "$case_dir/stderr")"
+  ! grep -q REFUSED "$case_dir/stderr" || fail "squash-rebased: teardown printed a REFUSED line"
+  pass "squash-merged task whose local branch followed the pipeline rebase is torn down"
+}
+
+test_squash_merged_same_file_different_content_refuses() {
+  local case_dir rc pr_head local_head
+  case_dir=$(make_case squash-same-path-diverged)
+  write_meta "$case_dir" no-mistakes ship
+  # The pipeline rebase produced a different blob for shared.txt than the stale
+  # local still holds, then squash-merged. Same path is not proof the local
+  # content landed.
+  pr_head=$(setup_squash_rebased_history "$case_dir" stale)
+  local_head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  printf '%s\n' \
+    'pr=https://github.com/example/repo/pull/7' \
+    "pr_head=$pr_head" >> "$case_dir/state/task-x1.meta"
+  add_gh_pr_merged_for_head "$case_dir" "$pr_head"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "squash-same-path-diverged: teardown should refuse when the same file has different content"$'\n'"$(cat "$case_dir/stderr")"
+  grep -q REFUSED "$case_dir/stderr" || fail "squash-same-path-diverged: no REFUSED line in stderr"
+  assert_refusal_retained_task_state "$case_dir" squash-same-path-diverged "$local_head"
+  pass "squash-merged same-path different content still refuses"
+}
+
+# The local branch followed the pipeline rebase, so without later.txt this is the
+# q2 ALLOW case exactly. The one unlanded follow-up commit is the sole difference
+# and must be the sole reason teardown refuses.
+test_squash_merged_rebased_local_with_unlanded_commit_refuses() {
+  local case_dir rc pr_head local_head
+  case_dir=$(make_case squash-rebased-unlanded)
+  write_meta "$case_dir" no-mistakes ship
+  pr_head=$(setup_squash_rebased_history "$case_dir" rebased-plus-unlanded)
+  local_head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  printf '%s\n' \
+    'pr=https://github.com/example/repo/pull/7' \
+    "pr_head=$pr_head" >> "$case_dir/state/task-x1.meta"
+  add_gh_pr_merged_for_head "$case_dir" "$pr_head"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "squash-rebased-unlanded: teardown should refuse extra local commits that never landed"$'\n'"$(cat "$case_dir/stderr")"
+  grep -q REFUSED "$case_dir/stderr" || fail "squash-rebased-unlanded: no REFUSED line in stderr"
+  assert_refusal_retained_task_state "$case_dir" squash-rebased-unlanded "$local_head"
+  pass "squash-merged rebased local still refuses a genuinely unlanded follow-up commit"
+}
+
+test_squash_merged_stale_local_refuses_when_forge_unreachable() {
+  local case_dir rc pr_head local_head
+  case_dir=$(make_case squash-stale-offline)
+  write_meta "$case_dir" no-mistakes ship
+  pr_head=$(setup_squash_rebased_history "$case_dir" stale)
+  local_head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  printf '%s\n' \
+    'pr=https://github.com/example/repo/pull/7' \
+    "pr_head=$pr_head" >> "$case_dir/state/task-x1.meta"
+  add_gh_axi_error "$case_dir"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "squash-stale-offline: teardown should refuse when the forge is down and trees conflict"$'\n'"$(cat "$case_dir/stderr")"
+  grep -q REFUSED "$case_dir/stderr" || fail "squash-stale-offline: no REFUSED line in stderr"
+  assert_refusal_retained_task_state "$case_dir" squash-stale-offline "$local_head"
+  pass "squash-merged stale local still refuses when the forge is unreachable"
+}
+
 test_pr_check_does_not_refresh_stale_pr_head() {
   local case_dir rc pr_head new_head count
   case_dir=$(make_case pr-check-stale)
@@ -990,6 +1178,271 @@ test_gh_error_and_content_absent_refuses() {
   expect_code 1 "$rc" "gh-error: teardown should refuse when the PR lookup errors and content is not landed"
   grep -q REFUSED "$case_dir/stderr" || fail "gh-error: no REFUSED line in stderr"
   pass "gh lookup error with content not in default refuses (fail-safe)"
+}
+
+# Write a meta that predates the spawn_gen field entirely. Args: case_dir mode kind
+write_legacy_meta() {
+  local case_dir=$1 mode=$2 kind=$3
+  fm_write_meta "$case_dir/state/task-x1.meta" \
+    "window=firstmate:fm-task-x1" \
+    "endpoint_task_id=task-x1" \
+    "worktree=$case_dir/wt" \
+    "project=$case_dir/project" \
+    "kind=$kind" \
+    "mode=$mode" \
+    "harness=codex"
+}
+
+# Count spawn_gen fields in the task's meta, so a refusal can prove it left the
+# record byte-equivalent rather than stamped.
+legacy_meta_gen_count() {
+  local case_dir=$1
+  awk -F= '$1 == "spawn_gen" { count++ } END { print count + 0 }' \
+    "$case_dir/state/task-x1.meta" 2>/dev/null || printf '0\n'
+}
+
+# Override fakebin/tmux so the recovery-grade classifier reads the endpoint as
+# unreadable (a session inventory failure it cannot attribute), never dead.
+add_unreadable_tmux() {
+  local case_dir=$1
+  cat > "$case_dir/fakebin/tmux" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+  list-windows) echo "error connecting to fixture: permission denied" >&2 ; exit 1 ;;
+esac
+exit 0
+SH
+  chmod +x "$case_dir/fakebin/tmux"
+}
+
+test_legacy_record_without_the_flag_refuses() {
+  local case_dir rc
+  case_dir=$(make_case legacy-noflag)
+  write_legacy_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  wt_commit "$case_dir" "landed legacy work"
+  add_fork_with_pushed_branch "$case_dir"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "legacy-noflag: a record without spawn_gen must refuse without --legacy-record"
+  grep -q -- '--legacy-record' "$case_dir/stderr" \
+    || fail "legacy-noflag: the refusal did not name the --legacy-record path"
+  [ "$(legacy_meta_gen_count "$case_dir")" = 0 ] \
+    || fail "legacy-noflag: the refusal stamped a spawn generation into the record"
+  [ "$(backlog_row_state "$case_dir")" = in_flight ] \
+    || fail "legacy-noflag: the refusal closed the backlog item anyway"
+  assert_present "$case_dir/state/task-x1.meta" \
+    "legacy-noflag: the refusal removed the task record"
+  pass "a record predating spawn_gen refuses teardown until --legacy-record is passed"
+}
+
+test_legacy_record_teardown_completes_when_landed_and_endpoint_dead() {
+  local case_dir out
+  case_dir=$(make_case legacy-allow)
+  write_legacy_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  wt_commit "$case_dir" "landed legacy work"
+  add_fork_with_pushed_branch "$case_dir"
+  # The default fakebin tmux answers every query with success and no output, so
+  # the classifier reads the recorded window as authoritatively missing.
+
+  out=$(run_teardown "$case_dir" --legacy-record) \
+    || fail "legacy-allow: teardown refused a landed legacy record with a dead endpoint"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] \
+    || fail "legacy-allow: teardown returned success with its backlog item still open"
+  printf '%s\n' "$out" | grep -Fq 'legacy record accepted without spawn_gen: endpoint missing, incarnation legacy-' \
+    || fail "legacy-allow: the teardown line did not log the accepted legacy incarnation: $out"
+  assert_absent "$case_dir/state/task-x1.backlog-close" \
+    "legacy-allow: a landed legacy close left its pending-close record behind"
+  assert_absent "$case_dir/state/task-x1.meta" \
+    "legacy-allow: teardown left the task record behind"
+  pass "a landed legacy record with a dead endpoint tears down and logs its accepted incarnation"
+}
+
+test_legacy_record_teardown_refuses_unlanded_work() {
+  local case_dir rc before
+  case_dir=$(make_case legacy-unlanded)
+  write_legacy_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  # Real content committed but pushed nowhere and merged nowhere.
+  wt_commit_file "$case_dir" feature.txt unique-legacy-content "real unlanded work"
+  before=$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')
+
+  set +e
+  run_teardown "$case_dir" --legacy-record > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "legacy-unlanded: --legacy-record must not relax the unlanded-work refusal"
+  grep -q REFUSED "$case_dir/stderr" \
+    || fail "legacy-unlanded: no REFUSED line for unlanded legacy work"
+  [ "$(legacy_meta_gen_count "$case_dir")" = 0 ] \
+    || fail "legacy-unlanded: the unlanded refusal stamped a spawn generation into the record"
+  [ "$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')" = "$before" ] \
+    || fail "legacy-unlanded: the unlanded refusal modified the task record"
+  [ "$(backlog_row_state "$case_dir")" = in_flight ] \
+    || fail "legacy-unlanded: the unlanded refusal closed the backlog item anyway"
+  pass "--legacy-record never relaxes the unlanded-work refusal"
+}
+
+test_legacy_record_teardown_refuses_an_ambiguous_endpoint() {
+  local case_dir rc before
+  case_dir=$(make_case legacy-ambiguous)
+  write_legacy_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  wt_commit "$case_dir" "landed legacy work"
+  add_fork_with_pushed_branch "$case_dir"
+  add_unreadable_tmux "$case_dir"
+  before=$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')
+
+  set +e
+  run_teardown "$case_dir" --legacy-record > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "legacy-ambiguous: an unreadable endpoint must refuse the legacy acceptance"
+  grep -q "not confidently dead or agent-less" "$case_dir/stderr" \
+    || fail "legacy-ambiguous: the refusal did not name the endpoint state"
+  [ "$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')" = "$before" ] \
+    || fail "legacy-ambiguous: the endpoint refusal modified the task record"
+  [ "$(backlog_row_state "$case_dir")" = in_flight ] \
+    || fail "legacy-ambiguous: the endpoint refusal closed the backlog item anyway"
+  pass "an endpoint that cannot be confidently read as dead refuses --legacy-record teardown"
+}
+
+test_legacy_record_rolls_the_stamp_back_when_the_marker_write_fails() {
+  local case_dir rc before
+  case_dir=$(make_case legacy-stamp-rollback)
+  write_legacy_meta "$case_dir" no-mistakes ship
+  printf '%s\n' 'pr=not-a-valid-url' >> "$case_dir/state/task-x1.meta"
+  seed_backlog_in_flight "$case_dir"
+  wt_commit "$case_dir" "landed legacy work"
+  add_fork_with_pushed_branch "$case_dir"
+  before=$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')
+
+  set +e
+  run_teardown "$case_dir" --legacy-record > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" \
+    "legacy-stamp-rollback: an unrecordable close must fail the teardown after accepting the legacy record"
+  [ "$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')" = "$before" ] \
+    || fail "legacy-stamp-rollback: the failed marker write left the record modified"
+  grep -q "rolled back" "$case_dir/stderr" \
+    || fail "legacy-stamp-rollback: the refusal did not report the rolled-back stamp"
+  [ "$(backlog_row_state "$case_dir")" = in_flight ] \
+    || fail "legacy-stamp-rollback: the failed teardown closed the backlog item anyway"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout2" 2> "$case_dir/stderr2"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" \
+    "legacy-stamp-rollback: the flag-less retry must not sail past the endpoint gate on the rolled-back record"
+  grep -q -- '--legacy-record' "$case_dir/stderr2" \
+    || fail "legacy-stamp-rollback: the retry refusal did not name the flag path"
+  [ "$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')" = "$before" ] \
+    || fail "legacy-stamp-rollback: the flag-less retry modified the record"
+  pass "--legacy-record teardown rolls its stamp back when the close marker write fails"
+}
+
+# Override fakebin/perl so ONLY the stamp rollback's truncate fails; every other
+# perl call in the lifecycle still runs the real interpreter, so the abandoned
+# attempt leaves its stamp behind for exactly the reason under test.
+add_failing_truncate_perl() {
+  local case_dir=$1 real
+  real=$(command -v perl)
+  cat > "$case_dir/fakebin/perl" <<SH
+#!/usr/bin/env bash
+case "\$*" in
+  *truncate*) exit 1 ;;
+esac
+exec "$real" "\$@"
+SH
+  chmod +x "$case_dir/fakebin/perl"
+}
+
+test_retained_legacy_stamp_still_faces_the_endpoint_gate() {
+  local case_dir rc stamped
+  case_dir=$(make_case legacy-stamp-retained)
+  write_legacy_meta "$case_dir" no-mistakes ship
+  printf '%s\n' 'pr=not-a-valid-url' >> "$case_dir/state/task-x1.meta"
+  seed_backlog_in_flight "$case_dir"
+  wt_commit "$case_dir" "landed legacy work"
+  add_fork_with_pushed_branch "$case_dir"
+  add_failing_truncate_perl "$case_dir"
+
+  set +e
+  run_teardown "$case_dir" --legacy-record > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" \
+    "legacy-stamp-retained: an unrecordable close must fail the teardown after accepting the legacy record"
+  grep -q "could not be rolled back" "$case_dir/stderr" \
+    || fail "legacy-stamp-retained: the fixture did not exercise a failed rollback"
+  [ "$(legacy_meta_gen_count "$case_dir")" = 1 ] \
+    || fail "legacy-stamp-retained: the abandoned attempt did not leave its stamp on the record"
+  stamped=$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')
+
+  # The stamp the failed rollback left behind is the whole risk: a retry must
+  # not read it as an incarnation some spawn published and sail past the
+  # dead-or-agent-less endpoint gate onto a reused endpoint.
+  add_unreadable_tmux "$case_dir"
+  set +e
+  run_teardown "$case_dir" --legacy-record > "$case_dir/stdout2" 2> "$case_dir/stderr2"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" \
+    "legacy-stamp-retained: the retry must re-run the endpoint gate on the retained stamp"
+  grep -q "not confidently dead or agent-less" "$case_dir/stderr2" \
+    || fail "legacy-stamp-retained: the retry skipped the dead-or-agent-less endpoint gate"
+  [ "$(legacy_meta_gen_count "$case_dir")" = 1 ] \
+    || fail "legacy-stamp-retained: the retry stamped a second incarnation into the record"
+  [ "$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')" = "$stamped" ] \
+    || fail "legacy-stamp-retained: the endpoint refusal modified the task record"
+  [ "$(backlog_row_state "$case_dir")" = in_flight ] \
+    || fail "legacy-stamp-retained: the endpoint refusal closed the backlog item anyway"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout3" 2> "$case_dir/stderr3"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" \
+    "legacy-stamp-retained: a flag-less retry must refuse the retained legacy stamp"
+  grep -q -- '--legacy-record' "$case_dir/stderr3" \
+    || fail "legacy-stamp-retained: the flag-less refusal did not name the flag path"
+  [ "$(cksum "$case_dir/state/task-x1.meta" | awk '{print $1, $2}')" = "$stamped" ] \
+    || fail "legacy-stamp-retained: the flag-less refusal modified the task record"
+  pass "a legacy stamp a failed rollback left behind still faces the endpoint gate"
+}
+
+test_legacy_record_never_accepts_a_corrupt_spawn_gen() {
+  local case_dir rc
+  case_dir=$(make_case legacy-corrupt)
+  write_legacy_meta "$case_dir" no-mistakes ship
+  printf 'spawn_gen=one\nspawn_gen=two\n' >> "$case_dir/state/task-x1.meta"
+  seed_backlog_in_flight "$case_dir"
+  wt_commit "$case_dir" "landed legacy work"
+  add_fork_with_pushed_branch "$case_dir"
+
+  set +e
+  run_teardown "$case_dir" --legacy-record > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "legacy-corrupt: an ambiguous spawn_gen must refuse even with --legacy-record"
+  grep -q "unreadable spawn_gen" "$case_dir/stderr" \
+    || fail "legacy-corrupt: the refusal did not name the unreadable spawn_gen"
+  [ "$(legacy_meta_gen_count "$case_dir")" = 2 ] \
+    || fail "legacy-corrupt: the refusal rewrote the corrupt record"
+  [ "$(backlog_row_state "$case_dir")" = in_flight ] \
+    || fail "legacy-corrupt: the refusal closed the backlog item anyway"
+  pass "a corrupt spawn_gen is never accepted as a legacy record"
 }
 
 test_stale_index_lock_cleared_and_teardown_succeeds() {
@@ -1152,6 +1605,13 @@ test_non_linked_index_lock_path_is_checked_from_worktree() {
 
 test_index_lock_mtime_read_failure_refuses() {
   local case_dir rc lock
+  # The mtime fault is injected by a fake stat on PATH; on Darwin the lock
+  # helper now calls /usr/bin/stat directly, so the fake can never fire there.
+  # Skip the Darwin run of this case.
+  if [ "$(uname)" = Darwin ]; then
+    pass "index-lock mtime fault injection is PATH-based; skipped on Darwin where stat is /usr/bin/stat"
+    return
+  fi
   case_dir=$(make_case mtime-error-index-lock)
   write_meta "$case_dir" no-mistakes ship
   wt_commit "$case_dir" "shippable work"
@@ -3448,79 +3908,91 @@ EOF
   pass "the run abort and the leaked-process reap both complete before the destructive worktree return"
 }
 
-test_local_only_fork_remote_allows
-test_teardown_closes_the_backlog_item_itself
-test_teardown_manual_backend_leaves_the_backlog_to_the_operator
-test_local_only_truly_unpushed_refuses
-test_local_only_merged_to_local_main_allows
-test_no_mistakes_origin_remote_allows
-test_no_mistakes_truly_unpushed_refuses
-test_local_only_force_overrides_unpushed
-test_secondmate_pr_registration_publishes_ready_line
-test_secondmate_home_teardown_delivers_final_line_or_refuses
-test_teardown_missing_busy_sidecar_completes
-test_herdr_teardown_clears_escalation_marker
-test_herdr_flat_teardown_refuses_orphaning_records_then_retry_completes
-test_herdr_flat_teardown_refuses_records_on_unparseable_presence
-test_herdr_flat_teardown_preflight_refuses_before_changes
-test_forced_secondmate_herdr_child_preflight_refuses_before_changes
-test_forced_secondmate_teardown_holds_descendant_lifecycle_locks
-test_forced_secondmate_herdr_child_retains_records_when_close_unconfirmed
-test_forced_teardown_retains_nested_secondmate_home_when_grandchild_close_unconfirmed
-test_herdr_projection_teardown_restores_safe_focus
-test_herdr_projection_teardown_defers_idempotently_without_a_captain_decision
-test_herdr_projection_teardown_recovers_after_confirmed_close
-test_herdr_projection_teardown_retires_journal_only_after_confirmed_close
-test_herdr_projection_teardown_retains_journal_when_close_unconfirmed
-test_herdr_projection_teardown_surfaces_restore_failure_without_blocking_cleanup
-test_squash_merged_branch_deleted_allows
-test_squash_merged_pr_allows_when_head_ancestor_of_pr_head
-test_no_pr_recorded_discovers_merged_pr_by_branch_allows
-test_squash_merged_pr_allows_replayed_unpushed_patch
-test_merged_pr_with_later_local_commit_refuses
-test_pr_check_does_not_refresh_stale_pr_head
-test_pr_check_records_remote_head_when_local_lags
-test_content_in_default_fallback_allows
-test_content_fallback_refreshes_stale_origin_ref
-test_dirty_worktree_refuses
-test_gh_error_and_content_absent_refuses
-test_stale_index_lock_cleared_and_teardown_succeeds
-test_live_index_lock_is_never_removed_and_teardown_refuses
-test_lsof_error_never_clears_index_lock
-test_stale_index_lock_cleanup_rechecks_dirty_worktree
-test_non_linked_index_lock_path_is_checked_from_worktree
-test_index_lock_mtime_read_failure_refuses
-test_transient_index_lock_clears_after_first_attempt_and_retry_succeeds
-test_persistent_index_lock_exhausts_retries_and_refuses_loudly
-test_empty_retry_wait_uses_default_without_aborting
-test_fractional_legacy_retry_wait_refuses_without_arithmetic_error
-test_parked_own_run_is_aborted_before_teardown
-test_parked_run_advanced_past_unfetched_head_is_still_aborted
-test_parked_run_with_mismatched_ledger_head_is_never_aborted
-test_parked_run_with_malformed_ledger_row_is_never_aborted
-test_parked_run_with_impossible_ledger_date_is_never_aborted
-test_terminal_status_with_gate_never_queries_or_aborts_ledger_fallback
-test_parked_run_advanced_head_locally_fetched_is_still_aborted
-test_parked_advanced_run_without_anchor_is_never_aborted
-test_parked_advanced_run_ancestor_anchor_is_never_aborted
-test_parked_terminal_unfetched_row_is_never_aborted
-test_parked_run_terminal_newest_row_at_own_head_is_never_aborted
-test_parked_run_behind_diverged_newer_row_is_never_aborted
-test_parked_advanced_run_ambiguous_rows_are_never_aborted
-test_ledger_proven_continuation_never_aborts_active_run
-test_parked_own_run_refuses_when_abort_is_unconfirmed
-test_mismatched_run_after_abort_refuses_unconfirmed
-test_empty_status_after_abort_refuses_unconfirmed
-test_not_found_status_after_abort_confirms_completion
-test_another_branchs_parked_run_is_never_touched
-test_own_autonomous_run_is_left_alone
-test_leaked_worktree_process_is_reaped
-test_leaked_tasktmp_process_is_reaped
-test_lsof_absent_reaps_tmux_process_group
-test_lsof_error_refuses_before_removal
-test_reused_pid_identity_is_not_force_killed
-test_exec_changed_process_is_still_reaped
-test_process_spawned_during_grace_is_reaped_on_later_pass
-test_persistent_scan_refuses_after_bounded_retries
-test_process_exit_during_identity_lookup_does_not_refuse
-test_run_abort_precedes_process_reap_precedes_worktree_removal
+fm_test_run_cases \
+  test_local_only_fork_remote_allows \
+  test_teardown_closes_the_backlog_item_itself \
+  test_teardown_manual_backend_leaves_the_backlog_to_the_operator \
+  test_local_only_truly_unpushed_refuses \
+  test_local_only_merged_to_local_main_allows \
+  test_no_mistakes_origin_remote_allows \
+  test_no_mistakes_truly_unpushed_refuses \
+  test_local_only_force_overrides_unpushed \
+  test_secondmate_pr_registration_publishes_ready_line \
+  test_secondmate_home_teardown_delivers_final_line_or_refuses \
+  test_teardown_missing_busy_sidecar_completes \
+  test_herdr_teardown_clears_escalation_marker \
+  test_herdr_flat_teardown_refuses_orphaning_records_then_retry_completes \
+  test_herdr_flat_teardown_refuses_records_on_unparseable_presence \
+  test_herdr_flat_teardown_preflight_refuses_before_changes \
+  test_forced_secondmate_herdr_child_preflight_refuses_before_changes \
+  test_forced_secondmate_teardown_holds_descendant_lifecycle_locks \
+  test_forced_secondmate_herdr_child_retains_records_when_close_unconfirmed \
+  test_forced_teardown_retains_nested_secondmate_home_when_grandchild_close_unconfirmed \
+  test_herdr_projection_teardown_restores_safe_focus \
+  test_herdr_projection_teardown_defers_idempotently_without_a_captain_decision \
+  test_herdr_projection_teardown_recovers_after_confirmed_close \
+  test_herdr_projection_teardown_retires_journal_only_after_confirmed_close \
+  test_herdr_projection_teardown_retains_journal_when_close_unconfirmed \
+  test_herdr_projection_teardown_surfaces_restore_failure_without_blocking_cleanup \
+  test_squash_merged_branch_deleted_allows \
+  test_squash_merged_pr_allows_when_head_ancestor_of_pr_head \
+  test_no_pr_recorded_discovers_merged_pr_by_branch_allows \
+  test_squash_merged_pr_allows_replayed_unpushed_patch \
+  test_merged_pr_with_later_local_commit_refuses \
+  test_squash_merged_rebased_branch_allows \
+  test_squash_merged_same_file_different_content_refuses \
+  test_squash_merged_rebased_local_with_unlanded_commit_refuses \
+  test_squash_merged_stale_local_refuses_when_forge_unreachable \
+  test_pr_check_does_not_refresh_stale_pr_head \
+  test_pr_check_records_remote_head_when_local_lags \
+  test_content_in_default_fallback_allows \
+  test_content_fallback_refreshes_stale_origin_ref \
+  test_dirty_worktree_refuses \
+  test_gh_error_and_content_absent_refuses \
+  test_legacy_record_without_the_flag_refuses \
+  test_legacy_record_teardown_completes_when_landed_and_endpoint_dead \
+  test_legacy_record_teardown_refuses_unlanded_work \
+  test_legacy_record_teardown_refuses_an_ambiguous_endpoint \
+  test_legacy_record_rolls_the_stamp_back_when_the_marker_write_fails \
+  test_retained_legacy_stamp_still_faces_the_endpoint_gate \
+  test_legacy_record_never_accepts_a_corrupt_spawn_gen \
+  test_stale_index_lock_cleared_and_teardown_succeeds \
+  test_live_index_lock_is_never_removed_and_teardown_refuses \
+  test_lsof_error_never_clears_index_lock \
+  test_stale_index_lock_cleanup_rechecks_dirty_worktree \
+  test_non_linked_index_lock_path_is_checked_from_worktree \
+  test_index_lock_mtime_read_failure_refuses \
+  test_transient_index_lock_clears_after_first_attempt_and_retry_succeeds \
+  test_persistent_index_lock_exhausts_retries_and_refuses_loudly \
+  test_empty_retry_wait_uses_default_without_aborting \
+  test_fractional_legacy_retry_wait_refuses_without_arithmetic_error \
+  test_parked_own_run_is_aborted_before_teardown \
+  test_parked_run_advanced_past_unfetched_head_is_still_aborted \
+  test_parked_run_with_mismatched_ledger_head_is_never_aborted \
+  test_parked_run_with_malformed_ledger_row_is_never_aborted \
+  test_parked_run_with_impossible_ledger_date_is_never_aborted \
+  test_terminal_status_with_gate_never_queries_or_aborts_ledger_fallback \
+  test_parked_run_advanced_head_locally_fetched_is_still_aborted \
+  test_parked_advanced_run_without_anchor_is_never_aborted \
+  test_parked_advanced_run_ancestor_anchor_is_never_aborted \
+  test_parked_terminal_unfetched_row_is_never_aborted \
+  test_parked_run_terminal_newest_row_at_own_head_is_never_aborted \
+  test_parked_run_behind_diverged_newer_row_is_never_aborted \
+  test_parked_advanced_run_ambiguous_rows_are_never_aborted \
+  test_ledger_proven_continuation_never_aborts_active_run \
+  test_parked_own_run_refuses_when_abort_is_unconfirmed \
+  test_mismatched_run_after_abort_refuses_unconfirmed \
+  test_empty_status_after_abort_refuses_unconfirmed \
+  test_not_found_status_after_abort_confirms_completion \
+  test_another_branchs_parked_run_is_never_touched \
+  test_own_autonomous_run_is_left_alone \
+  test_leaked_worktree_process_is_reaped \
+  test_leaked_tasktmp_process_is_reaped \
+  test_lsof_absent_reaps_tmux_process_group \
+  test_lsof_error_refuses_before_removal \
+  test_reused_pid_identity_is_not_force_killed \
+  test_exec_changed_process_is_still_reaped \
+  test_process_spawned_during_grace_is_reaped_on_later_pass \
+  test_persistent_scan_refuses_after_bounded_retries \
+  test_process_exit_during_identity_lookup_does_not_refuse \
+  test_run_abort_precedes_process_reap_precedes_worktree_removal
