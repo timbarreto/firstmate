@@ -109,6 +109,10 @@
     {
       "source": "CONTRIBUTING.md",
       "target": "docs/fork/verification.md"
+    },
+    {
+      "source": "docs/fork/verification.md",
+      "target": "docs/fork/architecture.md"
     }
   ],
   "surfaces": [
@@ -359,6 +363,10 @@
     {
       "path": "docs/fm-test-portable-shards.md",
       "audience": "maintainer-verification"
+    },
+    {
+      "path": "docs/fork/architecture.md",
+      "audience": "maintainer-architecture"
     },
     {
       "path": "docs/fork/upstream-plan.md",

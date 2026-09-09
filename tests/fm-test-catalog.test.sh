@@ -160,6 +160,7 @@ test_catalog_list_has_no_new_dependencies_or_row_processes() {
   catalog_fixture "$repo"
   mkdir -p "$fakebin"
   for tool in node jq python3; do
+    # shellcheck disable=SC2016 # The generated shim reads the invocation environment.
     printf '#!/usr/bin/env bash\necho forbidden >>"$CATALOG_FORBIDDEN"\nexit 99\n' >"$fakebin/$tool"
   done
   cat >"$fakebin/awk" <<'SH'
@@ -181,9 +182,58 @@ SH
   pass "list mode validates metadata once with Bash/awk and cached proof results"
 }
 
+test_catalog_module_reference_and_lint_membership() {
+  local tmp repo path index=0 selected full changed
+  local -a modules=(bin/harnesses/pilot.sh bin/platform/native.sh
+    bin/platform/process.mjs bin/platform/process.d.mts bin/platform/native.ps1)
+  tmp=$(fm_test_tmproot fm-catalog-modules)
+  repo="$tmp/repo"
+  catalog_fixture "$repo"
+  cp "$ROOT/bin/fm-lint.sh" "$repo/bin/"
+  mkdir -p "$repo/bin/harnesses" "$repo/bin/platform"
+  printf '%s\n' \
+    $'override-map\tbroad\t20\tbin/*\tpure-contract-unit\t20\tlegacy/*\tpure-contract-unit' \
+    >>"$repo/tests/catalog/fork.tsv"
+  for path in "${modules[@]}"; do
+    index=$((index + 1))
+    printf '# dependency-%s.sh\n' "$index" >"$repo/$path"
+    printf '# dependency\n' >"$repo/bin/dependency-$index.sh"
+    printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/tests/module-$index.test.sh"
+    printf 'map\tmodule-%s\t%s\t%s\t__script__:module-%s.test.sh\n' \
+      "$index" "$((20 + index))" "$path" "$index" >>"$repo/tests/catalog/fork.tsv"
+  done
+  git -C "$repo" init -q
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
+  git -C "$repo" branch -M main
+  git -C "$repo" checkout -qb catalog-change
+  for index in 1 2 3 4 5; do
+    printf '# changed dependency\n' >>"$repo/bin/dependency-$index.sh"
+  done
+  selected=$("$repo/bin/fm-test-run.sh" --list --changed --base main) \
+    || fail "module consumers must resolve changed dependencies"
+  for index in 1 2 3 4 5; do
+    assert_contains "$selected" "tests/module-$index.test.sh" "every module kind must select its consumer"
+  done
+  [ "$(printf '%s\n' "$selected" | wc -l | tr -d ' ')" = 5 ] \
+    || fail "module references must not select unrelated tests"
+  full=$(CI=true "$repo/bin/fm-lint.sh" --list-files) || fail "full lint listing failed"
+  for path in bin/harnesses/pilot.sh bin/platform/native.sh; do
+    printf '# changed module\n' >>"$repo/$path"
+  done
+  changed=$(CI=false GITHUB_ACTIONS=false "$repo/bin/fm-lint.sh" --list-files) \
+    || fail "changed lint listing failed"
+  for path in bin/harnesses/pilot.sh bin/platform/native.sh; do
+    assert_contains "$full" "$path" "full lint must include new shell directories"
+    assert_contains "$changed" "$path" "changed lint must include new shell directories"
+  done
+  pass "shell, module, declaration and native consumers retain reference routing and lint coverage"
+}
+
 fm_test_run_cases \
   test_catalog_overrides_and_ordering \
   test_catalog_rejects_invalid_records \
   test_catalog_missing_dependencies_refuse \
   test_catalog_cannot_grant_concurrency \
-  test_catalog_list_has_no_new_dependencies_or_row_processes
+  test_catalog_list_has_no_new_dependencies_or_row_processes \
+  test_catalog_module_reference_and_lint_membership

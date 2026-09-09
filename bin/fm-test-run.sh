@@ -983,7 +983,7 @@ prepare_changed_reference_index() {
     [ -n "$s" ] || continue
     reference_files+=("$s")
   done <"$all_tests"
-  for b in bin/*.sh bin/*.mjs bin/*.ps1 bin/backends/*.sh bin/harnesses/*.sh bin/platform/*.mjs bin/platform/*.d.mts bin/platform/*.ps1; do
+  for b in bin/*.sh bin/*.mjs bin/*.ps1 bin/backends/*.sh bin/harnesses/*.sh bin/platform/*.sh bin/platform/*.mjs bin/platform/*.d.mts bin/platform/*.ps1; do
     [ -f "$b" ] || continue
     reference_files+=("$b")
     printf '%s\n' "${b##*/}" >>"$patterns"
@@ -1170,7 +1170,7 @@ bin_consumers_of() {
     changed_reference_lookup "$needle"
     for b in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
       case "$b" in
-        bin/*.sh|bin/*.mjs|bin/*.ps1)
+        bin/*.sh|bin/*.mjs|bin/*.d.mts|bin/*.ps1)
           [ "${b##*/}" = "$needle" ] || printf '%s\n' "$b"
           ;;
       esac
@@ -1182,7 +1182,7 @@ bin_consumers_of() {
     while IFS=$'\t' read -r indexed_needle b; do
       [ "$indexed_needle" = "$needle" ] || continue
       case "$b" in
-        bin/*.sh|bin/*.mjs|bin/*.ps1)
+        bin/*.sh|bin/*.mjs|bin/*.d.mts|bin/*.ps1)
           [ "${b##*/}" = "$needle" ] || printf '%s\n' "$b"
           ;;
       esac
@@ -1190,7 +1190,7 @@ bin_consumers_of() {
     return 0
   fi
 
-  for b in bin/*.sh bin/*.mjs bin/*.ps1 bin/backends/*.sh bin/harnesses/*.sh bin/platform/*.mjs bin/platform/*.d.mts bin/platform/*.ps1; do
+  for b in bin/*.sh bin/*.mjs bin/*.ps1 bin/backends/*.sh bin/harnesses/*.sh bin/platform/*.sh bin/platform/*.mjs bin/platform/*.d.mts bin/platform/*.ps1; do
     [ -f "$b" ] || continue
     [ "${b##*/}" = "$needle" ] || consumers+=("$b")
   done
@@ -1225,7 +1225,7 @@ families_for_unmapped_bin() {
       changed_reference_lookup "$needle"
       for consumer in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
         case "$consumer" in
-          bin/*.sh|bin/*.mjs|bin/*.ps1) ;;
+          bin/*.sh|bin/*.mjs|bin/*.d.mts|bin/*.ps1) ;;
           *) continue ;;
         esac
         [ "${consumer##*/}" = "$needle" ] && continue

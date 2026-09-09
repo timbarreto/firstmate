@@ -1,11 +1,11 @@
 # Firstmate fork-locality implementation plan
 
-**Status:** Implementation authorized separately; the first CI-isolation slice is in progress.
+**Status:** Implementation authorized separately; CI isolation has landed and the test-catalog slice is in progress.
 Settings changes, merges, and live Firstmate operations remain outside this implementation request.
 
 **Repository plan:** `docs\fork\upstream-plan.md`.
 
-**Next step:** Complete the baseline and first follow-up PR before starting the test-catalog slice from the landed CI change.
+**Next step:** Complete the test-catalog follow-up PR before starting private-path extraction from its landed change.
 Delivery evidence and the remaining implementation todos are tracked in session/PR artifacts.
 
 ## Problem and intended outcome
