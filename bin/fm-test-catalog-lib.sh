@@ -17,11 +17,25 @@
 # fm_test_catalog_maps <path> prints the first matching map's targets, or returns
 # 1 if unmapped. FM_TEST_CATALOG_FAMILIES and FM_TEST_CATALOG_WEIGHTS contain
 # ordered family names and space-separated duration rows for bulk consumers.
+# FM_TEST_CATALOG_RECORDS retains normalized TSV for fixture projection.
 # Loading uses one awk process; lookups use Bash builtins, never eval or source
 # on metadata. This module cannot admit concurrency or change worker caps.
 
+# Encode keys injectively into scalar names for Bash 3.2's variable table.
+fm_test_catalog_cache_key() {
+  local kind=$1 encoded=$2 LC_ALL=C
+  FM_TEST_CATALOG_CACHE_KEY=
+  case "$kind" in family|test|duration|map) ;; *) return 1 ;; esac
+  case "$encoded" in ''|*[!a-zA-Z0-9_./-]*) return 1 ;; esac
+  encoded=${encoded//_/_u}
+  encoded=${encoded//\//_s}
+  encoded=${encoded//./_d}
+  encoded=${encoded//-/_h}
+  FM_TEST_CATALOG_CACHE_KEY="FM_TEST_CATALOG_ENTRY_${kind}_${encoded}"
+}
+
 fm_test_catalog_load() {
-  local root=$1 file records kind key value rest path
+  local root=$1 file records kind key value rest path cache_key cache_value
   local -a catalog_inventory=()
   for file in "$root/tests/catalog/core.tsv" "$root/tests/catalog/fork.tsv"; do
     [ -f "$file" ] && [ -r "$file" ] || {
@@ -158,12 +172,25 @@ fm_test_catalog_load() {
   ' <(printf '%s\n' "${catalog_inventory[@]+"${catalog_inventory[@]}"}") \
     "$root/tests/catalog/core.tsv" "$root/tests/catalog/fork.tsv") || return 2
 
+  # shellcheck disable=SC2034 # Fixture projection consumes this normalized snapshot.
   FM_TEST_CATALOG_RECORDS=$'\n'"$records"$'\n'
   FM_TEST_CATALOG_FAMILIES=
   FM_TEST_CATALOG_WEIGHTS=
   FM_TEST_CATALOG_MAP_PATTERNS=()
   FM_TEST_CATALOG_MAP_TARGETS=()
+  for cache_key in "${FM_TEST_CATALOG_CACHE_KEYS[@]+"${FM_TEST_CATALOG_CACHE_KEYS[@]}"}"; do
+    unset "$cache_key"
+  done
+  FM_TEST_CATALOG_CACHE_KEYS=()
   while IFS=$'\t' read -r kind key value rest; do
+    fm_test_catalog_cache_key "$kind" "$key" || {
+      printf 'fm-test-catalog: invalid cache key: %s %s\n' "$kind" "$key" >&2
+      return 2
+    }
+    cache_value=$value
+    [ -z "$rest" ] || cache_value+=$'\t'"$rest"
+    printf -v "$FM_TEST_CATALOG_CACHE_KEY" '%s' "$cache_value" || return 2
+    FM_TEST_CATALOG_CACHE_KEYS+=("$FM_TEST_CATALOG_CACHE_KEY")
     case "$kind" in
       family) FM_TEST_CATALOG_FAMILIES="${FM_TEST_CATALOG_FAMILIES}${key}"$'\n' ;;
       duration) FM_TEST_CATALOG_WEIGHTS="${FM_TEST_CATALOG_WEIGHTS}${key} ${value}"$'\n' ;;
@@ -177,16 +204,10 @@ fm_test_catalog_load() {
 
 # shellcheck disable=SC2034 # FM_TEST_CATALOG_VALUE is the public lookup result.
 fm_test_catalog_get() {
-  local marker=$'\n'"$1"$'\t'"$2"$'\t' rest
   FM_TEST_CATALOG_VALUE=
-  case "$FM_TEST_CATALOG_RECORDS" in
-    *"$marker"*)
-      rest=${FM_TEST_CATALOG_RECORDS#*"$marker"}
-      FM_TEST_CATALOG_VALUE=${rest%%$'\n'*}
-      return 0
-      ;;
-  esac
-  return 1
+  fm_test_catalog_cache_key "$1" "$2" || return 1
+  FM_TEST_CATALOG_VALUE=${!FM_TEST_CATALOG_CACHE_KEY-}
+  [ -n "$FM_TEST_CATALOG_VALUE" ]
 }
 
 fm_test_catalog_maps() {

@@ -19,6 +19,8 @@ Changes to a family assignment cannot reuse admission recorded for a different f
 [Isolation verification](../fm-test-isolation-proof.md) owns the evidence needed to change admissions.
 
 The loader validates once with Bash and awk, then serves in-memory lookups without evaluating metadata as shell code.
+Validated keys are encoded into Bash 3.2-compatible scalar entries, so lookups do not repeatedly scan or trim the complete TSV snapshot.
+Each successful load replaces the prior cache, including entries no longer present.
 Missing dependencies or invalid records stop selection explicitly.
 `tests/catalog-helpers.sh` installs the real loader and a minimal, valid dependency set for synthetic fixtures; it is not a production fallback or alternative registry.
 Tracked-only clones carry the catalogs and loader, and `.gitattributes` preserves the catalogs' LF format on Windows.

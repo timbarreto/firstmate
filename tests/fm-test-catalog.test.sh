@@ -60,6 +60,45 @@ test_catalog_preserves_existing_gate_classes() {
   pass "every existing family retains its pre-extraction gate class"
 }
 
+test_catalog_lookup_cost_is_bounded() {
+  local started elapsed iteration
+  fm_test_catalog_load "$ROOT" || fail "real catalogs must load"
+  started=$SECONDS
+  for ((iteration=0; iteration<100; iteration++)); do
+    fm_test_catalog_get test tests/fm-x-mode.test.sh || fail "registered test missing"
+    assert_equals pr-forge "$FM_TEST_CATALOG_VALUE" "lookup changed classification"
+  done
+  elapsed=$((SECONDS - started))
+  [ "$elapsed" -lt 5 ] || fail "100 cached lookups took ${elapsed}s; expected under 5s"
+  pass "cached lookups stay below a generous hot-path time bound"
+}
+
+test_catalog_cache_keys_and_reload() {
+  local tmp repo name weight=10
+  tmp=$(fm_test_tmproot fm-catalog-cache)
+  repo="$tmp/repo"
+  catalog_fixture "$repo"
+  for name in cache-key cache_key cache.key cache_hkey; do
+    printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/tests/$name.test.sh"
+    printf 'duration\ttests/%s.test.sh\t%s\n' "$name" "$weight" >>"$repo/tests/catalog/fork.tsv"
+    weight=$((weight + 10))
+  done
+  fm_test_catalog_load "$ROOT" || fail "real catalogs must load"
+  fm_test_catalog_get test tests/fm-x-mode.test.sh || fail "real registration missing"
+  fm_test_catalog_load "$repo" || fail "fixture catalogs must load"
+  if fm_test_catalog_get test tests/fm-x-mode.test.sh; then fail "reload retained a stale registration"; fi
+  weight=10
+  for name in cache-key cache_key cache.key cache_hkey; do
+    fm_test_catalog_get duration "tests/$name.test.sh" || fail "duration missing for $name"
+    assert_equals "$weight" "$FM_TEST_CATALOG_VALUE" "distinct keys collided"
+    weight=$((weight + 10))
+  done
+  fm_test_catalog_get map owned || fail "map lookup missing"
+  assert_equals $'10\tbin/owned.*\t__script__:fm-brief.test.sh' "$FM_TEST_CATALOG_VALUE" "map record changed"
+  if fm_test_catalog_get test 'tests/invalid[0].test.sh'; then fail "invalid key acquired a value"; fi
+  pass "cache keys remain distinct and reloads replace prior registrations"
+}
+
 test_catalog_overrides_and_ordering() {
   local tmp repo selected
   tmp=$(fm_test_tmproot fm-catalog-order)
@@ -255,6 +294,8 @@ test_catalog_module_reference_and_lint_membership() {
 
 fm_test_run_cases \
   test_catalog_preserves_existing_gate_classes \
+  test_catalog_lookup_cost_is_bounded \
+  test_catalog_cache_keys_and_reload \
   test_catalog_overrides_and_ordering \
   test_catalog_rejects_invalid_records \
   test_catalog_missing_dependencies_refuse \
