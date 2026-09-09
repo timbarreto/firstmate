@@ -2,6 +2,8 @@
 
 **Status:** Plan approved; implementation has not started. No repository implementation, publication, settings changes, or live Firstmate operations are authorized by this plan alone.
 
+**Repository plan:** `docs\fork\upstream-plan.md`.
+
 **Next step:** Begin `isolation-baseline` after a separate implementation request. All nine implementation todos remain pending.
 
 ## Problem and intended outcome
@@ -11,7 +13,7 @@ A single harness or Windows change consequently requires edits in several places
 
 Create deep modules at four practical seams:
 
-1. Claude/Copilot harness adapters behind a small, closed interface.
+1. Copilot/Pi harness adapters behind a small, closed interface.
 2. Cohesive process/transport and private-path modules with platform-specific implementations.
 3. Declarative test registration separate from the runner engine.
 4. Additive fork CI and focused fork documentation.
@@ -24,7 +26,8 @@ Do not claim that moving files alone eliminates the fork delta, or that all upst
 
 The user confirmed the following decisions:
 
-- Pilot the harness interface with **Claude and Copilot only**. Retain legacy dispatch and lifecycle handling for every other harness.
+- Pilot the harness interface with **Copilot and Pi only** (`copilot` and `pi`).
+  Retain legacy dispatch and lifecycle handling for every other harness, including Claude, `pi-signed`, and OMP.
 - Deliver fork-first changes that work independently of upstream acceptance, while keeping generic changes suitable for a later upstream contribution.
 - Use separate follow-up PRs, not more changes to reconciliation PR #38.
 - Preserve existing behavior, CLI/configuration contracts, Linux/macOS/Windows support, ownership safeguards, and required runtime dependencies.
@@ -64,6 +67,7 @@ Do not run Firstmate as a supervisor, operate a private fleet, or submit changes
 | Harness detection and identity | `bin\fm-harness.sh::detect_own`; `bin\fm-session-lock-lib.sh::fm_copilot_loader_pid`; verified markers, ancestry, and native/MSYS PID handling |
 | Dispatch and launch | `bin\fm-bootstrap.sh::crew_dispatch_validate`; `bin\fm-spawn.sh::launch_template`; executable preflight, model/effort arguments, hooks, environment scrubbing, and generation publication |
 | Control and supervision | `bin\fm-control-lib.sh`, `bin\fm-control.sh`, `bin\fm-busy-lib.sh`, `bin\fm-wake-lib.sh`; roles, recorded-name normalization, interrupt/exit behavior, busy sources, and owned cleanup |
+| Pi extension wiring | `bin\fm-spawn.sh`; generated worker extensions outside the worktree and secondmate loading of `.pi\extensions\fm-primary-turnend-guard.ts` and `.pi\extensions\fm-primary-pi-watch.ts` |
 | Existing adapter precedent | `bin\fm-backend.sh` and `bin\backends`; reuse its explicit dispatch style, not a runtime plugin framework |
 | Cross-language process behavior | `.pi\extensions\lib\fm-process-ancestry.ts` and `.opencode\plugins\lib\fm-process-ancestry.js`; overlapping implementations, but different exports |
 | Private paths | `bin\fm-pr-lib.sh`, `bin\fm-x-lib.sh`, `bin\fm-test-run.sh`, and presentation-lock validation in `bin\backends\herdr.sh` |
@@ -92,9 +96,10 @@ Do not solve missing imports with generated duplicate implementations, ambient c
 
 ### Target module and dependency direction
 
-Add `bin\fm-harness-lib.sh` with an explicit registry and concrete adapters at `bin\harnesses\claude.sh` and `bin\harnesses\copilot.sh`.
+Add `bin\fm-harness-lib.sh` with an explicit registry and concrete adapters at `bin\harnesses\copilot.sh` and `bin\harnesses\pi.sh`.
 Keep current executable entrypoints and compatibility functions.
 Only the registered pilots use the new interface; all other harnesses deliberately retain their existing path.
+Do not implicitly migrate `pi-signed` or OMP merely because they share some Pi helpers.
 
 The dependency direction is core lifecycle code -> harness interface/adapters -> generic platform helpers.
 Adapters must not source `fm-spawn.sh`, `fm-control-lib.sh`, `fm-wake-lib.sh`, or `fm-session-lock-lib.sh` to recover behavior.
@@ -108,7 +113,7 @@ Use four conceptual operations, not a callback for every existing branch:
 | Describe capabilities | Immutable, operation-specific support: dispatch validation, supported roles, model/effort handling, interrupt/exit/resume policy, supervision model, and busy sources |
 | Identify | Verify the pilot's existing identity evidence and return the appropriate process identity at its current detection stage |
 | Prepare launch | Resolve required executable information and render validated launch arguments/environment using existing quoting rules, before endpoint allocation |
-| Describe owned wiring | Render hook payloads and exact owned paths for the validated role/generation; let the existing lifecycle transaction publish or retire them |
+| Describe owned wiring | Render Copilot hook payloads or Pi extension wiring and exact owned paths for the validated role/generation; let the existing lifecycle transaction publish or retire them |
 
 These are internal operations, not new public CLI commands.
 Keep the shared launch context limited to facts callers already validate.
@@ -120,19 +125,31 @@ An unsupported operation retains its existing refusal behavior.
 
 - Preserve detection order: verified Copilot loader, Cursor, Gemini, Rovo, verified OMP override, Claude marker, Pi, Grok, then ancestry. Do not run every pilot probe before the legacy probes.
 - Keep marker verification and native/MSYS PID translation. `COPILOT_CLI` alone is not proof of identity.
+- Preserve Pi's `PI_CODING_AGENT` marker semantics and `FM_PI_HARNESS` discrimination without letting the `pi` adapter claim `pi-signed` or OMP.
 - Preserve the distinction between bootstrap-verified profiles and control-supported roles. In particular, do not broaden bootstrap support merely because control handles Gemini.
-- Keep configuration structure checks, absent/null/invalid-field behavior, aggregate error ordering, diagnostics, exit codes, and model-scoped Pi `ultra` handling.
+- Keep configuration structure checks, absent/null/invalid-field behavior, aggregate error ordering, diagnostics, and exit codes.
 - Preserve recorded raw-command normalization and raw-launch behavior; retain exact-name treatment for Pi, Pi-signed, and OMP.
-- Refuse unsupported secondmate replacements before stopping the current process. Keep Claude Escape versus Copilot Ctrl+C, their `/exit` behavior, and the absence of a verified pane-resume contract.
-- Retain Claude launch settings and conditional `CLAUDE_CONFIG_DIR` forwarding. Keep Copilot secondmate submission hooks and parent state/task/generation markers.
+- Refuse unsupported secondmate replacements before stopping the current process.
+  Keep Copilot Ctrl+C and `/exit`, Pi's single Escape and `/quit`, and the absence of a verified pane-resume contract for both pilots.
+- Retain Pi executable resolution, capability-gated `--tui-mode regular`, and the `FM_PI_HARNESS` launch marker.
+  Preserve `--model`, ordinary effort through `--thinking`, and model-scoped `ultra` through the existing native-effort validator and `--codex-effort`.
+- Keep Copilot secondmate submission hooks and parent state/task/generation markers.
+  Preserve Pi's separate role-specific launch wiring: a generated worker extension versus the two existing primary extensions for a secondmate.
 - Retain environment scrubbing, including foreign harness markers and inherited parent-Copilot bindings.
-- Preserve `<worktree>\.claude\settings.local.json`, `<worktree>\.github\hooks\zz-firstmate-<id>.json`, and `<state>\<id>.copilot-prompt-submitted`, plus existing hook entrypoint paths.
+- Preserve `<worktree>\.github\hooks\zz-firstmate-<id>.json`, `<state>\<id>.copilot-prompt-submitted`, and `<state>\<id>.pi-ext.ts`, plus existing hook and extension entrypoints.
+  Keep Pi's generated worker extension outside the worktree and retain explicit `-e` loading and owned cleanup.
+- Preserve Pi's `agent_start` busy event, `agent_settled` idle event with the existing `ctx.isIdle()` guard, notification-only `turn_end`, and generation-bound native-progress marker.
+  Do not substitute OMP's different event protocol or treat an inner turn end as a settled Pi run.
 - Keep retirement-before-replacement ordering, stale-generation rejection, ownership checks, metadata formats, and launch-failure rollback. Cleanup must target exact owned artifacts, not broad directory globs.
-- Preserve `FM_SUPERVISION_MODEL` overrides and existing autoarm/extension/persistent choices.
+- Preserve `FM_SUPERVISION_MODEL` overrides, Copilot's autoarm supervision, and Pi's extension supervision, including secondmate launches.
+  Keep all nonpilot supervision choices unchanged.
+- Leave Claude launch settings, conditional `CLAUDE_CONFIG_DIR` forwarding, and `<worktree>\.claude\settings.local.json` on the legacy path.
 
-Migrate each pilot end to end: detection, dispatch validation, launch preparation, hook rendering, busy/supervision queries, control, and cleanup.
+Migrate each pilot end to end: detection, dispatch validation, launch preparation, hook/extension wiring, busy/supervision queries, control, and cleanup.
 Trace guards, sending, restart, and teardown consumers so no second pilot implementation remains behind an old call path.
 Keep lifecycle orchestration in its current owners; replace vendor-specific implementation with calls across the new seam.
+Pi's adapter owns the selection and rendering of its launch/wiring, while the existing TypeScript modules retain primary/branch supervision behavior and authority.
+Do not move those supervision state machines into Bash or force Copilot and Pi to use the same event protocol.
 
 The hash-pinned `bin\fm-remote-doctor.sh` is an intentional exception.
 Keep it self-contained and leave its pin in `bin\fm-remote-entrypoint.sh` unchanged.
@@ -143,7 +160,8 @@ Document its small static compatibility patch instead of expanding the remote ar
 Add a focused root-level adapter contract suite and exercise both adapters through the same interface callers use.
 Characterize marker collisions, stale/foreign identities, invalid multi-profile configurations, raw commands, early refusal, special-character quoting, generation transitions, failed launch rollback, and explicit adapter-load failure.
 Retain existing executable regressions in `tests\fm-spawn-dispatch-profile.test.sh`, `tests\fm-control-relaunch.test.sh`, `tests\fm-copilot-harness.test.sh`, and related busy/supervision suites.
-Run representative nonpilot cases to prove the legacy path remains unchanged.
+Include Pi's worker/secondmate wiring and event-settlement contracts, plus `tests\fm-pi-watch-extension.test.sh`, `tests\fm-pi-primary-types.test.sh`, `tests\fm-pi-branch-extension.test.sh`, `tests\fm-pi-codex-native.test.sh`, and `tests\fm-pi-windows-shell-invocation.test.sh`.
+Run representative Claude, `pi-signed`, OMP, and other nonpilot cases to prove their legacy paths remain unchanged.
 
 ## 2. Platform modules
 
@@ -280,6 +298,8 @@ Leave `.github\workflows\windows-herdr-spike.yml` as its existing manual experim
 
 Ensure the new workflow is covered by actionlint and changed-test routing.
 Add bounded new platform/adapter cases to appropriate existing owners without dropping old cases or silently raising timeouts.
+Use the existing package-compatibility job for Pi's type/extension coverage and the existing Windows core subject for native Pi invocation coverage.
+Keep the Copilot launch subject and its named-case interface unchanged.
 Verify exact-head check names, subjects, permissions, and artifacts after the split; an old PR's checks are not evidence for the new workflow.
 
 ### Documentation consolidation
@@ -316,8 +336,8 @@ Do not amend or reopen PR #38.
 | `isolation-test-catalog` | PR B: introduce TSV loader/catalogs, remove metadata duplication, wire fixtures and routing | `isolation-fork-ci` | Identical-input parity, strict failure cases, proof-owned concurrency, and complete coverage |
 | `isolation-private-paths` | PR C: extract private-path mechanics and migrate the four caller groups | `isolation-test-catalog` | Native and portable policy/ownership parity; no weaker validation or new cache lifetime |
 | `isolation-process-transport` | PR D: share process implementation, native operations, and transport; fix dependency layouts | `isolation-private-paths` | Existing exports/imports and package checks preserved; owned process semantics and operation counts retained |
-| `isolation-harness-contract` | PR E, first phase: define the pilot interface, dependency direction, and contract characterization | `isolation-process-transport` | Two concrete adapters prove the seam; no circular dependencies or new core-state authority |
-| `isolation-harness-pilot` | PR E, completion: migrate both pilots across all lifecycle consumers and remove duplicate implementations | `isolation-harness-contract` | Pilot behavior preserved end to end and nonpilot legacy parity demonstrated |
+| `isolation-harness-contract` | PR E, first phase: define the Copilot/Pi interface, dependency direction, and contract characterization | `isolation-process-transport` | Copilot hooks and Pi extensions prove the seam; no circular dependencies or new core-state authority |
+| `isolation-harness-pilot` | PR E, completion: migrate Copilot and Pi across all lifecycle consumers and remove duplicate implementations | `isolation-harness-contract` | Pilot behavior preserved end to end; Claude, `pi-signed`, OMP, and other nonpilot legacy parity demonstrated |
 | `isolation-fork-docs` | PR F: consolidate fork documentation and stable ownership/pointers | `isolation-harness-pilot` | Classified, linked, nonduplicative guidance with compatibility facts and anchors retained |
 | `isolation-acceptance` | Complete integrated verification and final divergence/locality audit before closing the series | `isolation-fork-docs` | Every acceptance criterion below has evidence or an explicit unresolved blocker |
 
@@ -338,7 +358,7 @@ Use the recorded Git-for-Windows Bash, `C:\Program Files\Git\bin\bash.exe`, not 
 
 | Change | Required evidence |
 | --- | --- |
-| Harness interface | Both adapter contract suites, current executable launch/control regressions, legacy harness cases, stale/foreign ownership and generation rollback |
+| Harness interface | Copilot/Pi contract suites, executable launch/control regressions, Pi role-specific extension and settlement cases, nonpilot legacy cases, stale/foreign ownership and generation rollback |
 | Process/transport | Shared-module runtime tests, strict Pi type checks, OpenCode compatibility fixtures, actual native PID/quoting cases, preserved subprocess/cache behavior |
 | Private paths | Native ACL policy cases, POSIX ownership/link/device cases, mutation/replacement refusal, and existing PR/X/worker/Herdr consumers |
 | Catalog/runner | Identical-input selection/output parity, malformed-input refusals, single proof owner, complete/disjoint lane and five-shard partition, timing bounds |
@@ -349,7 +369,8 @@ Route broader portable, macOS, Windows, and Herdr checks to their existing CI ow
 Record a deferred or unavailable check as such, with its named owner and exact head; do not call an optional skip or a mock a real platform/vendor proof.
 Keep live vendor/backend checks separately gated and explicitly authorized in controlled fixtures.
 If hook discovery/order or other vendor-controlled assumptions change, require the existing live proof before claiming that assumption verified.
-For example, `tests\fm-copilot-hooks-live-e2e.test.sh` is an opt-in real-harness guard, not a default unit test.
+For example, `tests\fm-copilot-hooks-live-e2e.test.sh` and `tests\fm-pi-primary-live-e2e.test.sh` are opt-in real-harness guards, not default unit tests.
+Use the guard appropriate to the changed assumption; Copilot hook evidence does not prove Pi extension or primary-continuity behavior.
 
 Use existing tooling and dependencies.
 Do not add/install tools during planning, expand dependency requirements to simplify metadata parsing, alter host Git signing/hooks/configuration, or touch real fleet state.
@@ -359,7 +380,7 @@ Clean up only task-owned, specifically identified test artifacts and processes.
 
 The series is complete only when all of the following hold:
 
-1. Claude and Copilot each have one adapter-owned implementation of the migrated behavior. Core files retain orchestration and narrow interface calls, with explicitly documented exceptions such as the self-contained doctor.
+1. Copilot and Pi each have one adapter-owned implementation of the migrated behavior, with core orchestration and existing Pi supervision modules retained and exceptions such as the self-contained doctor documented.
 2. The Pi/OpenCode overlapping process implementation has one source, with old exports/import paths intact. Native private-path mechanics have one owner for each policy variant, without weakening checks or multiplying native calls.
 3. A normal new fork test can be registered through its test file and fork catalog without editing runner algorithms or upstream test files. Concurrency still requires the existing independent proof.
 4. All 18 existing automatic checks still have exactly one producer, their original coverage, and current exact-head evidence. The manual Herdr experiment remains manual.
@@ -368,7 +389,7 @@ The series is complete only when all of the following hold:
 7. Fork documentation has clear classified owners and concise upstream-document pointers, without broken anchors, duplicate policy, or lost safety facts.
 8. A final before/after report records modified upstream paths, integration hunks, moved implementation, remaining duplicate logic, and the owner/removal condition for retained patches.
 
-Judge locality with representative change-impact checks: a pilot hook/model change should normally stay in its adapter and focused tests; an ordinary fork test addition in its test/catalog; and a native ACL implementation fix in the platform owner and its tests.
+Judge locality with representative change-impact checks: a pilot hook/extension-wiring/model change should normally stay in its adapter and focused tests; an ordinary fork test addition in its test/catalog; and a native ACL implementation fix in the platform owner and its tests.
 Use call-site and executable evidence, not directory names or source-text assertions alone.
 Record which upstream files genuinely return to upstream-equivalent contents and which must retain compatibility calls.
 Do not manufacture a lower count through renames, generated copies, deleted tests, or suppressed validation.
