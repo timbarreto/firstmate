@@ -11,6 +11,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/process-helpers.sh
+. "$ROOT/tests/process-helpers.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-pi-branch-extension)
 EXT="$ROOT/.pi/extensions/fm-branch-supervision.ts"
@@ -60,6 +62,7 @@ install_pi_branch_extension_fixture() {
   cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$repo/.pi/extensions/lib/fm-calm-visibility.ts"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
   cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
+  fm_test_install_process_module "$repo" || fail "could not install process fixture dependencies"
   mkdir -p "$repo/bin"
   cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
   chmod +x "$repo/bin/fm-operational-input.sh"
@@ -3838,6 +3841,7 @@ test_branch_dispatch_classifies_main_only_rows_and_writes_the_eligible_snapshot(
   cp "$ROOT/.pi/extensions/lib/fm-async-exec.ts" "$repo/.pi/extensions/lib/fm-async-exec.ts"
   cp "$ROOT/.pi/extensions/lib/fm-branch-model-picker.ts" "$repo/.pi/extensions/lib/fm-branch-model-picker.ts"
   cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
+  fm_test_install_process_module "$repo" || fail "could not install process fixture dependencies"
   printf 'project=%s/projects/approved\nwindow=fm-window\n' "$home" > "$home/state/task-a.meta"
   LIB="$repo/.pi/extensions/lib/fm-branch-dispatch.ts" FM_HOME="$home" GRANT="$ROOT/bin/fm-wake-grant.sh" \
     node --input-type=module > "$TMP_ROOT/node-output" 2>&1 <<'EOF'
@@ -4273,6 +4277,7 @@ test_outcomes_tool_uses_stock_execution_and_export_consumers() {
   cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$fixture/.pi/extensions/lib/fm-calm-visibility.ts"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$fixture/.pi/extensions/lib/fm-operational-input.ts"
   cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$fixture/.pi/extensions/lib/fm-process-ancestry.ts"
+  fm_test_install_process_module "$fixture" || fail "could not install process fixture dependencies"
   ln -s "$package_dir" "$fixture/node_modules/@earendil-works/pi-coding-agent"
   ln -s "$package_dir/node_modules/@earendil-works/pi-tui" "$fixture/node_modules/@earendil-works/pi-tui"
   ln -s "$package_dir/node_modules/@earendil-works/pi-ai" "$fixture/node_modules/@earendil-works/pi-ai"
@@ -4960,44 +4965,45 @@ EOF
   pass "an extension-registered provider resolves in the isolated branch runtime"
 }
 
-test_outcomes_tool_uses_stock_execution_and_export_consumers
-test_real_pi_picker_primitives_stay_bounded_and_searchable
-test_branch_dispatch_two_stage_filter_and_prefix_contract
-test_requested_healthy_outcome_and_unsolicited_routine_outcome_delivery
-test_captain_outcome_is_exactly_once_across_crash_reload_and_unrelated_response
-test_captain_outcome_processing_turn_is_sequence_keyed_and_re_presented
-test_branch_dispatch_classifies_main_only_rows_and_writes_the_eligible_snapshot
-test_branch_cache_key_is_per_home_stable
-test_branch_default_on_heartbeat_afk_and_fallback
-test_branch_predrain_recheck_keeps_a_heartbeat_a_co_present_check_arrives_under
-test_branch_report_refuses_a_task_the_wake_did_not_name
-test_branch_predrain_recheck_excludes_new_main_owned_row_without_deferring_eligible_work
-test_branch_predrain_needs_decision_keeps_routine_row_branch_eligible
-test_settled_branch_prompt_releases_unacknowledged_grant
-test_post_construction_provider_error_falls_back_latches_and_recovers_on_cooldown
-test_selection_change_does_not_corrupt_inflight_provider_state
-test_main_owned_grant_result_falls_back_to_main
-test_branch_predrain_recheck_noops_already_drained_wake
-test_branch_mirror_filters_order_and_cursor
-test_branch_mirror_reanchors_for_the_new_session_branch_conversation
-test_branch_session_is_new_at_every_main_session_start
-test_branch_model_pin_applies_and_absent_pin_keeps_the_default
-test_unpinned_branch_follows_main_model_changes_live
-test_supervision_model_command_persists_and_rebinds_the_live_branch
-test_supervision_model_picker_is_bounded_searchable_and_branch_only
-test_branch_model_picker_keeps_follow_main_first_under_ranking
-test_branch_effort_pin_applies_and_absent_pin_follows_main
-test_unpinned_branch_follows_main_effort_changes_live
-test_extension_registered_provider_resolves_in_the_branch
-test_supervision_model_command_picks_effort_after_the_model
-test_unusable_model_pin_falls_back_to_main
-test_replacement_activation_cleans_leases_and_retries_failure
-test_cold_start_activates_after_lock_acquisition
-test_queued_actions_recheck_lock_ownership
-test_stale_generation_boundaries_are_side_effect_free
-test_secondary_session_stays_inert
-test_rebind_remirrors_undelivered_dialog_from_durable_cursor
-test_delivery_keeps_the_event_loop_live_and_ordered
-test_session_replacement_during_delivery_neither_loses_nor_duplicates
-test_store_failure_during_delivery_neither_loses_nor_duplicates
-test_mark_read_failure_keeps_routine_redelivery_and_captain_deduplication
+fm_test_run_cases \
+  test_outcomes_tool_uses_stock_execution_and_export_consumers \
+  test_real_pi_picker_primitives_stay_bounded_and_searchable \
+  test_branch_dispatch_two_stage_filter_and_prefix_contract \
+  test_requested_healthy_outcome_and_unsolicited_routine_outcome_delivery \
+  test_captain_outcome_is_exactly_once_across_crash_reload_and_unrelated_response \
+  test_captain_outcome_processing_turn_is_sequence_keyed_and_re_presented \
+  test_branch_dispatch_classifies_main_only_rows_and_writes_the_eligible_snapshot \
+  test_branch_cache_key_is_per_home_stable \
+  test_branch_default_on_heartbeat_afk_and_fallback \
+  test_branch_predrain_recheck_keeps_a_heartbeat_a_co_present_check_arrives_under \
+  test_branch_report_refuses_a_task_the_wake_did_not_name \
+  test_branch_predrain_recheck_excludes_new_main_owned_row_without_deferring_eligible_work \
+  test_branch_predrain_needs_decision_keeps_routine_row_branch_eligible \
+  test_settled_branch_prompt_releases_unacknowledged_grant \
+  test_post_construction_provider_error_falls_back_latches_and_recovers_on_cooldown \
+  test_selection_change_does_not_corrupt_inflight_provider_state \
+  test_main_owned_grant_result_falls_back_to_main \
+  test_branch_predrain_recheck_noops_already_drained_wake \
+  test_branch_mirror_filters_order_and_cursor \
+  test_branch_mirror_reanchors_for_the_new_session_branch_conversation \
+  test_branch_session_is_new_at_every_main_session_start \
+  test_branch_model_pin_applies_and_absent_pin_keeps_the_default \
+  test_unpinned_branch_follows_main_model_changes_live \
+  test_supervision_model_command_persists_and_rebinds_the_live_branch \
+  test_supervision_model_picker_is_bounded_searchable_and_branch_only \
+  test_branch_model_picker_keeps_follow_main_first_under_ranking \
+  test_branch_effort_pin_applies_and_absent_pin_follows_main \
+  test_unpinned_branch_follows_main_effort_changes_live \
+  test_extension_registered_provider_resolves_in_the_branch \
+  test_supervision_model_command_picks_effort_after_the_model \
+  test_unusable_model_pin_falls_back_to_main \
+  test_replacement_activation_cleans_leases_and_retries_failure \
+  test_cold_start_activates_after_lock_acquisition \
+  test_queued_actions_recheck_lock_ownership \
+  test_stale_generation_boundaries_are_side_effect_free \
+  test_secondary_session_stays_inert \
+  test_rebind_remirrors_undelivered_dialog_from_durable_cursor \
+  test_delivery_keeps_the_event_loop_live_and_ordered \
+  test_session_replacement_during_delivery_neither_loses_nor_duplicates \
+  test_store_failure_during_delivery_neither_loses_nor_duplicates \
+  test_mark_read_failure_keeps_routine_redelivery_and_captain_deduplication

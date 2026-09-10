@@ -32,6 +32,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/process-helpers.sh
+. "$ROOT/tests/process-helpers.sh"
 
 fm_live_gate opt-in FM_PI_BRANCH_LIVE_E2E npm jq node
 export NODE_NO_WARNINGS=1
@@ -57,6 +59,7 @@ cp "$ROOT/.pi/extensions/lib/fm-branch-model-picker.ts" "$repo/.pi/extensions/li
 cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$repo/.pi/extensions/lib/fm-calm-visibility.ts"
 cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
 cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
+fm_test_install_process_module "$repo" || fail "could not install process fixture dependencies"
 mkdir -p "$repo/bin"
 cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
 cat > "$repo/bin/fm-watch-arm.sh" <<'SH'

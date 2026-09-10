@@ -30,6 +30,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/process-helpers.sh
+. "$ROOT/tests/process-helpers.sh"
 
 fm_live_gate default-on FM_PI_BRANCH_RESPONSIVENESS_E2E pi tmux node
 
@@ -55,6 +57,7 @@ for lib in fm-async-exec fm-branch-dispatch fm-branch-model-picker fm-calm-visib
 done
 
 EXT="$PROJECT/.pi/extensions/fm-branch-supervision.ts"
+fm_test_install_process_module "$PROJECT" || fail "could not install process fixture dependencies"
 OUTCOME_SCRIPT="$ROOT/bin/fm-branch-outcome.sh"
 
 # The store this guard drives is the real one; only the rows are synthetic.

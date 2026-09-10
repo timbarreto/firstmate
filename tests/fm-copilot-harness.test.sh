@@ -41,7 +41,7 @@ install_primary_fixture() {
   for f in fm-ghcp-hook.sh fm-copilot-stop.sh fm-turnend-guard.sh \
            fm-turnend-guard-cursor.sh \
            fm-operational-input.sh fm-primary-scope-lib.sh fm-supervision-lib.sh \
-           fm-wake-lib.sh fm-session-lock-lib.sh fm-cursor-lib.sh \
+           fm-wake-lib.sh fm-session-lock-lib.sh fm-platform-process-lib.sh fm-cursor-lib.sh \
            fm-hook-host-lib.sh fm-lock.sh \
            fm-gate-refuse-lib.sh fm-busy-event.sh fm-busy-lib.sh; do
     cp "$ROOT/bin/$f" "$dir/bin/$f"

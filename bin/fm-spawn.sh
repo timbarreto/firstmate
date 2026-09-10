@@ -414,6 +414,8 @@ fi
 . "$SCRIPT_DIR/fm-ff-lib.sh"
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
+# shellcheck source=bin/fm-platform-process-lib.sh
+. "$SCRIPT_DIR/fm-platform-process-lib.sh" || exit 1
 fm_backlog_directory_present "$STATE" "state directory" || {
   echo "error: spawn refused: $FM_BACKLOG_TRANSITION_ERROR" >&2
   exit 1
@@ -1425,9 +1427,7 @@ resolve_pi_executable() {
 }
 
 powershell_quote() {
-  printf "'"
-  printf '%s' "$1" | sed "s/'/''/g"
-  printf "'"
+  fm_platform_powershell_quote "$@"
 }
 
 # Pi's CLI surface is version-dependent, so probe the resolved executable's help

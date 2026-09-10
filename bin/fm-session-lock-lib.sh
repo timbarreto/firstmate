@@ -13,8 +13,12 @@
 # cursor-agent and the far-too-generic legacy alias `agent`, and it runs as a
 # bundled node script. bin/fm-cursor-lib.sh is the fleet's single owner of that
 # decision, so this file delegates to it rather than widening the name match.
+_FM_SESSION_LOCK_LIB_DIR=$(dirname -- "${BASH_SOURCE[0]}")
 # shellcheck source=bin/fm-cursor-lib.sh
-. "$(dirname -- "${BASH_SOURCE[0]}")/fm-cursor-lib.sh"
+. "$_FM_SESSION_LOCK_LIB_DIR/fm-cursor-lib.sh"
+# shellcheck source=bin/fm-platform-process-lib.sh
+. "$_FM_SESSION_LOCK_LIB_DIR/fm-platform-process-lib.sh" || return 1
+unset _FM_SESSION_LOCK_LIB_DIR
 
 # Known harness command names; extend when a new adapter is verified. omp is
 # anchored exactly like pi: its process name is the bare word `omp` (verified,
@@ -28,30 +32,15 @@ FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^copilot(\.exe)?$|^pi$|^pi-signed
 FM_HARNESS_NAMES=(claude codex opencode grok kimi copilot copilot.exe pi-signed pi omp)
 
 fm_session_process_comm() {  # <pid>
-  local pid=$1 proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
-  if [ -r "$proc_root/$pid/status" ]; then
-    sed -n 's/^Name:[[:space:]]*//p' "$proc_root/$pid/status" | head -1
-    return
-  fi
-  ps -o comm= -p "$pid" 2>/dev/null
+  fm_platform_process_comm "$@"
 }
 
 fm_session_process_args() {  # <pid>
-  local pid=$1 proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
-  if [ -r "$proc_root/$pid/cmdline" ]; then
-    tr '\0' ' ' < "$proc_root/$pid/cmdline"
-    return
-  fi
-  ps -o args= -p "$pid" 2>/dev/null
+  fm_platform_process_args "$@"
 }
 
 fm_session_process_ppid() {  # <pid>
-  local pid=$1 proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
-  if [ -r "$proc_root/$pid/status" ]; then
-    sed -n 's/^PPid:[[:space:]]*//p' "$proc_root/$pid/status" | head -1
-    return
-  fi
-  ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' '
+  fm_platform_process_ppid "$@"
 }
 
 # Git for Windows crosses from the native copilot.exe process into an MSYS
@@ -64,42 +53,17 @@ fm_session_process_ppid() {  # <pid>
 _FM_COPILOT_WINPID=
 _FM_COPILOT_WINPID_RC=
 fm_copilot_windows_pid_matches() {  # <native-windows-pid>
-  local pid=$1 image
+  local pid=$1
   case "$pid" in ''|*[!0-9]*) return 1 ;; esac
   if [ "$pid" = "${_FM_COPILOT_WINPID:-}" ]; then
     return "${_FM_COPILOT_WINPID_RC:-1}"
   fi
   _FM_COPILOT_WINPID=$pid
   _FM_COPILOT_WINPID_RC=1
-  # Prefer a single-pid query. Unfiltered `ps -W` lists every Windows process
-  # and was a multi-second Git Bash spawn on the session-start lock path.
-  # Fall back to `ps -W` when tasklist misses (including Copilot fixture PIDs
-  # that exist only in the fake process table).
-  if command -v tasklist.exe >/dev/null 2>&1; then
-    image=$(MSYS_NO_PATHCONV=1 tasklist.exe /FI "PID eq $pid" /FO CSV /NH 2>/dev/null \
-      | tr -d '\r' \
-      | awk -F, '{ gsub(/"/, ""); print $1; exit }')
-    case "$image" in
-      copilot.exe)
-        _FM_COPILOT_WINPID_RC=0
-        return 0
-        ;;
-      ''|INFO:*)
-        ;;
-      *)
-        return 1
-        ;;
-    esac
+  if fm_platform_windows_pid_matches "$pid" copilot.exe; then
+    _FM_COPILOT_WINPID_RC=0
+    return 0
   fi
-  image=$(LC_ALL=C ps -W 2>/dev/null | awk -v p="$pid" '
-    NR > 1 && $4 == p { print $NF; exit }
-  ') || return 1
-  case "$image" in
-    copilot.exe|*\\copilot.exe|*/copilot.exe)
-      _FM_COPILOT_WINPID_RC=0
-      return 0
-      ;;
-  esac
   return 1
 }
 

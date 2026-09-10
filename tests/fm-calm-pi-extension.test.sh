@@ -4,6 +4,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/process-helpers.sh
+. "$ROOT/tests/process-helpers.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-calm-pi-extension)
 EXT="$ROOT/.pi/extensions/fm-calm.ts"
@@ -745,7 +747,9 @@ test_rendering_and_session_lifecycle() {
   version=$(node -p "require('$PI_PACKAGE_DIR/package.json').version")
   record_pi_version_evidence "$version" "Pi calm compatibility assumptions"
 
-  fixture="$TMP_ROOT/renderer"
+  fixture="$TMP_ROOT/renderer/.pi/extensions"
+  mkdir -p "$fixture"
+  fm_test_install_process_module "$TMP_ROOT/renderer" || fail "could not install process fixture dependencies"
   mkdir -p "$fixture/home" "$fixture/lib" "$fixture/node_modules/@earendil-works"
   cp "$EXT" "$fixture/fm-calm.ts"
   cp "$ASSISTANT_LAYOUT" "$fixture/lib/fm-calm-assistant-layout.ts"
@@ -3332,6 +3336,7 @@ test_interactive_terminal_e2e() {
   cp "$ROOT/.pi/extensions/lib/fm-native-contract.ts" "$project/.pi/extensions/lib/fm-native-contract.ts"
   cp "$ROOT/.pi/extensions/lib/fm-async-exec.ts" "$project/.pi/extensions/lib/fm-async-exec.ts"
   cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$project/.pi/extensions/lib/fm-process-ancestry.ts"
+  fm_test_install_process_module "$project" || fail "could not install process fixture dependencies"
   cp "$WATCH_EXT" "$project/.pi/extensions/fm-primary-pi-watch.ts"
   cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$project/.pi/extensions/fm-primary-turnend-guard.ts"
   cp \

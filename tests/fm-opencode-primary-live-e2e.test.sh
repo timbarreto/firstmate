@@ -5,6 +5,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/process-helpers.sh
+. "$ROOT/tests/process-helpers.sh"
 
 fm_live_gate opt-in FM_OPENCODE_LIVE_E2E opencode tmux sqlite3
 
@@ -295,6 +297,7 @@ mkdir -p "$PROJECT/.opencode/plugins/lib"
 cp "$ROOT/.opencode/plugins/fm-primary-watch-arm.js" "$PROJECT/.opencode/plugins/fm-primary-watch-arm.js"
 cp "$ROOT/.opencode/plugins/lib/fm-operational-input.js" "$PROJECT/.opencode/plugins/lib/fm-operational-input.js"
 cp "$ROOT/.opencode/plugins/lib/fm-process-ancestry.js" "$PROJECT/.opencode/plugins/lib/fm-process-ancestry.js"
+fm_test_install_process_module "$PROJECT" || fail "could not install process fixture dependencies"
 cp "$ROOT/bin/fm-watch-arm.sh" "$PROJECT/bin/fm-watch-arm.sh"
 cp "$ROOT/bin/fm-operational-input.sh" "$PROJECT/bin/fm-operational-input.sh"
 chmod +x "$PROJECT/bin/fm-operational-input.sh"

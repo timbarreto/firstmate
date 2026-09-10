@@ -33,6 +33,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/process-helpers.sh
+. "$ROOT/tests/process-helpers.sh"
 # shellcheck source=tests/wake-helpers.sh
 . "$(dirname "${BASH_SOURCE[0]}")/wake-helpers.sh"
 
@@ -750,6 +752,7 @@ install_pi_turnend_extension_fixture() {
   mkdir -p "$root/.pi/extensions/lib"
   cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$root/.pi/extensions/fm-primary-turnend-guard.ts"
   cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$root/.pi/extensions/lib/fm-process-ancestry.ts"
+  fm_test_install_process_module "$root" || fail "could not install process fixture dependencies"
 }
 
 install_pi_watch_extension_fixture() {
@@ -757,6 +760,7 @@ install_pi_watch_extension_fixture() {
   mkdir -p "$root/.pi/extensions/lib"
   cp "$ROOT/.pi/extensions/fm-primary-pi-watch.ts" "$root/.pi/extensions/fm-primary-pi-watch.ts"
   cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$root/.pi/extensions/lib/fm-process-ancestry.ts"
+  fm_test_install_process_module "$root" || fail "could not install process fixture dependencies"
 }
 
 write_pi_watch_loaded_marker() {
