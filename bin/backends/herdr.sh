@@ -71,6 +71,8 @@
 # fm_backend_herdr_workspace_label falls through to "firstmate" exactly like
 # pre-P3 behavior when a test does not care about home-specific labeling).
 FM_BACKEND_HERDR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=bin/fm-private-path-lib.sh
+. "$FM_BACKEND_HERDR_ROOT/bin/fm-private-path-lib.sh" || return 1
 FM_ROOT="${FM_ROOT_OVERRIDE:-${FM_ROOT:-$FM_BACKEND_HERDR_ROOT}}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 
@@ -814,43 +816,7 @@ fm_backend_herdr_presentation_lock_namespace_is_native_windows() {
 # a non-reparse directory whose allow entries name only that identity, SYSTEM,
 # or the built-in Administrators group.
 fm_backend_herdr_presentation_lock_namespace_windows_acl_valid() {
-  local dir=$1 native
-  command -v cygpath >/dev/null 2>&1 || return 1
-  command -v powershell.exe >/dev/null 2>&1 || return 1
-  native=$(cygpath -w "$dir" 2>/dev/null) || return 1
-  [ -n "$native" ] || return 1
-  # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
-  FM_HERDR_PRESENTATION_NAMESPACE_NATIVE=$native \
-    powershell.exe -NoProfile -NonInteractive -Command '
-      $ErrorActionPreference = "Stop"
-      $path = $env:FM_HERDR_PRESENTATION_NAMESPACE_NATIVE
-      if ([string]::IsNullOrWhiteSpace($path)) { exit 1 }
-      $item = [IO.DirectoryInfo]::new($path)
-      if (-not $item.Exists) { exit 1 }
-      if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { exit 1 }
-      $acl = $item.GetAccessControl()
-      $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-      $ownerSid = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
-      if ($ownerSid -ne $currentSid) { exit 1 }
-      $descriptor = $acl.GetSecurityDescriptorBinaryForm()
-      $raw = [Security.AccessControl.RawSecurityDescriptor]::new($descriptor, 0)
-      if ($null -eq $raw.DiscretionaryAcl) { exit 1 }
-      $allowed = @($currentSid, "S-1-5-18", "S-1-5-32-544")
-      $rules = $acl.GetAccessRules(
-        $true,
-        $true,
-        [Security.Principal.SecurityIdentifier]
-      )
-      foreach ($rule in $rules) {
-        if (
-          $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
-          $allowed -notcontains $rule.IdentityReference.Value
-        ) {
-          exit 1
-        }
-      }
-      exit 0
-    ' >/dev/null 2>&1
+  fm_private_path_native herdr validate directory "$1"
 }
 
 fm_backend_herdr_presentation_lock_namespace_valid() {

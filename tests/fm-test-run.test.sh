@@ -846,7 +846,8 @@ printf '%s\n' "$2"
 SH
   cat >"$fakebin/powershell.exe" <<'SH'
 #!/usr/bin/env bash
-printf '%s\n' "${FM_TEST_WORKER_NATIVE:?}" >>"${FM_TEST_ACL_LOG:?}"
+[ "${FM_PRIVATE_PATH_POLICY:?}/${FM_PRIVATE_PATH_KIND:?}/${FM_PRIVATE_PATH_COUNT:?}" = worker/directory/1 ] || exit 2
+printf '%s\n' "${FM_PRIVATE_PATH_1:?}" >>"${FM_TEST_ACL_LOG:?}"
 exit "${FM_TEST_ACL_RC:-0}"
 SH
   chmod +x "$fakebin/uname" "$fakebin/stat" "$fakebin/cygpath" "$fakebin/powershell.exe"

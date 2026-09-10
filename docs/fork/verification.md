@@ -50,3 +50,16 @@ Balanced estimates do not prove that a shutdown race or other intermittent stall
 `tests/fm-remote-job.test.sh` bounds the replacement-worker shutdown wait and emits its phase, process snapshot, and recent worker output on failure.
 `tests/fm-remote-job-wait.test.sh` exercises that wait with a real child that ignores TERM and verifies bounded failure and cleanup.
 The full remote-job suite remains the Linux worker integration check; the focused fixture-wait regression does not establish why a real worker stopped responding.
+
+## Private-path compatibility
+
+Run `bin/fm-test-run.sh tests/fm-private-path.test.sh` for native ACL policy fixtures, public structural refusals, path-data transport, bounded invocation counts, and missing-dependency failures.
+The native fixtures cover allowed and foreign Allow principals, Deny entries, null DACLs, FullControl differences, hidden paths, directory inheritance, reparse points, mutation, and replacement.
+They run in the existing Windows reconciliation core job; POSIX mode checks run in portable CI and explicitly skip on synthetic Windows filesystems.
+Transport fakes establish operation counts and data handling, not native ACL behavior.
+
+The PR publication, X-mode, runner, and Herdr suites retain their existing integration cases.
+Windows core coverage also selects the existing PR publication case through the shared named-case runner, without changing the full suite's order.
+Use `FM_TEST_ONLY=test_jobs_parallel_scheduler_and_failure_propagation bin/fm-test-run.sh tests/fm-test-run.test.sh` to exercise real runner worker creation through the copied dependency layout.
+Stock Bash parsing remains owned by macOS CI, and native execution parses the platform PowerShell file in Windows coverage.
+Keep before/after characterization outputs and exact platform limitations in PR evidence.

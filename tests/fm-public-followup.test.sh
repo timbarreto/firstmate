@@ -2344,6 +2344,9 @@ remote_fixture_prepare() {
   REMOTE_FIXTURE_JOBS=$(cd "$TMP_ROOT/remote-jobs" && pwd -P)
   cp "$ROOT"/bin/fm-*.sh "$REMOTE_FIXTURE_ROOT/bin/"
   cp "$ROOT"/bin/backends/*.sh "$REMOTE_FIXTURE_ROOT/bin/backends/"
+  # shellcheck source=tests/private-path-helpers.sh
+  . "$ROOT/tests/private-path-helpers.sh"
+  fm_test_install_private_paths "$REMOTE_FIXTURE_ROOT" || fail "could not install private-path fixture dependencies"
   chmod +x "$REMOTE_FIXTURE_ROOT/bin"/*.sh
   printf 'fixture\n' > "$REMOTE_FIXTURE_ROOT/AGENTS.md"
   git -C "$REMOTE_FIXTURE_ROOT" init -q -b main

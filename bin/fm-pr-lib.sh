@@ -17,6 +17,10 @@
 # The receipt binds the terminal observation to the canonical registration and
 # lets a restart finish fixed-path removal without executing state-file bytes.
 
+_FM_PR_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=bin/fm-private-path-lib.sh
+. "$_FM_PR_LIB_DIR/fm-private-path-lib.sh" || return 1
+
 FM_PR_PROVIDER=
 FM_PR_URL=
 FM_PR_HOST=
@@ -264,141 +268,22 @@ fm_pr_sha256() {
 }
 
 fm_pr_native_windows_private_paths_valid() {
-  local native_1='' native_2='' native_3='' count=$# index=0 path native
   case "$(uname -s 2>/dev/null)" in
     MSYS*|MINGW*|CYGWIN*) ;;
     *) return 1 ;;
   esac
-  [ "$count" -ge 1 ] && [ "$count" -le 3 ] || return 1
-  command -v cygpath >/dev/null 2>&1 || return 1
-  command -v powershell.exe >/dev/null 2>&1 || return 1
-  for path in "$@"; do
-    native=$(cygpath -w "$path" 2>/dev/null) || return 1
-    index=$((index + 1))
-    case "$index" in
-      1) native_1=$native ;;
-      2) native_2=$native ;;
-      3) native_3=$native ;;
-    esac
-  done
-  [ -n "$native_1" ] || return 1
-  for _ in 1 2 3; do
-    # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
-    if FM_PR_PRIVATE_COUNT=$count \
-      FM_PR_PRIVATE_NATIVE_1=$native_1 \
-      FM_PR_PRIVATE_NATIVE_2=$native_2 \
-      FM_PR_PRIVATE_NATIVE_3=$native_3 \
-      powershell.exe -NoProfile -NonInteractive -Command '
-      $ErrorActionPreference = "Stop"
-      $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-      $allowed = @($currentSid, "S-1-5-18", "S-1-5-32-544")
-      $paths = @(
-        $env:FM_PR_PRIVATE_NATIVE_1,
-        $env:FM_PR_PRIVATE_NATIVE_2,
-        $env:FM_PR_PRIVATE_NATIVE_3
-      )
-      for ($index = 0; $index -lt [int]$env:FM_PR_PRIVATE_COUNT; $index++) {
-        $item = Get-Item -LiteralPath $paths[$index]
-        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { exit 1 }
-        $acl = $item.GetAccessControl()
-        if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $currentSid) { exit 1 }
-        $descriptor = $acl.GetSecurityDescriptorBinaryForm()
-        $raw = [Security.AccessControl.RawSecurityDescriptor]::new($descriptor, 0)
-        if ($null -eq $raw.DiscretionaryAcl) { exit 1 }
-        $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
-        foreach ($rule in $rules) {
-          if (
-            $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
-            $allowed -notcontains $rule.IdentityReference.Value
-          ) {
-            exit 1
-          }
-        }
-      }
-      exit 0
-    ' >/dev/null 2>&1; then
-      return 0
-    fi
-  done
-  return 1
+  [ "$#" -ge 1 ] && [ "$#" -le 3 ] || return 1
+  fm_private_path_native pr validate any "$@"
 }
 
 fm_pr_private_file_secure() {  # <path> <mode>
-  local path=$1 mode=$2 native
+  local path=$1 mode=$2
   [ -f "$path" ] && [ ! -L "$path" ] || return 1
   chmod "$mode" "$path" || return 1
   case "$(uname -s 2>/dev/null)" in
     MSYS*|MINGW*|CYGWIN*)
-      command -v cygpath >/dev/null 2>&1 || return 1
-      command -v powershell.exe >/dev/null 2>&1 || return 1
-      native=$(cygpath -w "$path" 2>/dev/null) || return 1
-      [ -n "$native" ] || return 1
-      for _ in 1 2 3; do
-        # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
-        if FM_PR_PRIVATE_NATIVE=$native \
-          powershell.exe -NoProfile -NonInteractive -Command '
-          $ErrorActionPreference = "Stop"
-          $item = [IO.FileInfo]::new($env:FM_PR_PRIVATE_NATIVE)
-          if (-not $item.Exists) { exit 1 }
-          if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { exit 1 }
-          $current = [Security.Principal.WindowsIdentity]::GetCurrent().User
-          $security = $item.GetAccessControl()
-          if (
-            $security.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne
-            $current.Value
-          ) {
-            exit 1
-          }
-          $security.SetAccessRuleProtection($true, $false)
-          $rules = @(
-            $security.GetAccessRules(
-              $true,
-              $false,
-              [Security.Principal.SecurityIdentifier]
-            )
-          )
-          foreach ($rule in $rules) {
-            [void]$security.RemoveAccessRuleSpecific($rule)
-          }
-          foreach ($sid in @($current.Value, "S-1-5-18", "S-1-5-32-544")) {
-            $identity = [Security.Principal.SecurityIdentifier]::new($sid)
-            $rule = [Security.AccessControl.FileSystemAccessRule]::new(
-              $identity,
-              [Security.AccessControl.FileSystemRights]::FullControl,
-              [Security.AccessControl.AccessControlType]::Allow
-            )
-            [void]$security.AddAccessRule($rule)
-          }
-          $item.SetAccessControl($security)
-          $applied = $item.GetAccessControl()
-          if (
-            $applied.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne
-            $current.Value
-          ) {
-            exit 1
-          }
-          $descriptor = $applied.GetSecurityDescriptorBinaryForm()
-          $raw = [Security.AccessControl.RawSecurityDescriptor]::new($descriptor, 0)
-          if ($null -eq $raw.DiscretionaryAcl) { exit 1 }
-          $allowed = @($current.Value, "S-1-5-18", "S-1-5-32-544")
-          $appliedRules = $applied.GetAccessRules(
-            $true,
-            $true,
-            [Security.Principal.SecurityIdentifier]
-          )
-          foreach ($rule in $appliedRules) {
-            if (
-              $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
-              $allowed -notcontains $rule.IdentityReference.Value
-            ) {
-              exit 1
-            }
-          }
-        ' >/dev/null 2>&1; then
-          return 0
-        fi
-      done
-      return 1
+      fm_private_path_native pr secure file "$path"
+      return
       ;;
   esac
   [ "$(fm_pr_file_mode "$path")" = "$mode" ]
