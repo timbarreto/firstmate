@@ -1,5 +1,32 @@
 # Fork module architecture
 
+## Copilot and Pi harness seam
+
+`bin/fm-harness-lib.sh` owns the closed, exact-name `copilot` and `pi` registry.
+Its header owns the four internal operations, prepared launch fields, and refusal contract.
+`bin/harnesses/copilot.sh` and `bin/harnesses/pi.sh` own their capability facts, staged identity checks, executable preparation, and rendered launch wiring.
+They depend only on the interface's shared name facts and generic platform helpers, never on lifecycle scripts.
+Missing or incomplete registered adapters report an error rather than selecting a legacy implementation; loading a different root cannot borrow previously loaded implementation functions.
+
+Core callers retain detection-stage ordering, configuration structure and diagnostic ordering, recorded-name normalization, and the lifecycle transaction.
+Bootstrap verification, local control, and remote launch/relaunch support remain distinct operation-specific capabilities.
+The interface does not introduce a resume contract or broaden the existing remote Copilot relaunch restriction.
+Spawn retains role/profile resolution, generation allocation, exact-file publication, worktrees, endpoint delivery, and rollback.
+Control, sending, restart, and teardown consume the same pilot-owned mechanics and artifact paths rather than reproducing them.
+Adapters describe paths and content but never create, retire, or remove task state.
+
+The Pi adapter selects worker versus primary extension wiring, while the existing TypeScript extensions retain primary and branch supervision authority.
+Its generated worker preserves settlement, continuation, notification, and generation-bound progress semantics; embedded path values are escaped as data.
+Generated busy and progress callbacks invoke their tracked Bash owner through Bash, including under native Windows Node.
+Copilot retains its hook entrypoints and native PID-result cache, with session-lock compatibility functions delegating identity checks.
+Explicit supervision overrides remain authoritative before detection, while an adapter-load failure is not reinterpreted as an unknown primary.
+
+Every nonpilot retains legacy dispatch, including `pi-signed` and OMP.
+The signed Pi worker renderer and its primary-extension paths deliberately remain in spawn instead of silently sharing the pilot implementation.
+The self-contained, hash-pinned `bin/fm-remote-doctor.sh` is the intentional static compatibility exception; its entrypoint pin and integrity protocol are unchanged.
+Tracked clones and updates distribute the modules without a deployment copier or automatic reload of running extensions.
+`tests/harness-helpers.sh` installs the complete tracked dependency closure in isolated copied or symlink-shaped fixtures, without an ambient-checkout fallback.
+
 ## Test registration seam
 
 `bin/fm-test-catalog-lib.sh` owns parsing and validating `tests/catalog/core.tsv` and `tests/catalog/fork.tsv`.
@@ -48,7 +75,7 @@ The lint owner includes the fork module directories in full and changed mode, wh
 These are deliberate integration patches until upstream accepts compatible seams; moving implementation does not make the fork delta disappear.
 
 [Fork verification](verification.md) owns CI ownership and repeatable checks.
-The remaining Copilot/Pi pilot follows the [implementation plan](upstream-plan.md).
+The remaining delivery sequence follows the [implementation plan](upstream-plan.md).
 
 ## Process and native transport seam
 
@@ -64,7 +91,7 @@ Forced cleanup preserves the existing direct-PID TERM fallback after a native op
 A missing tracked native helper throws explicitly before any native operation or direct-PID fallback.
 
 `bin/fm-platform-process-lib.sh` owns generic Bash process facts, single-PID image queries, and literal PowerShell command rendering without a Node dependency.
-`bin/fm-session-lock-lib.sh` retains harness identification, marker verification, ancestry order, and its existing Copilot PID-result cache.
+`bin/fm-session-lock-lib.sh` retains ownership and ancestry orchestration, delegating Copilot marker verification and PID-result caching through the harness interface.
 `bin/backends/herdr.sh` retains leases, worktree acquisition, presentation, and rollback; its public transport functions and spawn's quoting function delegate to the shared module.
 Git Bash callers retain their inexpensive PATH/cygpath lookup, while existing PowerShell entrypoints continue using `bin/fm-windows-git-bash.ps1`.
 
