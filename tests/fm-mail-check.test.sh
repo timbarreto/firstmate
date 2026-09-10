@@ -18,6 +18,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/private-path-helpers.sh
+. "$ROOT/tests/private-path-helpers.sh"
 
 CHECK="$ROOT/bin/fm-mail-check.sh"
 TMP_ROOT=$(fm_test_tmproot fm-mail-check)
@@ -139,6 +141,7 @@ test_arm_refuses_without_the_mail_plane() {
   for lib in fm-timeout-lib.sh fm-pr-lib.sh fm-line-cap-lib.sh fm-check-lib.sh; do
     [ -e "$tmpbin/$lib" ] || ln -s "$ROOT/bin/$lib" "$tmpbin/$lib"
   done
+  fm_test_install_private_paths "${tmpbin%/bin}" || fail "could not install private-path fixture dependencies"
   out=$(FM_HOME="$home" "$tmpbin/fm-mail-check.sh" arm 2>&1) || rc=$?
   expect_code 1 "$rc" "arm must refuse when the mail plane is missing"
   assert_contains "$out" "mail plane is missing" "arm names the missing plane"
@@ -241,6 +244,7 @@ test_repeated_failure_that_queued_new_mail_still_wakes() {
   for lib in fm-timeout-lib.sh fm-pr-lib.sh fm-line-cap-lib.sh fm-check-lib.sh; do
     [ -e "$tmpbin/$lib" ] || ln -s "$ROOT/bin/$lib" "$tmpbin/$lib"
   done
+  fm_test_install_private_paths "${tmpbin%/bin}" || fail "could not install private-path fixture dependencies"
   printf '%s\n' '#!/usr/bin/env bash' 'echo "fm-mail: woke for 42"' 'echo "fm-mail: connection refused" >&2' 'exit 1' > "$tmpbin/fm-mail.sh"
   chmod +x "$tmpbin/fm-mail.sh"
 
@@ -269,6 +273,7 @@ test_repeated_timeout_still_wakes() {
   for lib in fm-timeout-lib.sh fm-pr-lib.sh fm-line-cap-lib.sh fm-check-lib.sh; do
     [ -e "$tmpbin/$lib" ] || ln -s "$ROOT/bin/$lib" "$tmpbin/$lib"
   done
+  fm_test_install_private_paths "${tmpbin%/bin}" || fail "could not install private-path fixture dependencies"
   printf '%s\n' '#!/usr/bin/env bash' 'exit 124' > "$tmpbin/fm-mail.sh"
   chmod +x "$tmpbin/fm-mail.sh"
 
@@ -346,6 +351,7 @@ test_repeated_status2_stays_queued_still_wakes() {
   for lib in fm-timeout-lib.sh fm-pr-lib.sh fm-line-cap-lib.sh fm-check-lib.sh; do
     [ -e "$tmpbin/$lib" ] || ln -s "$ROOT/bin/$lib" "$tmpbin/$lib"
   done
+  fm_test_install_private_paths "${tmpbin%/bin}" || fail "could not install private-path fixture dependencies"
   cat > "$tmpbin/fm-mail.sh" <<EOF
 #!/usr/bin/env bash
 printf '1\t1\tcheck\tmail:9\tcheck: mail 9 - stays queued\\n' >> "\$FM_HOME/state/.wake-queue"
@@ -399,6 +405,7 @@ test_missing_mail_plane_is_reported() {
   for lib in fm-timeout-lib.sh fm-pr-lib.sh fm-line-cap-lib.sh fm-check-lib.sh; do
     [ -e "$tmpbin/$lib" ] || ln -s "$ROOT/bin/$lib" "$tmpbin/$lib"
   done
+  fm_test_install_private_paths "${tmpbin%/bin}" || fail "could not install private-path fixture dependencies"
   out="$home/out.txt"
   run_check "$home" "$out" "$check_bin"
   assert_contains "$(cat "$out")" "mail: fm-mail.sh is missing next to this check" "a home lacking the mail plane reports it"

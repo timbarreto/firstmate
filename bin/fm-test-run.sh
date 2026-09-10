@@ -152,6 +152,8 @@ RUN_STARTED_MS=$(now_ms)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
+# shellcheck source=bin/fm-private-path-lib.sh
+. "$ROOT/bin/fm-private-path-lib.sh" || exit 1
 
 MODE=
 LIST_ONLY=0
@@ -225,35 +227,7 @@ log() {
 }
 
 native_windows_private_directory_valid() {
-  local dir=$1 native
-  command -v cygpath >/dev/null 2>&1 || return 1
-  command -v powershell.exe >/dev/null 2>&1 || return 1
-  native=$(cygpath -w "$dir" 2>/dev/null) || return 1
-  [ -n "$native" ] || return 1
-  # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
-  FM_TEST_WORKER_NATIVE=$native powershell.exe -NoProfile -NonInteractive -Command '
-    $ErrorActionPreference = "Stop"
-    $item = [IO.DirectoryInfo]::new($env:FM_TEST_WORKER_NATIVE)
-    if (-not $item.Exists) { exit 1 }
-    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { exit 1 }
-    $acl = $item.GetAccessControl()
-    $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-    if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $currentSid) { exit 1 }
-    $descriptor = $acl.GetSecurityDescriptorBinaryForm()
-    $raw = [Security.AccessControl.RawSecurityDescriptor]::new($descriptor, 0)
-    if ($null -eq $raw.DiscretionaryAcl) { exit 1 }
-    $allowed = @($currentSid, "S-1-5-18", "S-1-5-32-544")
-    $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
-    foreach ($rule in $rules) {
-      if (
-        $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
-        $allowed -notcontains $rule.IdentityReference.Value
-      ) {
-        exit 1
-      }
-    }
-    exit 0
-  ' >/dev/null 2>&1
+  fm_private_path_native worker validate directory "$1"
 }
 
 worker_directory_private() {

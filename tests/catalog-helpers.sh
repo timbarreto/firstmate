@@ -5,11 +5,14 @@
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/private-path-helpers.sh
+. "$ROOT/tests/private-path-helpers.sh"
 
 fm_test_install_catalog() {
   local repo=$1 records proof admissions path
   local -a inventory=()
   mkdir -p "$repo/bin" "$repo/tests/catalog"
+  fm_test_install_private_paths "$repo" || fail "could not install private-path fixture dependencies"
   cp "$ROOT/bin/fm-test-catalog-lib.sh" "$repo/bin/fm-test-catalog-lib.sh"
   # shellcheck source=bin/fm-test-catalog-lib.sh
   . "$ROOT/bin/fm-test-catalog-lib.sh"

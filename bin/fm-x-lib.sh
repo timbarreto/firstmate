@@ -50,6 +50,8 @@
 
 _FM_X_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _FM_X_UNAME=$(uname -s 2>/dev/null || echo unknown)
+# shellcheck source=bin/fm-private-path-lib.sh
+. "$_FM_X_LIB_DIR/fm-private-path-lib.sh" || return 1
 if ! command -v fm_backlog_atomic_transition >/dev/null 2>&1; then
   # shellcheck source=bin/fm-tasks-axi-lib.sh
   . "$_FM_X_LIB_DIR/fm-tasks-axi-lib.sh"
@@ -111,102 +113,14 @@ fmx_native_windows() {
 # DACL instead: only the current identity, SYSTEM, and Administrators may have
 # allow entries, and the current identity must own the non-reparse path.
 fmx_native_windows_private_path_acl() {  # <path> <secure|validate>
-  local path=$1 action=$2 native
+  local path=$1 action=$2
   fmx_native_windows || return 1
   case "$action" in
     secure|validate) ;;
     *) return 1 ;;
   esac
   { [ -f "$path" ] || [ -d "$path" ]; } && [ ! -L "$path" ] || return 1
-  command -v cygpath >/dev/null 2>&1 || return 1
-  command -v powershell.exe >/dev/null 2>&1 || return 1
-  native=$(cygpath -w "$path" 2>/dev/null) || return 1
-  [ -n "$native" ] || return 1
-  for _ in 1 2 3; do
-    # shellcheck disable=SC2016 # The single-quoted script is evaluated by PowerShell.
-    if FMX_PRIVATE_NATIVE=$native FMX_PRIVATE_ACTION=$action \
-      powershell.exe -NoProfile -NonInteractive -Command '
-        $ErrorActionPreference = "Stop"
-        $item = Get-Item -LiteralPath $env:FMX_PRIVATE_NATIVE -Force
-        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { exit 1 }
-        $current = [Security.Principal.WindowsIdentity]::GetCurrent().User
-        $security = $item.GetAccessControl()
-        if (
-          $security.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne
-          $current.Value
-        ) {
-          exit 1
-        }
-        if ($env:FMX_PRIVATE_ACTION -eq "secure") {
-          $security.SetAccessRuleProtection($true, $false)
-          $rules = @(
-            $security.GetAccessRules(
-              $true,
-              $false,
-              [Security.Principal.SecurityIdentifier]
-            )
-          )
-          foreach ($rule in $rules) {
-            [void]$security.RemoveAccessRuleSpecific($rule)
-          }
-          if ($item.PSIsContainer) {
-            $inheritance = (
-              [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
-              [Security.AccessControl.InheritanceFlags]::ObjectInherit
-            )
-          } else {
-            $inheritance = [Security.AccessControl.InheritanceFlags]::None
-          }
-          foreach ($sid in @($current.Value, "S-1-5-18", "S-1-5-32-544")) {
-            $identity = [Security.Principal.SecurityIdentifier]::new($sid)
-            $rule = [Security.AccessControl.FileSystemAccessRule]::new(
-              $identity,
-              [Security.AccessControl.FileSystemRights]::FullControl,
-              $inheritance,
-              [Security.AccessControl.PropagationFlags]::None,
-              [Security.AccessControl.AccessControlType]::Allow
-            )
-            [void]$security.AddAccessRule($rule)
-          }
-          $item.SetAccessControl($security)
-          $security = $item.GetAccessControl()
-        }
-        if (
-          $security.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne
-          $current.Value
-        ) {
-          exit 1
-        }
-        $descriptor = $security.GetSecurityDescriptorBinaryForm()
-        $raw = [Security.AccessControl.RawSecurityDescriptor]::new($descriptor, 0)
-        if ($null -eq $raw.DiscretionaryAcl) { exit 1 }
-        $allowed = @($current.Value, "S-1-5-18", "S-1-5-32-544")
-        $currentFullControl = $false
-        $rules = $security.GetAccessRules(
-          $true,
-          $true,
-          [Security.Principal.SecurityIdentifier]
-        )
-        foreach ($rule in $rules) {
-          if ($rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) {
-            continue
-          }
-          if ($allowed -notcontains $rule.IdentityReference.Value) { exit 1 }
-          if (
-            $rule.IdentityReference.Value -eq $current.Value -and
-            ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq
-            [Security.AccessControl.FileSystemRights]::FullControl
-          ) {
-            $currentFullControl = $true
-          }
-        }
-        if (-not $currentFullControl) { exit 1 }
-        exit 0
-      ' >/dev/null 2>&1; then
-      return 0
-    fi
-  done
-  return 1
+  fm_private_path_native x "$action" any "$path"
 }
 
 fmx_private_path_secure() {  # <file-or-directory> <600|700>

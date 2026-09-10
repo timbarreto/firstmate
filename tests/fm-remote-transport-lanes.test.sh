@@ -59,6 +59,9 @@ cp "$ROOT/bin/fm-remote-job-lib.sh" "$ROOT/bin/fm-remote-job-worker.sh" \
   "$REMOTE_ROOT/bin/"
 mkdir -p "$REMOTE_ROOT/bin/backends"
 cp "$ROOT/bin/backends/herdr.sh" "$REMOTE_ROOT/bin/backends/herdr.sh"
+# shellcheck source=tests/private-path-helpers.sh
+. "$ROOT/tests/private-path-helpers.sh"
+fm_test_install_private_paths "$REMOTE_ROOT" || fail "could not install private-path fixture dependencies"
 printf 'fixture\n' > "$REMOTE_ROOT/AGENTS.md"
 # Appends its tag to a shared log, then optionally sleeps: the log order is the
 # observable execution order.

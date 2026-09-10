@@ -1816,6 +1816,9 @@ REMOTE_ROOT="$TMP_ROOT/remote-root"
 REMOTE_FAKEBIN=$(fm_fakebin "$TMP_ROOT/remote-fakebin")
 REMOTE_SSH_COUNT="$TMP_ROOT/remote-ssh.count"
 mkdir -p "$H_REMOTE_CONTROL/data" "$H_REMOTE" "$REMOTE_ROOT/bin"
+# shellcheck source=tests/private-path-helpers.sh
+. "$ROOT/tests/private-path-helpers.sh"
+fm_test_install_private_paths "$REMOTE_ROOT" || fail "could not install private-path fixture dependencies"
 printf 'fixture\n' > "$REMOTE_ROOT/AGENTS.md"
 for remote_file in \
   fm-extension.mjs fm-extension-launch-barrier.mjs fm-extension.sh fm-procevent.sh fm-procevent-lib.sh fm-procevent-extension-capture.pl fm-procevent-lavish.sh \
