@@ -294,7 +294,7 @@ finish_stages() {
 # shellcheck source=bin/fm-timing-lib.sh
 . "$SCRIPT_DIR/fm-timing-lib.sh"
 # shellcheck source=bin/fm-session-lock-lib.sh
-. "$SCRIPT_DIR/fm-session-lock-lib.sh"
+. "$SCRIPT_DIR/fm-session-lock-lib.sh" || exit 2
 
 if [ -z "${FM_SESSION_START_STAGE_FILE:-}" ]; then
   SESSION_START_BUDGET=${FM_SESSION_START_TIMEOUT:-120}

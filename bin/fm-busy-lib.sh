@@ -93,6 +93,8 @@
 # Sourcing: set -u and set -e safe; no subshell-unfriendly globals.
 
 FM_BUSY_LIB_VERSION=v1
+# shellcheck source=bin/fm-harness-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fm-harness-lib.sh" || return 2
 
 # Standalone-Kimi verification gate. Empty means no installed Kimi version
 # has passed live verification, so every standalone Kimi task classifies
@@ -192,14 +194,15 @@ fm_busy_sources_for_harness() {  # <harness>
   local adapter=
   case "${1:-}" in
     claude*) adapter=claude-hook ;;
-    copilot*) adapter=copilot-hook ;;
+    copilot*) adapter=$(fm_harness_describe copilot busy-source) || return 2 ;;
     codex*)
       fm_busy_codex_semantic_source || { printf ''; return 0; }
       adapter='codex-hook codex-appserver'
       ;;
     opencode*) adapter=opencode-plugin ;;
     gemini*) adapter=gemini-hook ;;
-    pi|pi-signed) adapter=pi-ext ;;
+    pi) adapter=$(fm_harness_describe pi busy-source) || return 2 ;;
+    pi-signed) adapter=pi-ext ;;
     omp) adapter=omp-ext ;;
     kimi*)
       fm_busy_kimi_verified || { printf ''; return 0; }

@@ -137,7 +137,7 @@ mkdir -p "$STATE"
 # shellcheck source=bin/fm-pending-reply-lib.sh
 . "$SCRIPT_DIR/fm-pending-reply-lib.sh"
 # shellcheck source=bin/fm-busy-lib.sh
-. "$SCRIPT_DIR/fm-busy-lib.sh"
+. "$SCRIPT_DIR/fm-busy-lib.sh" || exit 2
 # Steering-inbox loss detection: bin/fm-task-inbox-lib.sh owns the record,
 # doorbell, re-ring ladder, and unavailable-endpoint contracts; this watcher
 # supplies their live endpoint and busy checks plus wake emission

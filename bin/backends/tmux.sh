@@ -21,7 +21,7 @@
 # shellcheck source=bin/fm-tmux-lib.sh
 . "$FM_BACKEND_LIB_DIR/fm-tmux-lib.sh"
 # shellcheck source=bin/fm-session-lock-lib.sh
-. "$FM_BACKEND_LIB_DIR/fm-session-lock-lib.sh"
+. "$FM_BACKEND_LIB_DIR/fm-session-lock-lib.sh" || return 2
 # shellcheck source=bin/fm-cursor-lib.sh
 . "$FM_BACKEND_LIB_DIR/fm-cursor-lib.sh"
 # shellcheck source=bin/fm-gemini-lib.sh

@@ -211,10 +211,25 @@ fm_supervision_model() {
   case "${FM_SUPERVISION_MODEL:-}" in
     autoarm|extension|persistent) printf '%s\n' "$FM_SUPERVISION_MODEL"; return 0 ;;
   esac
-  harness=$("$FM_WAKE_LIB_DIR/fm-harness.sh" 2>/dev/null || printf unknown)
+  if harness=$("$FM_WAKE_LIB_DIR/fm-harness.sh" 2>/dev/null); then
+    :
+  elif [ "$?" -eq 2 ]; then
+    printf 'error: could not load the primary harness adapter for supervision\n' >&2
+    return 2
+  else
+    harness=unknown
+  fi
   case "$harness" in
-    claude|copilot|cursor) printf 'autoarm\n' ;;
-    pi|pi-signed|omp) printf 'extension\n' ;;
+    copilot|pi)
+      # shellcheck source=bin/fm-harness-lib.sh
+      . "$FM_WAKE_LIB_DIR/fm-harness-lib.sh" || return 2
+      fm_harness_describe "$harness" supervision
+      return $?
+      ;;
+  esac
+  case "$harness" in
+    claude|cursor) printf 'autoarm\n' ;;
+    pi-signed|omp) printf 'extension\n' ;;
     *) printf 'persistent\n' ;;
   esac
 }

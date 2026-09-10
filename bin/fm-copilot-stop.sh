@@ -33,7 +33,7 @@ trap cleanup EXIT
 # shellcheck source=bin/fm-primary-scope-lib.sh
 . "$SCRIPT_DIR/fm-primary-scope-lib.sh"
 # shellcheck source=bin/fm-session-lock-lib.sh
-. "$SCRIPT_DIR/fm-session-lock-lib.sh"
+. "$SCRIPT_DIR/fm-session-lock-lib.sh" || exit 2
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 

@@ -461,18 +461,19 @@ test_kimi_and_grok_install_no_unverified_wiring() {
   pass "kimi and grok install no unverified semantic wiring and classify through their own gates"
 }
 
-test_pi_extension_semantic_lifecycle
-test_pi_extension_serializes_settle_before_next_start
-test_pi_extension_stale_incarnation_rejected
-test_kimi_and_grok_install_no_unverified_wiring
-test_opencode_plugin_semantic_lifecycle
-test_claude_hooks_semantic_lifecycle
-test_claude_hooks_stale_incarnation_harmless
-test_gemini_hooks_semantic_lifecycle
-test_gemini_hooks_stale_incarnation_harmless
-test_raw_gemini_launch_has_no_semantic_wiring
-test_gemini_is_refused_as_a_secondmate
-test_copilot_hooks_semantic_lifecycle
-test_codex_unverified_until_a_semantic_source_exists
+fm_test_run_cases \
+  test_pi_extension_semantic_lifecycle \
+  test_pi_extension_serializes_settle_before_next_start \
+  test_pi_extension_stale_incarnation_rejected \
+  test_kimi_and_grok_install_no_unverified_wiring \
+  test_opencode_plugin_semantic_lifecycle \
+  test_claude_hooks_semantic_lifecycle \
+  test_claude_hooks_stale_incarnation_harmless \
+  test_gemini_hooks_semantic_lifecycle \
+  test_gemini_hooks_stale_incarnation_harmless \
+  test_raw_gemini_launch_has_no_semantic_wiring \
+  test_gemini_is_refused_as_a_secondmate \
+  test_copilot_hooks_semantic_lifecycle \
+  test_codex_unverified_until_a_semantic_source_exists
 
 echo "all fm-busy-adapter-wiring tests passed"

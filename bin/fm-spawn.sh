@@ -425,11 +425,11 @@ fm_backlog_directory_present "$STATE" "state directory" || {
 # shellcheck source=bin/fm-backend.sh
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-control-lib.sh
-. "$SCRIPT_DIR/fm-control-lib.sh"
+. "$SCRIPT_DIR/fm-control-lib.sh" || exit 2
 # shellcheck source=bin/fm-gate-refuse-lib.sh
 . "$SCRIPT_DIR/fm-gate-refuse-lib.sh"
 # shellcheck source=bin/fm-busy-lib.sh
-. "$SCRIPT_DIR/fm-busy-lib.sh"
+. "$SCRIPT_DIR/fm-busy-lib.sh" || exit 2
 # shellcheck source=bin/fm-cursor-lib.sh
 . "$SCRIPT_DIR/fm-cursor-lib.sh"
 # shellcheck source=bin/fm-pr-lib.sh
@@ -580,6 +580,7 @@ spawn_remote_secondmate() {
   local id=$1 remote host root home harness positional model effort backend out rc meta tmp
   local remote_backend remote_target remote_harness remote_herdr_session registry_lock remote_lock remote_generation
   local remote_traceparent remote_recorded_traceparent sm_primary_head sync_out sync_rc
+  local harness_verified=0
   local -a launch_args
   id=${POS[0]:-}
   fm_task_id_creation_valid "$id" || { echo "error: invalid task id" >&2; return 2; }
@@ -618,15 +619,17 @@ spawn_remote_secondmate() {
   else
     harness=$("$FM_ROOT/bin/fm-harness.sh" secondmate)
   fi
-  case "$harness" in
-    claude|codex|copilot|opencode|pi|pi-signed|grok|kimi|cursor) ;;
-    *)
-      fm_lock_release "$registry_lock" || true
-      fm_lock_release "$SPAWN_TASK_LOCK" || true
-      echo "error: remote secondmate spawn requires a verified harness adapter, not a raw launch command: $harness" >&2
-      return 1
-      ;;
-  esac
+  if fm_harness_registered "$harness"; then
+    fm_harness_describe "$harness" remote-supported launch && harness_verified=1
+  else
+    case "$harness" in claude|codex|opencode|pi-signed|grok|kimi|cursor) harness_verified=1 ;; esac
+  fi
+  if [ "$harness_verified" -ne 1 ]; then
+    fm_lock_release "$registry_lock" || true
+    fm_lock_release "$SPAWN_TASK_LOCK" || true
+    echo "error: remote secondmate spawn requires a verified harness adapter, not a raw launch command: $harness" >&2
+    return 1
+  fi
   model=${MODEL:--}
   effort=${EFFORT:--}
   if [ -z "$HARNESS_ARG" ] && [ -z "$positional" ]; then
@@ -1404,22 +1407,11 @@ fi
 [ -z "$HARNESS_ARG" ] || ARG3=$HARNESS_ARG
 
 shell_quote() {
-  printf "'"
-  printf '%s' "$1" | sed "s/'/'\\\\''/g"
-  printf "'"
+  fm_platform_shell_quote "$@"
 }
 
 resolve_executable() {
-  local candidate dir
-  candidate=$(type -P -- "$1" 2>/dev/null) || return 1
-  [ -x "$candidate" ] || return 1
-  case "$candidate" in
-    /*) printf '%s\n' "$candidate" ;;
-    *)
-      dir=$(cd "$(dirname "$candidate")" 2>/dev/null && pwd -P) || return 1
-      printf '%s/%s\n' "$dir" "$(basename "$candidate")"
-      ;;
-  esac
+  fm_platform_resolve_executable "$@"
 }
 
 resolve_pi_executable() {
@@ -1434,9 +1426,7 @@ powershell_quote() {
 # before composing the optional regular-TUI flag. An absent or inconclusive probe
 # omits the flag so older Pi versions can still spawn.
 pi_supports_tui_mode() {
-  local executable=$1 help
-  help=$("$executable" --help 2>&1) || return 1
-  printf '%s\n' "$help" | grep -Eq -- '(^|[[:space:]])--tui-mode([[:space:]=]|$)'
+  fm_platform_command_supports_option "$1" --tui-mode
 }
 
 # omp pre-launch model validation. `omp models --json` (omp 18.1.11) prints
@@ -1471,6 +1461,10 @@ omp_model_validate() {  # <omp-bin> <model>
 # (busy-state source, exit command, dialogs, quirks) lives in the harness-adapters skill.
 launch_template() {
   local harness=$1 kind=${2:-ship}
+  if fm_harness_registered "$harness"; then
+    fm_harness_describe "$harness" launch-template "$kind"
+    return $?
+  fi
   # shellcheck disable=SC2016  # single quotes are deliberate: $(cat ...) expands in the crewmate pane, not here
   case "$harness" in
     # CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false disables claude's interactive
@@ -1508,9 +1502,8 @@ launch_template() {
         printf '%s' 'codex __MODELFLAG____EFFORTFLAG__--dangerously-bypass-approvals-and-sandbox -c "notify=[\"bash\",\"-c\",\"touch __TURNEND__\"]" "$(__OPINPUT__ encode launch-brief < __BRIEF__)"'
       fi
       ;;
-    copilot) printf '%s' 'env -u CLAUDECODE -u PI_CODING_AGENT -u GROK_AGENT -u FM_PI_HARNESS -u CURSOR_AGENT -u CURSOR_INVOKED_AS __COPILOTBIN__ --allow-all --no-ask-user __MODELFLAG____EFFORTFLAG__--interactive "$(__OPINPUT__ encode launch-brief < __BRIEF__)"' ;;
     opencode) printf '%s' 'OPENCODE_CONFIG_CONTENT='\''{"permission":{"*":"allow"}}'\'' opencode __MODELFLAG__--prompt "$(__OPINPUT__ encode launch-brief < __BRIEF__)"' ;;
-    pi|pi-signed)
+    pi-signed)
       printf '%s' '__PIBIN____PITUIMODE__'
       if [ "$kind" = secondmate ]; then
         printf '%s' ' __MODELFLAG____EFFORTFLAG__-e __PITURNEND__ -e __PIWATCH__ "$(__OPINPUT__ encode launch-brief < __BRIEF__)"'
@@ -1714,7 +1707,11 @@ if [ "$KIND" = secondmate ] && [ "$HARNESS" = rovo ]; then
 fi
 
 case "$HARNESS" in
-  pi|pi-signed)
+  copilot|pi)
+    fm_harness_prepare_launch "$HARNESS" "$KIND" "$LAUNCH" || exit 1
+    LAUNCH=$FM_HARNESS_LAUNCH
+    ;;
+  pi-signed)
     PI_BIN=$(resolve_pi_executable "$HARNESS") || {
       echo "error: $HARNESS executable not found on PATH; install it or select a different verified harness" >&2
       exit 1
@@ -1750,12 +1747,6 @@ case "$HARNESS" in
     OMP_WORKER_CFG="$FM_ROOT/.omp/fm-worker-overlay.yml"
     [ -f "$OMP_WORKER_CFG" ] || {
       echo "error: omp worker posture overlay missing at $OMP_WORKER_CFG; a worker launched without it can park on the captain's own approval or plan-mode settings" >&2
-      exit 1
-    }
-    ;;
-  copilot)
-    COPILOT_BIN=$(resolve_executable copilot) || {
-      echo "error: copilot executable not found on PATH; install GitHub Copilot CLI or select a different verified harness" >&2
       exit 1
     }
     ;;
@@ -1903,25 +1894,30 @@ muse_credential_present() {
 }
 
 model_flag_for_harness() {
-  local harness=$1 model=$2
+  local harness=$1 model=$2 option
   [ -n "$model" ] && [ "$model" != default ] || return 0
+  if fm_harness_registered "$harness"; then
+    option=$(fm_harness_describe "$harness" model-option) || return 2
+    [ -z "$option" ] || printf -- '%s %s ' "$option" "$(shell_quote "$model")"
+    return 0
+  fi
   case "$harness" in
-    claude|codex|copilot|opencode|pi|pi-signed|grok|kimi|cursor|gemini|muse|rovo|omp)
+    claude|codex|opencode|pi-signed|grok|kimi|cursor|gemini|muse|rovo|omp)
       printf -- '--model %s ' "$(shell_quote "$model")"
       ;;
   esac
 }
 
 effort_flag_for_harness() {
-  local harness=$1 effort=$2 model=${3:-}
+  local harness=$1 effort=$2 model=${3:-} option
   [ -n "$effort" ] && [ "$effort" != default ] || return 0
+  if fm_harness_registered "$harness"; then
+    option=$(fm_harness_describe "$harness" effort-option "$model" "$effort") || return 1
+    [ -z "$option" ] || printf -- '%s %s ' "$option" "$(shell_quote "$effort")"
+    return 0
+  fi
   case "$harness" in
     claude)
-      case "$effort" in
-        low|medium|high|xhigh|max) printf -- '--effort %s ' "$(shell_quote "$effort")" ;;
-      esac
-      ;;
-    copilot)
       case "$effort" in
         low|medium|high|xhigh|max) printf -- '--effort %s ' "$(shell_quote "$effort")" ;;
       esac
@@ -1943,7 +1939,7 @@ effort_flag_for_harness() {
         low|medium|high) printf -- '--reasoning-effort %s ' "$(shell_quote "$effort")" ;;
       esac
       ;;
-    pi|pi-signed)
+    pi-signed)
       # Pi 0.80.6 accepts the full shared effort vocabulary, including max, through
       # its --thinking flag.
       case "$effort" in
@@ -2030,7 +2026,7 @@ case "$LAUNCH" in
 esac
 
 json_escape() {
-  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+  fm_platform_json_escape "$@"
 }
 
 # rovo confines every file-tool operation (open_files, create_file, grep, ...)
@@ -3309,7 +3305,17 @@ if [ "$RELAUNCH" -eq 1 ]; then
   RELAUNCH_REPLACEMENT_STATE=$STATE_REAL
   RELAUNCH_REPLACEMENT_WT=$WT
 fi
-if [ "$KIND" != secondmate ] || [ "$HARNESS" = copilot ]; then
+ARM_HARNESS_BUSY=0
+if fm_harness_registered "$HARNESS"; then
+  if fm_harness_describe "$HARNESS" busy-kind "$KIND"; then
+    ARM_HARNESS_BUSY=1
+  elif [ "$?" -ne 1 ]; then
+    exit 2
+  fi
+elif [ "$KIND" != secondmate ]; then
+  ARM_HARNESS_BUSY=1
+fi
+if [ "$ARM_HARNESS_BUSY" -eq 1 ]; then
   # Arm the semantic busy-state contract (bin/fm-busy-lib.sh) for every
   # adapter with a verified semantic source. Copilot secondmates are included
   # because their generated lifecycle hooks also give fm-send a backend-neutral
@@ -3416,23 +3422,12 @@ EOF
       fi
       ;;
     copilot*)
-      mkdir -p "$WT/.github/hooks"
-      busy_cmd="bash $(shell_quote "$FM_ROOT/bin/fm-ghcp-hook.sh") worker-event $(shell_quote "$STATE_REAL") $(shell_quote "$ID") $(shell_quote "$BUSY_GEN")"
-      hook_ps="$FM_ROOT/bin/fm-ghcp-hook.ps1"
-      if command -v cygpath >/dev/null 2>&1; then
-        hook_ps=$(cygpath -w "$hook_ps" 2>/dev/null || printf '%s' "$hook_ps")
-      fi
-      ps_cmd="& $(powershell_quote "$hook_ps") worker-event $(powershell_quote "$STATE_REAL") $(powershell_quote "$ID") $(powershell_quote "$BUSY_GEN")"
-      j_submit_bash=$(json_escape "$busy_cmd busy user-prompt-submitted -")
-      j_stop_bash=$(json_escape "$busy_cmd idle agent-stop $(shell_quote "$TURNEND")")
-      j_end_bash=$(json_escape "$busy_cmd idle session-end $(shell_quote "$TURNEND")")
-      j_submit_ps=$(json_escape "$ps_cmd busy user-prompt-submitted -")
-      j_stop_ps=$(json_escape "$ps_cmd idle agent-stop $(powershell_quote "$TURNEND")")
-      j_end_ps=$(json_escape "$ps_cmd idle session-end $(powershell_quote "$TURNEND")")
-      cat > "$WT/.github/hooks/zz-firstmate-$ID.json" <<EOF
-{"version":1,"hooks":{"userPromptSubmitted":[{"type":"command","bash":"$j_submit_bash","powershell":"$j_submit_ps","timeoutSec":10}],"agentStop":[{"type":"command","bash":"$j_stop_bash","powershell":"$j_stop_ps","timeoutSec":10}],"sessionEnd":[{"type":"command","bash":"$j_end_bash","powershell":"$j_end_ps","timeoutSec":10}]}}
-EOF
-      exclude_path '.github/hooks/zz-firstmate-*.json'
+      COPILOT_HOOK_PATH=$(fm_harness_owned_wiring copilot hook-path "$WT" "$ID") || exit 2
+      COPILOT_HOOK_EXCLUSION=$(fm_harness_owned_wiring copilot exclusion) || exit 2
+      mkdir -p "${COPILOT_HOOK_PATH%/*}"
+      fm_harness_owned_wiring copilot render "$FM_ROOT" "$STATE_REAL" "$ID" "$BUSY_GEN" "$TURNEND" \
+        > "$COPILOT_HOOK_PATH" || exit 1
+      exclude_path "$COPILOT_HOOK_EXCLUSION"
       ;;
     opencode*)
       mkdir -p "$WT/.opencode/plugins"
@@ -3487,7 +3482,12 @@ export const FmBusyState = async () => {
 EOF
       exclude_path '.opencode/plugins/fm-busy-state.js'
       ;;
-    pi|pi-signed)
+    pi)
+      PI_EXTENSION_PATH=$(fm_harness_owned_wiring pi paths '' "$STATE" "$ID") || exit 2
+      fm_harness_owned_wiring pi render "$FM_ROOT" "$STATE_REAL" "$ID" "$BUSY_GEN" "$TURNEND" \
+        > "$PI_EXTENSION_PATH" || exit 1
+      ;;
+    pi-signed)
       # Written OUTSIDE the worktree: pi's project-trust gate fires on any extension
       # loaded from inside the project (verified live), but an explicit -e path
       # elsewhere loads without a dialog. Lives in state/, cleaned by teardown.
@@ -3906,14 +3906,23 @@ fi
 
 sq_brief=$(shell_quote "$BRIEF")
 sq_turnend=$(shell_quote "$TURNEND")
-sq_piext=$(shell_quote "$STATE/$ID.pi-ext.ts")
-sq_piturnend=$(shell_quote "$PROJ_ABS/.pi/extensions/fm-primary-turnend-guard.ts")
-sq_piwatch=$(shell_quote "$PROJ_ABS/.pi/extensions/fm-primary-pi-watch.ts")
+if [ "$HARNESS" = pi ]; then
+  PI_EXTENSION_PATH=$(fm_harness_owned_wiring pi paths '' "$STATE" "$ID") || exit 2
+  PI_TURNEND_PATH=$(fm_harness_owned_wiring pi primary-turnend "$PROJ_ABS") || exit 2
+  PI_WATCH_PATH=$(fm_harness_owned_wiring pi primary-watch "$PROJ_ABS") || exit 2
+else
+  PI_EXTENSION_PATH="$STATE/$ID.pi-ext.ts"
+  PI_TURNEND_PATH="$PROJ_ABS/.pi/extensions/fm-primary-turnend-guard.ts"
+  PI_WATCH_PATH="$PROJ_ABS/.pi/extensions/fm-primary-pi-watch.ts"
+fi
+sq_piext=$(shell_quote "$PI_EXTENSION_PATH")
+sq_piturnend=$(shell_quote "$PI_TURNEND_PATH")
+sq_piwatch=$(shell_quote "$PI_WATCH_PATH")
 sq_ompext=$(shell_quote "$STATE/$ID.omp-ext.ts")
 sq_ompcfg=$(shell_quote "${OMP_WORKER_CFG:-$FM_ROOT/.omp/fm-worker-overlay.yml}")
 sq_opinput=$(shell_quote "$FM_ROOT/bin/fm-operational-input.sh")
 sq_worktree=$(shell_quote "$WT")
-MODELFLAG=$(model_flag_for_harness "$HARNESS" "$MODEL")
+MODELFLAG=$(model_flag_for_harness "$HARNESS" "$MODEL") || exit 1
 EFFORTFLAG=$(effort_flag_for_harness "$HARNESS" "$EFFORT" "$MODEL") || exit 1
 LAUNCH=${LAUNCH//__MODELFLAG__/$MODELFLAG}
 LAUNCH=${LAUNCH//__EFFORTFLAG__/$EFFORTFLAG}
@@ -3933,26 +3942,29 @@ LAUNCH=${LAUNCH//__OMPEXT__/$sq_ompext}
 LAUNCH=${LAUNCH//__OMPWORKERCFG__/$sq_ompcfg}
 LAUNCH=${LAUNCH//__OPINPUT__/$sq_opinput}
 case "$HARNESS" in
-  pi|pi-signed) LAUNCH=${LAUNCH//__PIBIN__/"$(shell_quote "$PI_BIN")"} ;;
+  copilot|pi) LAUNCH=${LAUNCH//"$FM_HARNESS_EXECUTABLE_TOKEN"/"$(shell_quote "$FM_HARNESS_EXECUTABLE")"} ;;
+  pi-signed) LAUNCH=${LAUNCH//__PIBIN__/"$(shell_quote "$PI_BIN")"} ;;
   cursor) LAUNCH=${LAUNCH//__CURSORBIN__/"$(shell_quote "$CURSOR_BIN")"} ;;
   gemini) LAUNCH=${LAUNCH//__GEMINISETTINGS__/"$(shell_quote "$STATE_REAL/$ID.gemini-settings.json")"} ;;
   omp) LAUNCH=${LAUNCH//__OMPBIN__/"$(shell_quote "$OMP_BIN")"} ;;
-  copilot) LAUNCH=${LAUNCH//__COPILOTBIN__/"$(shell_quote "$COPILOT_BIN")"} ;;
 esac
 LAUNCH=${LAUNCH//__WORKTREE__/$sq_worktree}
+if fm_harness_registered "$HARNESS"; then
+  LAUNCH_ENV=$(fm_harness_describe "$HARNESS" launch-environment) || exit 2
+  LAUNCH="$LAUNCH_ENV $LAUNCH"
+else
 case "$HARNESS" in
-  claude|codex|opencode|pi|pi-signed|grok|kimi|gemini|muse|rovo|omp)
+  claude|codex|opencode|pi-signed|grok|kimi|gemini|muse|rovo|omp)
     LAUNCH="env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI -u COPILOT_CLI -u COPILOT_AGENT_SESSION_ID -u COPILOT_LOADER_PID $LAUNCH"
     ;;
   cursor)
     LAUNCH="env -u GEMINI_CLI -u COPILOT_CLI -u COPILOT_AGENT_SESSION_ID -u COPILOT_LOADER_PID $LAUNCH"
     ;;
-  copilot)
-    LAUNCH="env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI $LAUNCH"
-    ;;
 esac
-if [ -n "${FM_COPILOT_PARENT_STATE:-}${FM_COPILOT_PARENT_TASK_ID:-}${FM_COPILOT_PARENT_BUSY_GEN:-}" ]; then
-  LAUNCH="env -u FM_COPILOT_PARENT_STATE -u FM_COPILOT_PARENT_TASK_ID -u FM_COPILOT_PARENT_BUSY_GEN $LAUNCH"
+fi
+PARENT_SCRUB=$(fm_harness_owned_wiring copilot inherited-environment) || exit 2
+if [ -n "$PARENT_SCRUB" ]; then
+  LAUNCH="$PARENT_SCRUB $LAUNCH"
 fi
 # Crewmate panes are created by a long-lived tmux/herdr daemon that does not
 # inherit firstmate's current environment, so a bare `claude` in the pane falls
@@ -3974,8 +3986,9 @@ if [ "$KIND" = secondmate ]; then
   # receive extension to match fm_supervision_model's own table, so their pull
   # guard tolerates the extension hand-off exactly as a Pi primary does.
   case "$HARNESS" in
-    claude|copilot|cursor) supervision_model=autoarm ;;
-    pi|pi-signed|omp) supervision_model=extension ;;
+    copilot|pi) supervision_model=$(fm_harness_describe "$HARNESS" supervision) || exit 2 ;;
+    claude|cursor) supervision_model=autoarm ;;
+    pi-signed|omp) supervision_model=extension ;;
     *) supervision_model=persistent ;;
   esac
   # Deliver the primary's EFFECTIVE trace-context decision as a normalized on/off
@@ -3987,7 +4000,8 @@ if [ "$KIND" = secondmate ]; then
   # injected carrier and this on/off snapshot are guaranteed to agree.
   LAUNCH="FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME=$sq_primary_home FM_HOME=$sq_home FM_TRACE_CONTEXT=$SPAWN_TRACE_EFFECTIVE FM_SUPERVISION_MODEL=$supervision_model $LAUNCH"
   if [ "$HARNESS" = copilot ]; then
-    LAUNCH="FM_COPILOT_PARENT_STATE=$(shell_quote "$STATE_REAL") FM_COPILOT_PARENT_TASK_ID=$(shell_quote "$ID") FM_COPILOT_PARENT_BUSY_GEN=$(shell_quote "$BUSY_GEN") $LAUNCH"
+    PARENT_ENV=$(fm_harness_owned_wiring copilot parent-environment "$STATE_REAL" "$ID" "$BUSY_GEN") || exit 2
+    LAUNCH="$PARENT_ENV $LAUNCH"
   fi
 fi
 if [ -z "$SPAWN_TRACEPARENT" ] && [ "$RELAUNCH" -eq 1 ]; then

@@ -18,18 +18,9 @@ _FM_SESSION_LOCK_LIB_DIR=$(dirname -- "${BASH_SOURCE[0]}")
 . "$_FM_SESSION_LOCK_LIB_DIR/fm-cursor-lib.sh"
 # shellcheck source=bin/fm-platform-process-lib.sh
 . "$_FM_SESSION_LOCK_LIB_DIR/fm-platform-process-lib.sh" || return 1
+# shellcheck source=bin/fm-harness-lib.sh
+. "$_FM_SESSION_LOCK_LIB_DIR/fm-harness-lib.sh" || return 2
 unset _FM_SESSION_LOCK_LIB_DIR
-
-# Known harness command names; extend when a new adapter is verified. omp is
-# anchored exactly like pi: its process name is the bare word `omp` (verified,
-# omp 18.1.11), and a substring match would claim ompd or comp.
-FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^copilot(\.exe)?$|^pi$|^pi-signed$|^omp$'
-
-# The same harnesses as exact executable names. Keep in sync with
-# FM_HARNESS_RE. Used only for the stricter path evidence below, where the
-# loose regex would also match ordinary firstmate paths such as
-# bin/fm-claude-stop-autoarm.sh.
-FM_HARNESS_NAMES=(claude codex opencode grok kimi copilot copilot.exe pi-signed pi omp)
 
 fm_session_process_comm() {  # <pid>
   fm_platform_process_comm "$@"
@@ -43,72 +34,13 @@ fm_session_process_ppid() {  # <pid>
   fm_platform_process_ppid "$@"
 }
 
-# Git for Windows crosses from the native copilot.exe process into an MSYS
-# shell with PPID=1, so ordinary POSIX ancestry cannot see the owner. Copilot
-# publishes the native loader PID and a session id to every child tool. Accept
-# that bridge only when every marker is well formed and the native process table
-# still identifies that exact Windows PID as copilot.exe.
-# Cached across calls in this process: session start used to pay a full
-# `ps -W` (every Windows process) once per lock, ancestry, and liveness check.
-_FM_COPILOT_WINPID=
-_FM_COPILOT_WINPID_RC=
+# Compatibility names; the adapter owns marker verification and its PID cache.
 fm_copilot_windows_pid_matches() {  # <native-windows-pid>
-  local pid=$1
-  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
-  if [ "$pid" = "${_FM_COPILOT_WINPID:-}" ]; then
-    return "${_FM_COPILOT_WINPID_RC:-1}"
-  fi
-  _FM_COPILOT_WINPID=$pid
-  _FM_COPILOT_WINPID_RC=1
-  if fm_platform_windows_pid_matches "$pid" copilot.exe; then
-    _FM_COPILOT_WINPID_RC=0
-    return 0
-  fi
-  return 1
+  fm_harness_identify copilot native-pid "$@"
 }
 
 fm_copilot_loader_pid() {
-  local pid=${COPILOT_LOADER_PID:-} session=${COPILOT_AGENT_SESSION_ID:-}
-  [ "${COPILOT_CLI:-}" = 1 ] || return 1
-  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
-  case "$session" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac
-  if kill -0 "$pid" 2>/dev/null; then
-    local comm args argv0 name
-    comm=$(fm_session_process_comm "$pid") || return 1
-    args=$(fm_session_process_args "$pid")
-    argv0=${args%% *}
-    name=
-    case "$(basename -- "$comm")" in
-      copilot|copilot.exe) name=copilot ;;
-    esac
-    if [ -z "$name" ]; then
-      name=$(fm_harness_path_name "$comm" 2>/dev/null || \
-        fm_harness_path_name "$argv0" 2>/dev/null || true)
-    fi
-    case "$name" in copilot|copilot.exe) ;; *) return 1 ;; esac
-  else
-    fm_copilot_windows_pid_matches "$pid" || return 1
-  fi
-  printf '%s\n' "$pid"
-}
-# Print the exact harness name carried by executable path $1 - its own basename
-# or any directory component - or return 1.
-#
-# This exists because Claude Code's native installer names the per-session
-# executable by its version (~/.local/share/claude/versions/2.1.220), so the
-# basename identifies nothing while the install path still says claude. Matching
-# whole path components only is what keeps that widening safe: an ordinary path
-# such as bin/fm-claude-stop-autoarm.sh or ~/.claude/hooks/notify.sh has no
-# "claude" component and is correctly not a harness process.
-fm_harness_path_name() {  # <path>
-  local path=$1 name
-  [ -n "$path" ] || return 1
-  for name in "${FM_HARNESS_NAMES[@]}"; do
-    case "/$path/" in
-      */"$name"/*) printf '%s' "$name"; return 0 ;;
-    esac
-  done
-  return 1
+  fm_harness_identify copilot loader
 }
 
 # True when the process described by command name $1 and full argument string $2

@@ -192,7 +192,7 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 # The single owner of semantic busy state for recorded tasks
 # (fm_busy_classify).
 # shellcheck source=bin/fm-busy-lib.sh
-. "$FM_DAEMON_DIR/fm-busy-lib.sh"
+. "$FM_DAEMON_DIR/fm-busy-lib.sh" || exit 2
 
 # --- tunables ---------------------------------------------------------------
 # Supervisor backends this daemon knows how to inject into today. zellij, orca,

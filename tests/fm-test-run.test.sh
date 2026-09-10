@@ -445,6 +445,36 @@ test_process_modules_select_all_consumers() {
   pass "shared process code, declarations, compatibility wrappers, and fixtures select all consumer families"
 }
 
+test_harness_modules_select_all_consumers() {
+  local tmp repo path family listed expected
+  tmp=$(fm_test_tmproot fm-test-run-harness-modules)
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  mkdir -p "$repo/bin/harnesses"
+  for path in bin/fm-harness-lib.sh bin/harnesses/copilot.sh \
+    bin/harnesses/pi.sh tests/harness-helpers.sh; do
+    : > "$repo/$path"
+  done
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm harness-module-fixture
+  expected=$(
+    for family in pure-contract-unit backend-dispatch watcher-wake-lock session-bootstrap \
+      pr-forge standalone live-harness-optin real-herdr-gated; do
+      "$repo/bin/fm-test-run.sh" --list --family "$family"
+    done
+  )
+  expected=$(printf '%s\n' "$expected" | LC_ALL=C sort -u)
+  for path in bin/fm-harness-lib.sh bin/harnesses/copilot.sh \
+    bin/harnesses/pi.sh tests/harness-helpers.sh; do
+    printf '\n' > "$repo/$path"
+    listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+      || fail "harness dependency lacks changed-test routing: $path"
+    [ "$listed" = "$expected" ] || fail "$path did not select every harness consumer family"$'\n'"$listed"
+    : > "$repo/$path"
+  done
+  pass "both adapters, their interface, and fixture closure select every consumer family"
+}
+
 test_shell_line_ending_policy_selects_runner_contract() {
   local tmp repo listed
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-attributes.XXXXXX")
@@ -2001,6 +2031,7 @@ fm_test_run_cases \
   test_changed_runner_surfaces_select_their_family \
   test_fork_workflow_selects_its_contracts \
   test_process_modules_select_all_consumers \
+  test_harness_modules_select_all_consumers \
   test_shell_line_ending_policy_selects_runner_contract \
   test_mail_sources_select_mail_coverage \
   test_changed_shared_fixtures_select_consumers \

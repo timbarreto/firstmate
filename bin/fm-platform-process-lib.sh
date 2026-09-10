@@ -15,6 +15,38 @@
 #   uses the calling Git Bash's PATH and cygpath, not an extra PowerShell process.
 # Missing native tools and invalid environment names return nonzero.
 
+fm_platform_shell_quote() {
+  printf "'"
+  printf '%s' "$1" | sed "s/'/'\\\\''/g"
+  printf "'"
+}
+
+fm_platform_json_escape() {
+  local value=$1
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  printf '%s' "$value"
+}
+
+fm_platform_resolve_executable() {
+  local candidate dir
+  candidate=$(type -P -- "$1" 2>/dev/null) || return 1
+  [ -x "$candidate" ] || return 1
+  case "$candidate" in
+    /*) printf '%s\n' "$candidate" ;;
+    *)
+      dir=$(cd "$(dirname "$candidate")" 2>/dev/null && pwd -P) || return 1
+      printf '%s/%s\n' "$dir" "$(basename "$candidate")"
+      ;;
+  esac
+}
+
+fm_platform_command_supports_option() {
+  local executable=$1 option=$2 help
+  help=$("$executable" --help 2>&1) || return 1
+  printf '%s\n' "$help" | grep -Eq -- "(^|[[:space:]])$option([[:space:]=]|$)"
+}
+
 fm_platform_process_comm() {
   local pid=$1 proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
   if [ -r "$proc_root/$pid/status" ]; then

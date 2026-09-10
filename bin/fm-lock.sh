@@ -21,7 +21,7 @@ mkdir -p "$STATE" 2>/dev/null || {
 # the shared session-lock lib so the Claude Stop auto-arm applies the exact
 # same identity contract.
 # shellcheck source=bin/fm-session-lock-lib.sh
-. "$SCRIPT_DIR/fm-session-lock-lib.sh"
+. "$SCRIPT_DIR/fm-session-lock-lib.sh" || exit 2
 
 if [ "${1:-}" = "status" ]; then
   if [ ! -f "$LOCK" ]; then echo "lock: free"; exit 0; fi

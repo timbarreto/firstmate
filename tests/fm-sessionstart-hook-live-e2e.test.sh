@@ -126,6 +126,9 @@ make_lab() {  # <harness> -> echoes lab dir
   ln -sf "$ROOT/bin/fm-wake-lib.sh" "$lab/bin/fm-wake-lib.sh"
   ln -sf "$ROOT/bin/fm-session-lock-lib.sh" "$lab/bin/fm-session-lock-lib.sh"
   cp "$ROOT/bin/fm-platform-process-lib.sh" "$lab/bin/fm-platform-process-lib.sh"
+  # shellcheck source=tests/harness-helpers.sh
+  . "$ROOT/tests/harness-helpers.sh"
+  fm_test_install_harness_modules "$lab" || fail "session hook fixture adapter dependencies"
   cat > "$lab/bin/fm-bootstrap.sh" <<'SH'
 #!/usr/bin/env bash
 # Outlives the hook on purpose: the marker can only appear if the worker was

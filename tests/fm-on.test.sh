@@ -72,6 +72,9 @@ cp "$ROOT/bin/fm-remote-doctor.sh" "$ROOT/bin/fm-tasks-axi-lib.sh" \
 mkdir -p "$REMOTE_ROOT/bin/backends"
 cp "$ROOT/bin/backends/herdr.sh" "$REMOTE_ROOT/bin/backends/herdr.sh"
 cp "$ROOT/bin/fm-platform-process-lib.sh" "$REMOTE_ROOT/bin/fm-platform-process-lib.sh"
+# shellcheck source=tests/harness-helpers.sh
+. "$ROOT/tests/harness-helpers.sh"
+fm_test_install_harness_modules "$REMOTE_ROOT" || fail "remote fixture adapter dependencies"
 # shellcheck source=tests/private-path-helpers.sh
 . "$ROOT/tests/private-path-helpers.sh"
 fm_test_install_private_paths "$REMOTE_ROOT" || fail "could not install private-path fixture dependencies"

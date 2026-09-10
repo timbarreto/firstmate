@@ -69,6 +69,9 @@ SH
   # Lifecycle serialization, status presentation retirement, and shared adapter
   # ownership are sourced by teardown.
   ln -s "$ROOT/bin/fm-control-lib.sh" "$fake/bin/fm-control-lib.sh"
+  # shellcheck source=tests/harness-helpers.sh
+  . "$ROOT/tests/harness-helpers.sh"
+  fm_test_install_harness_modules "$fake" || fail "teardown fixture adapter dependencies"
   ln -s "$ROOT/bin/fm-classify-lib.sh" "$fake/bin/fm-classify-lib.sh"
   # fm-timeout-lib.sh: the shared hard bound fm-classify-lib.sh sources for the
   # wedge detector's bounded worktree write probe.
@@ -170,6 +173,9 @@ SH
   # fm-lease-lib.sh: teardown sources it for the supervision lease guard.
   ln -s "$ROOT/bin/fm-lease-lib.sh" "$fake/bin/fm-lease-lib.sh"
   ln -s "$ROOT/bin/fm-control-lib.sh" "$fake/bin/fm-control-lib.sh"
+  # shellcheck source=tests/harness-helpers.sh
+  . "$ROOT/tests/harness-helpers.sh"
+  fm_test_install_harness_modules "$fake" || fail "legacy teardown fixture adapter dependencies"
   ln -s "$ROOT/bin/fm-classify-lib.sh" "$fake/bin/fm-classify-lib.sh"
   # fm-timeout-lib.sh: the shared hard bound fm-classify-lib.sh sources for the
   # wedge detector's bounded worktree write probe.

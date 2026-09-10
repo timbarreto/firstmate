@@ -136,7 +136,7 @@ PUBLISH_LOCK="$STATE/.startup-network.lock"
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 # shellcheck source=bin/fm-session-lock-lib.sh
-. "$SCRIPT_DIR/fm-session-lock-lib.sh"
+. "$SCRIPT_DIR/fm-session-lock-lib.sh" || exit 2
 
 usage() {
   sed -n '2,/^set -u$/p' "$SCRIPT_DIR/fm-startup-network.sh" | sed 's/^# \{0,1\}//; $d'
