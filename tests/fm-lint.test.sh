@@ -172,7 +172,7 @@ test_list_files_reports_the_shell_inventory() {
   # working-tree diff a local test run happens to have, so this stays a pure
   # inventory check independent of fm-lint.sh's own changed-file mode below.
   listed=$(CI=true "$LINT" --list-files)
-  expected=$(find bin bin/backends tests -maxdepth 1 -type f -name '*.sh' -print | LC_ALL=C sort)
+  expected=$(find bin bin/backends bin/harnesses bin/platform tests -maxdepth 1 -type f -name '*.sh' -print | LC_ALL=C sort)
   [ "$(printf '%s\n' "$listed" | LC_ALL=C sort)" = "$expected" ] \
     || fail "fm-lint.sh --list-files did not return the complete shell inventory"
   pass "fm-lint.sh --list-files reports the complete shell inventory"
@@ -405,7 +405,7 @@ test_ci_forces_full_lint_even_with_empty_diff() {
   # No git stub: CI=true must short-circuit fm-lint.sh's mode selection before
   # it ever consults git, so this proves CI wins regardless of local diff state.
   listed=$(CI=true "$LINT" --list-files)
-  expected=$(find bin bin/backends tests -maxdepth 1 -type f -name '*.sh' -print | LC_ALL=C sort)
+  expected=$(find bin bin/backends bin/harnesses bin/platform tests -maxdepth 1 -type f -name '*.sh' -print | LC_ALL=C sort)
   [ "$(printf '%s\n' "$listed" | LC_ALL=C sort)" = "$expected" ] \
     || fail "CI=true did not force the full canonical file set"
   pass "fm-lint.sh forces a full lint in CI even when the local diff would be empty"
@@ -421,7 +421,7 @@ test_main_branch_forces_full_lint() {
   # not the ambient CI signal a real CI run would otherwise supply.
   listed=$(PATH="$fakebin:$PATH" GITHUB_ACTIONS='' CI='' \
     FM_TEST_GIT_BRANCH=main "$LINT" --list-files)
-  expected=$(find bin bin/backends tests -maxdepth 1 -type f -name '*.sh' -print | LC_ALL=C sort)
+  expected=$(find bin bin/backends bin/harnesses bin/platform tests -maxdepth 1 -type f -name '*.sh' -print | LC_ALL=C sort)
   [ "$(printf '%s\n' "$listed" | LC_ALL=C sort)" = "$expected" ] \
     || fail "fm-lint.sh did not force a full lint when HEAD is on main"
   pass "fm-lint.sh forces a full lint when HEAD is on main"
@@ -1288,39 +1288,40 @@ SH
   pass "seeded dispatcher, adapter, production-owner, and test-local diagnostics preserve parity"
 }
 
-test_help_reports_the_complete_interface
-test_list_files_reports_the_shell_inventory
-test_fast_mode_disables_extended_analysis
-test_ci_defaults_to_full_analysis
-test_ci_rejects_explicit_fast_mode
-test_fast_mode_catches_a_real_lint_defect
-test_pins_an_explicit_version
-test_installer_retries_transient_download_failure
-test_installer_selects_platform_archive_url_and_checksum
-test_installer_rejects_wrong_checksum
-test_installer_falls_back_to_shasum
-test_installer_prefers_sha256sum_over_shasum
-test_installer_rejects_unsupported_platform
-test_missing_shellcheck_fails_closed
-test_rejects_wrong_shellcheck_version
-test_catches_a_real_lint_defect
-test_ignores_ambient_shellcheck_opts
-test_clean_fixture_passes
-test_jobs_are_deterministic_and_complete
-test_worker_trees_stop_on_signal
-test_seeded_module_boundary_parity
-test_changed_mode_lints_only_the_changed_file
-test_ci_forces_full_lint_even_with_empty_diff
-test_main_branch_forces_full_lint
-test_explicit_path_bypasses_changed_logic
-test_zero_changed_files_exits_clean
-test_list_files_respects_changed_mode
-test_changed_mode_drops_external_sources_and_excludes_cross_file_codes
-test_changed_mode_invokes_shellcheck_once_per_root
-test_ci_keeps_external_sources_without_local_exclusions
-test_main_branch_keeps_external_sources
-test_merge_base_less_keeps_external_sources
-test_explicit_path_keeps_external_sources
-test_fast_mode_on_a_local_branch_keeps_source_following
-test_changed_mode_hides_cross_file_codes_that_ci_still_sees
-test_local_exclusion_list_covers_every_no_external_sources_code
+fm_test_run_cases \
+  test_help_reports_the_complete_interface \
+  test_list_files_reports_the_shell_inventory \
+  test_fast_mode_disables_extended_analysis \
+  test_ci_defaults_to_full_analysis \
+  test_ci_rejects_explicit_fast_mode \
+  test_fast_mode_catches_a_real_lint_defect \
+  test_pins_an_explicit_version \
+  test_installer_retries_transient_download_failure \
+  test_installer_selects_platform_archive_url_and_checksum \
+  test_installer_rejects_wrong_checksum \
+  test_installer_falls_back_to_shasum \
+  test_installer_prefers_sha256sum_over_shasum \
+  test_installer_rejects_unsupported_platform \
+  test_missing_shellcheck_fails_closed \
+  test_rejects_wrong_shellcheck_version \
+  test_catches_a_real_lint_defect \
+  test_ignores_ambient_shellcheck_opts \
+  test_clean_fixture_passes \
+  test_jobs_are_deterministic_and_complete \
+  test_worker_trees_stop_on_signal \
+  test_seeded_module_boundary_parity \
+  test_changed_mode_lints_only_the_changed_file \
+  test_ci_forces_full_lint_even_with_empty_diff \
+  test_main_branch_forces_full_lint \
+  test_explicit_path_bypasses_changed_logic \
+  test_zero_changed_files_exits_clean \
+  test_list_files_respects_changed_mode \
+  test_changed_mode_drops_external_sources_and_excludes_cross_file_codes \
+  test_changed_mode_invokes_shellcheck_once_per_root \
+  test_ci_keeps_external_sources_without_local_exclusions \
+  test_main_branch_keeps_external_sources \
+  test_merge_base_less_keeps_external_sources \
+  test_explicit_path_keeps_external_sources \
+  test_fast_mode_on_a_local_branch_keeps_source_following \
+  test_changed_mode_hides_cross_file_codes_that_ci_still_sees \
+  test_local_exclusion_list_covers_every_no_external_sources_code

@@ -21,6 +21,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/harness-helpers.sh
+. "$ROOT/tests/harness-helpers.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-startup-network-tests)
 DRAIN="$ROOT/bin/fm-wake-drain.sh"
@@ -103,6 +105,7 @@ new_world() {
   root="$w/root"
   mkdir -p "$home/state" "$root/bin"
   cp "$ROOT"/bin/*.sh "$root/bin/"
+  fm_test_install_harness_modules "$root" || fail "could not install harness fixture dependencies"
   # shellcheck source=tests/private-path-helpers.sh
   . "$ROOT/tests/private-path-helpers.sh"
   fm_test_install_private_paths "$root" || fail "could not install private-path fixture dependencies"
@@ -982,25 +985,26 @@ EOF
   pass "fm-startup-network: harvest stays bounded while the completed worker holds the ack lock"
 }
 
-test_wait_fails_without_a_published_stage
-test_start_returns_without_holding_the_callers_stdout
-test_harvest_acknowledgement_suppresses_the_wake_and_no_claim_produces_it
-test_a_claimant_crash_after_publish_still_queues_the_wake
-test_a_report_publication_failure_is_failed_and_still_wakes
-test_a_successful_result_never_queues_a_wake
-test_an_actionable_successful_result_still_queues_a_wake
-test_deferred_invalid_secondmate_markers_queue_durable_findings
-test_mutating_sweeps_are_refused_when_the_lock_changed_hands
-test_the_stage_bound_is_reported_not_swallowed
-test_an_abandoned_run_reads_as_needing_a_rerun
-test_locked_start_is_not_satisfied_by_an_inflight_probe
-test_start_is_single_flight
-test_start_reserves_its_generation_before_returning
-test_new_lock_owner_does_not_reuse_the_previous_owners_worker
-test_lock_takeover_stays_read_only_while_a_sweep_holds_the_lease
-test_records_share_one_origin_so_offsets_form_a_timeline
-test_timings_are_published_and_only_the_on_demand_report_prints_them
-test_a_bounded_run_still_publishes_the_timings_it_managed_to_record
-test_harvest_stays_bounded_while_ack_loop_holds_the_lock
-test_the_timing_artifact_cannot_carry_a_command_line_or_forge_records
+fm_test_run_cases \
+  test_wait_fails_without_a_published_stage \
+  test_start_returns_without_holding_the_callers_stdout \
+  test_harvest_acknowledgement_suppresses_the_wake_and_no_claim_produces_it \
+  test_a_claimant_crash_after_publish_still_queues_the_wake \
+  test_a_report_publication_failure_is_failed_and_still_wakes \
+  test_a_successful_result_never_queues_a_wake \
+  test_an_actionable_successful_result_still_queues_a_wake \
+  test_deferred_invalid_secondmate_markers_queue_durable_findings \
+  test_mutating_sweeps_are_refused_when_the_lock_changed_hands \
+  test_the_stage_bound_is_reported_not_swallowed \
+  test_an_abandoned_run_reads_as_needing_a_rerun \
+  test_locked_start_is_not_satisfied_by_an_inflight_probe \
+  test_start_is_single_flight \
+  test_start_reserves_its_generation_before_returning \
+  test_new_lock_owner_does_not_reuse_the_previous_owners_worker \
+  test_lock_takeover_stays_read_only_while_a_sweep_holds_the_lease \
+  test_records_share_one_origin_so_offsets_form_a_timeline \
+  test_timings_are_published_and_only_the_on_demand_report_prints_them \
+  test_a_bounded_run_still_publishes_the_timings_it_managed_to_record \
+  test_harvest_stays_bounded_while_ack_loop_holds_the_lock \
+  test_the_timing_artifact_cannot_carry_a_command_line_or_forge_records
 echo "# fm-startup-network.test.sh: all assertions passed"
