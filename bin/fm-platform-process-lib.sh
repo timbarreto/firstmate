@@ -22,9 +22,16 @@ fm_platform_shell_quote() {
 }
 
 fm_platform_json_escape() {
-  local value=$1
+  local value=$1 code character escaped
   value=${value//\\/\\\\}
   value=${value//\"/\\\"}
+  # Bash cannot carry NUL; encode the remaining JSON control characters.
+  for ((code=1; code<32; code++)); do
+    printf -v escaped '\\%03o' "$code"
+    printf -v character '%b' "$escaped"
+    printf -v escaped '\\u%04x' "$code"
+    value=${value//"$character"/"$escaped"}
+  done
   printf '%s' "$value"
 }
 

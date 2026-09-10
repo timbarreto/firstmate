@@ -150,8 +150,8 @@ export default function (pi: any) {
     const now = Date.now();
     if (now - lastProgress < 1000) return;
     lastProgress = now;
-    execFile("$root/bin/fm-busy-event.sh", [
-      "progress", "$state", "$id", "--gen", "$gen",
+    execFile("bash", [
+      "$root/bin/fm-busy-event.sh", "progress", "$state", "$id", "--gen", "$gen",
     ]);
   });
 }
