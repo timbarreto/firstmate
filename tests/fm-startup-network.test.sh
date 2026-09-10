@@ -103,6 +103,9 @@ new_world() {
   root="$w/root"
   mkdir -p "$home/state" "$root/bin"
   cp "$ROOT"/bin/*.sh "$root/bin/"
+  # shellcheck source=tests/private-path-helpers.sh
+  . "$ROOT/tests/private-path-helpers.sh"
+  fm_test_install_private_paths "$root" || fail "could not install private-path fixture dependencies"
   cat > "$root/bin/fm-bootstrap.sh" <<'SH'
 #!/usr/bin/env bash
 # Scriptable stand-in: records how it was invoked, then behaves as the test asks.
