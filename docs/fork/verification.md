@@ -63,3 +63,22 @@ Windows core coverage also selects the existing PR publication case through the 
 Use `FM_TEST_ONLY=test_jobs_parallel_scheduler_and_failure_propagation bin/fm-test-run.sh tests/fm-test-run.test.sh` to exercise real runner worker creation through the copied dependency layout.
 Stock Bash parsing remains owned by macOS CI, and native execution parses the platform PowerShell file in Windows coverage.
 Keep before/after characterization outputs and exact platform limitations in PR evidence.
+
+## Process and transport compatibility
+
+Run `bin/fm-test-run.sh tests/fm-platform-process.test.sh` for compatibility exports, process facts, missing-dependency refusals, call counts, and tracked clone/worktree layouts.
+The same suite exercises real native PID translation, graceful TERM, owned descendant termination, foreign-process preservation, and literal PowerShell/Bash transport on Windows.
+Only task-owned fixture processes are started or stopped; these cases do not exercise a live vendor or Firstmate fleet.
+The Windows reconciliation core job owns native coverage, while the pinned package job runs the shared contracts and strict Pi type checks.
+
+Run `bin/fm-lint.sh tests/fm-platform-process.test.sh bin/fm-platform-process-lib.sh bin/backends/herdr.sh` for focused source-aware lint; the lint owner documents mode selection and test/production source boundaries.
+
+`tests/fm-pi-primary-types.test.sh` compiles the copied repository-shaped extensions and adjacent module declarations against the installed Pi package.
+The existing Pi watch and branch suites retain their full case order and additionally support the shared named-case selector in `tests/lib.sh`.
+Use their generation/replacement, lock-ownership, process-exit cleanup, OpenCode package-boundary, and stock Pi consumer cases for targeted compatibility work.
+The native Copilot identity, nonpilot session ancestry, and Herdr Treehouse suites retain their existing executable coverage.
+
+Run `FM_TEST_ONLY=test_process_modules_select_all_consumers bin/fm-test-run.sh tests/fm-test-run.test.sh` to check routing for the platform implementation, declarations, compatibility wrappers, and fixture helper.
+The loader and runner still own coverage and scheduling independently; registering this suite does not expand concurrent admission.
+Full portable regression, macOS stock Bash, and real Herdr coverage remain with their existing shared-CI owners.
+Neither deterministic process fixtures nor package type checks establish a changed vendor hook or extension-event assumption.

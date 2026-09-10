@@ -65,6 +65,7 @@ jobs:
             tests/fm-reconcile-validation.test.sh \
             tests/fm-backend-herdr-treehouse.test.sh \
             tests/fm-pi-windows-shell-invocation.test.sh \
+            tests/fm-platform-process.test.sh \
             tests/fm-private-path.test.sh
           FM_TEST_ONLY=test_windows_pr_publication_removes_broad_inheritance \
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
@@ -104,5 +105,5 @@ jobs:
       - name: Run non-credentialed Pi compatibility checks
         run: |
           set -eu
-          bin/fm-test-run.sh tests/fm-pi-primary-types.test.sh
+          bin/fm-test-run.sh tests/fm-pi-primary-types.test.sh tests/fm-platform-process.test.sh
           bin/fm-test-run.sh tests/fm-pi-branch-extension.test.sh

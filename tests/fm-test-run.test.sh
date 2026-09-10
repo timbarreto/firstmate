@@ -375,6 +375,7 @@ test_fork_workflow_selects_its_contracts() {
     fm-update-windows.test.sh \
     fm-reconcile-validation.test.sh \
     fm-backend-herdr-treehouse.test.sh \
+    fm-platform-process.test.sh \
     fm-pi-windows-shell-invocation.test.sh \
     fm-spawn-dispatch-profile.test.sh \
     fm-teardown.test.sh \
@@ -408,6 +409,40 @@ test_fork_workflow_selects_its_contracts() {
     || fail "fork workflow must select the lint/runner family and every relocated subject, without unrelated live families"$'\n'"$listed"
   rm -rf "$tmp"
   pass "fork workflow selects every relocated contract plus the lint/runner family"
+}
+
+test_process_modules_select_all_consumers() {
+  local tmp repo path family listed expected
+  tmp=$(fm_test_tmproot fm-test-run-process-modules)
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  mkdir -p "$repo/bin/platform" "$repo/.opencode/plugins/lib" "$repo/.pi/extensions/lib"
+  for path in bin/fm-platform-process-lib.sh bin/platform/process.mjs \
+    bin/platform/process.d.mts bin/platform/windows-process.ps1 \
+    .pi/extensions/lib/fm-process-ancestry.ts .opencode/plugins/lib/fm-process-ancestry.js \
+    tests/process-helpers.sh tests/fm-platform-process.test.mjs; do
+    : > "$repo/$path"
+  done
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm process-module-fixture
+  expected=$(
+    for family in pure-contract-unit watcher-wake-lock standalone backend-dispatch \
+      session-bootstrap live-harness-optin real-herdr-gated; do
+      "$repo/bin/fm-test-run.sh" --list --family "$family"
+    done
+  )
+  expected=$(printf '%s\n' "$expected" | LC_ALL=C sort -u)
+  for path in bin/fm-platform-process-lib.sh bin/platform/process.mjs \
+    bin/platform/process.d.mts bin/platform/windows-process.ps1 \
+    .pi/extensions/lib/fm-process-ancestry.ts .opencode/plugins/lib/fm-process-ancestry.js \
+    tests/process-helpers.sh tests/fm-platform-process.test.mjs; do
+    printf '\n' > "$repo/$path"
+    listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+      || fail "process dependency lacks changed-test routing: $path"
+    [ "$listed" = "$expected" ] || fail "$path did not select every process consumer family"$'\n'"$listed"
+    : > "$repo/$path"
+  done
+  pass "shared process code, declarations, compatibility wrappers, and fixtures select all consumer families"
 }
 
 test_shell_line_ending_policy_selects_runner_contract() {
@@ -1965,6 +2000,7 @@ fm_test_run_cases \
   test_changed_reference_scan_batches_test_files \
   test_changed_runner_surfaces_select_their_family \
   test_fork_workflow_selects_its_contracts \
+  test_process_modules_select_all_consumers \
   test_shell_line_ending_policy_selects_runner_contract \
   test_mail_sources_select_mail_coverage \
   test_changed_shared_fixtures_select_consumers \

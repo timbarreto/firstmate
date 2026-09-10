@@ -4,6 +4,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/process-helpers.sh
+. "$ROOT/tests/process-helpers.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-pi-watch-extension)
 EXT="$ROOT/.pi/extensions/fm-primary-pi-watch.ts"
@@ -38,6 +40,7 @@ install_pi_watch_extension_fixture() {
   cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$repo/.pi/extensions/lib/fm-calm-visibility.ts"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
   cp "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" "$repo/.pi/extensions/lib/fm-process-ancestry.ts"
+  fm_test_install_process_module "$repo" || fail "could not install process fixture dependencies"
   mkdir -p "$repo/bin"
   cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
   chmod +x "$repo/bin/fm-operational-input.sh"
@@ -3013,6 +3016,7 @@ test_opencode_plugin_package_boundary_is_explicit_esm() {
   cp "$ROOT/.opencode/plugins/fm-primary-watch-arm.js" "$plugin"
   cp "$ROOT/.opencode/plugins/lib/fm-operational-input.js" "$fixture/plugins/lib/fm-operational-input.js"
   cp "$ROOT/.opencode/plugins/lib/fm-process-ancestry.js" "$fixture/plugins/lib/fm-process-ancestry.js"
+  fm_test_install_process_module "${fixture%/.opencode}" || fail "could not install process fixture dependencies"
   out=$(PLUGIN="$plugin" node --input-type=module 2>&1 <<'EOF'
 import { pathToFileURL } from "node:url";
 await import(pathToFileURL(process.env.PLUGIN).href);
@@ -3989,51 +3993,52 @@ EOF
   pass "OpenCode healthy arm output does not suppress the turn-end guard"
 }
 
-test_pi_extension_reports_external_healthy_watcher
-test_pi_tool_returns_agent_tool_result
-test_pi_redundant_tool_call_is_owned_noop
-test_pi_scheduled_retry_call_is_owned_noop
-test_pi_actionable_close_starts_single_successor_before_delivery
-test_pi_branch_offer_owns_actionable_wake
-test_pi_branch_offer_flags_heartbeat
-test_pi_heartbeat_is_not_ridden_into_main_by_a_co_present_check
-test_pi_main_only_check_classes_stay_on_main
-test_pi_captain_held_signal_stays_on_main
-test_pi_unread_pending_reply_forces_later_stale_alias_to_main
-test_pi_distinct_files_mixed_batch_routes_whole_batch_to_main
-test_pi_heartbeat_is_not_ridden_into_main_by_a_co_present_needs_decision
-test_pi_heartbeat_restoration_failure_stays_on_main
-test_pi_watcher_failure_never_offered_to_branch
-test_pi_handling_delivery_failure_is_typed_once
-test_pi_hung_successor_falls_back_to_typed_wake
-test_pi_unretired_successor_falls_back_without_retry
-test_pi_late_unretired_close_resumes_supervision
-test_pi_empty_close_retries_instead_of_disappearing
-test_pi_established_empty_close_honors_retry_limit
-test_pi_actionable_close_rechecks_session_lock
-test_pi_arm_distinguishes_session_lock_ownership
-test_pi_session_transition_generation_owner
-test_pi_session_replacement_carries_inflight_actionable_close
-test_pi_streaming_followup_is_replayed_after_replacement
-test_pi_streaming_time_delivery_keeps_the_successor_chain
-test_pi_successor_failure_during_delivery_is_retried_after_delivery
-test_pi_late_retiring_actionable_reaches_replacement
-test_pi_replacement_tokens_are_process_unique
-test_pi_replacement_persistence_failure_stops_arm_child
-test_pi_process_exit_cleanup_listener_lifecycle
-test_pi_process_exit_cleanup_stops_arm_child
-test_opencode_plugin_package_boundary_is_explicit_esm
-test_opencode_primary_watch_plugin_uses_effective_state_home
-test_opencode_primary_watch_plugin_sources_effective_config
-test_opencode_primary_watch_plugin_requires_session_lock
-test_opencode_watch_arm_coordinator_respects_primary_scope
-test_opencode_primary_watch_plugin_rearms_after_wake
-test_opencode_pre_ready_actionable_close_preserves_its_successor
-test_opencode_hung_successor_falls_back_to_typed_wake
-test_opencode_unretired_successor_falls_back_without_retry
-test_opencode_late_unretired_close_resumes_supervision
-test_opencode_empty_close_retries_instead_of_disappearing
-test_opencode_established_empty_close_honors_retry_limit
-test_opencode_actionable_close_rechecks_session_lock
-test_opencode_watch_arm_coordinates_with_turnend_guard
-test_opencode_healthy_arm_output_does_not_suppress_guard
+fm_test_run_cases \
+  test_pi_extension_reports_external_healthy_watcher \
+  test_pi_tool_returns_agent_tool_result \
+  test_pi_redundant_tool_call_is_owned_noop \
+  test_pi_scheduled_retry_call_is_owned_noop \
+  test_pi_actionable_close_starts_single_successor_before_delivery \
+  test_pi_branch_offer_owns_actionable_wake \
+  test_pi_branch_offer_flags_heartbeat \
+  test_pi_heartbeat_is_not_ridden_into_main_by_a_co_present_check \
+  test_pi_main_only_check_classes_stay_on_main \
+  test_pi_captain_held_signal_stays_on_main \
+  test_pi_unread_pending_reply_forces_later_stale_alias_to_main \
+  test_pi_distinct_files_mixed_batch_routes_whole_batch_to_main \
+  test_pi_heartbeat_is_not_ridden_into_main_by_a_co_present_needs_decision \
+  test_pi_heartbeat_restoration_failure_stays_on_main \
+  test_pi_watcher_failure_never_offered_to_branch \
+  test_pi_handling_delivery_failure_is_typed_once \
+  test_pi_hung_successor_falls_back_to_typed_wake \
+  test_pi_unretired_successor_falls_back_without_retry \
+  test_pi_late_unretired_close_resumes_supervision \
+  test_pi_empty_close_retries_instead_of_disappearing \
+  test_pi_established_empty_close_honors_retry_limit \
+  test_pi_actionable_close_rechecks_session_lock \
+  test_pi_arm_distinguishes_session_lock_ownership \
+  test_pi_session_transition_generation_owner \
+  test_pi_session_replacement_carries_inflight_actionable_close \
+  test_pi_streaming_followup_is_replayed_after_replacement \
+  test_pi_streaming_time_delivery_keeps_the_successor_chain \
+  test_pi_successor_failure_during_delivery_is_retried_after_delivery \
+  test_pi_late_retiring_actionable_reaches_replacement \
+  test_pi_replacement_tokens_are_process_unique \
+  test_pi_replacement_persistence_failure_stops_arm_child \
+  test_pi_process_exit_cleanup_listener_lifecycle \
+  test_pi_process_exit_cleanup_stops_arm_child \
+  test_opencode_plugin_package_boundary_is_explicit_esm \
+  test_opencode_primary_watch_plugin_uses_effective_state_home \
+  test_opencode_primary_watch_plugin_sources_effective_config \
+  test_opencode_primary_watch_plugin_requires_session_lock \
+  test_opencode_watch_arm_coordinator_respects_primary_scope \
+  test_opencode_primary_watch_plugin_rearms_after_wake \
+  test_opencode_pre_ready_actionable_close_preserves_its_successor \
+  test_opencode_hung_successor_falls_back_to_typed_wake \
+  test_opencode_unretired_successor_falls_back_without_retry \
+  test_opencode_late_unretired_close_resumes_supervision \
+  test_opencode_empty_close_retries_instead_of_disappearing \
+  test_opencode_established_empty_close_honors_retry_limit \
+  test_opencode_actionable_close_rechecks_session_lock \
+  test_opencode_watch_arm_coordinates_with_turnend_guard \
+  test_opencode_healthy_arm_output_does_not_suppress_guard

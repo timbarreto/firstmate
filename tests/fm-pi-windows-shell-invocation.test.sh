@@ -4,6 +4,8 @@ set -u
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 . "$ROOT/tests/lib.sh"
+# shellcheck source=tests/process-helpers.sh
+. "$ROOT/tests/process-helpers.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-pi-windows-shell-invocation)
 
@@ -18,6 +20,7 @@ cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$project/.pi/extensions/"
 cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" \
   "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" \
   "$ROOT/.pi/extensions/lib/fm-sessionstart-supervisor.mjs" "$project/.pi/extensions/lib/"
+fm_test_install_process_module "$project" || fail "could not install process fixture dependencies"
 
 cat >"$project/bin/fm-sessionstart-run.sh" <<'SH'
 #!/usr/bin/env bash
