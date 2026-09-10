@@ -1,8 +1,12 @@
 // Exercise the compatibility interfaces in fresh processes so each has its own cache.
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { fileURLToPath } from "node:url";
+import { once } from "node:events";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 
 const subjects = [
   new URL("../.pi/extensions/lib/fm-process-ancestry.ts", import.meta.url),
@@ -16,11 +20,23 @@ if (!scenario) {
     for (const name of cases) {
       const result = childProcess.spawnSync(process.execPath, [
         fileURLToPath(import.meta.url), name, url.href,
-      ], { encoding: "utf8" });
+      ], { encoding: "utf8", timeout: 15000 });
       assert.equal(result.status, 0, `${url.pathname}: ${name}\n${result.stdout}${result.stderr}`);
     }
   }
+  const pi = await import(subjects[0]);
+  const opencode = await import(subjects[1]);
+  for (const name of Object.keys(opencode)) {
+    assert.equal(pi[name], opencode[name], `${name} must have one implementation`);
+  }
   console.log("ok - both process compatibility interfaces pass isolated behavioral contracts");
+  if (process.platform === "win32") await nativeContracts(pi);
+  else {
+    assert.equal(pi.isPidInCurrentAncestry(String(process.pid)), true);
+    assert.equal(pi.isPidInCurrentAncestry(String(process.ppid)), true);
+    assert.equal(pi.pidAlive(String(process.pid)), true);
+    assert.equal(pi.shellVisibleProcessPid(), process.pid);
+  }
 } else {
   const calls = [];
   const signals = [];
@@ -53,6 +69,9 @@ if (!scenario) {
       return { status: signalStatus };
     }
     assert.match(command, /\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/);
+    assert.ok(args.includes("-File"));
+    assert.match(args.at(-2), /windows-process\.ps1$/);
+    assert.equal(args.at(-1), scenario === "windows-signal" ? "find-watch-arm-roots" : "stop-watch-arm-tree");
     assert.equal(options.env.FM_WATCH_ARM_ROOT_PID, "713");
     assert.equal(options.windowsHide, true);
     return { status: nativeStatus, stdout: `${nativePid}\r\n${parentPid}\r\n` };
@@ -150,4 +169,117 @@ if (!scenario) {
     default:
       throw new Error(`unknown process contract: ${scenario}`);
   }
+}
+
+async function nativeContracts(mod) {
+  const root = process.env.FM_PROCESS_TEST_ROOT;
+  assert.ok(root, "the shell entrypoint must supply its isolated fixture root");
+  const directory = join(root, "Crew O'Brien [literal]; $value");
+  mkdirSync(directory, { recursive: true });
+  const script = join(directory, "fm-watch-arm.sh");
+  const marker = join(directory, "stopped");
+  writeFileSync(script, [
+    "#!/usr/bin/env bash",
+    "trap 'printf stopped > \"$FM_PROCESS_STOP_MARKER\"; exit 0' TERM",
+    "printf 'ready:%s\\n' \"$$\"",
+    "while :; do sleep 0.1; done",
+    "",
+  ].join("\n"));
+  const graceful = childProcess.spawn("bash", [script, `fm-${randomUUID()}`], {
+    env: { ...process.env, FM_PROCESS_STOP_MARKER: marker },
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  const gracefulClosed = once(graceful, "close");
+  const token = graceful.spawnargs.at(-1);
+  try {
+    const text = await readyLine(graceful);
+    assert.match(text, /^ready:\d+/);
+    assert.equal(mod.pidAlive(String(graceful.pid)), true);
+    assert.equal(mod.signalWatchArmProcess(graceful.pid, token), true);
+    await boundedWait(gracefulClosed, "graceful Bash TERM");
+    assert.equal(readFileSync(marker, "utf8"), "stopped");
+  } finally {
+    if (graceful.exitCode === null && graceful.signalCode === null) {
+      graceful.kill("SIGTERM");
+      await boundedWait(gracefulClosed, "graceful fixture cleanup");
+    }
+  }
+
+  const launched = [];
+  function launchTree(owner) {
+    const child = childProcess.spawn(process.execPath, [
+      "-e",
+      'const {spawn}=require("node:child_process"); const child=spawn(process.execPath,["-e","setInterval(()=>{},1000)"],{stdio:"ignore"}); console.log(JSON.stringify({root:process.pid,child:child.pid})); setInterval(()=>{},1000);',
+      "fm-watch-arm.sh", owner,
+    ], { stdio: ["ignore", "pipe", "inherit"] });
+    const entry = { child, closed: once(child, "close"), ids: [] };
+    launched.push(entry);
+    return entry;
+  }
+  const owner = `fm-${randomUUID()}`;
+  const owned = launchTree(owner);
+  const foreign = launchTree(`fm-${randomUUID()}`);
+  try {
+    for (const entry of launched) {
+      const ids = JSON.parse(await readyLine(entry.child));
+      entry.ids = [ids.root, ids.child];
+      assert.equal(ids.root, entry.child.pid);
+    }
+    assert.equal(mod.isPidInCurrentAncestry(String(foreign.child.pid)), false);
+    assert.equal(mod.signalWatchArmProcess(2147483647, `stale-${randomUUID()}`), false);
+    assert.equal(mod.terminateWatchArmProcessTree(2147483647, `stale-${randomUUID()}`), false);
+    assert.ok(foreign.ids.every(nativeAlive), "stale ownership affected a foreign tree");
+    assert.equal(mod.terminateWatchArmProcessTree(owned.child.pid, owner), true);
+    await boundedWait(owned.closed, "owned native process tree");
+    for (let attempt = 0; attempt < 100 && owned.ids.some(nativeAlive); attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.ok(owned.ids.every((pid) => !nativeAlive(pid)), "owned descendants survived");
+    assert.ok(foreign.ids.every(nativeAlive), "owned cleanup affected a foreign tree");
+  } finally {
+    for (const entry of launched) {
+      for (const pid of entry.ids.toReversed()) {
+        if (nativeAlive(pid)) process.kill(pid, "SIGTERM");
+      }
+      if (entry.ids.length === 0) entry.child.kill("SIGTERM");
+      await boundedWait(entry.closed, "native fixture cleanup");
+    }
+  }
+  assert.ok(existsSync(marker));
+  console.log("ok - native Windows PID translation, graceful TERM, and owned tree cleanup preserve foreign processes");
+}
+
+function nativeAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function boundedWait(promise, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`timeout: ${label}`)), 10000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function readyLine(child) {
+  const output = (async () => {
+    let text = "";
+    for await (const chunk of child.stdout) {
+      text += chunk;
+      if (text.includes("\n")) return text.trim();
+    }
+    throw new Error("fixture exited before publishing its PID");
+  })();
+  return boundedWait(output, "fixture PID publication");
 }
