@@ -40,3 +40,13 @@ Measure repeated successful lookups as well as parser counts; in-process string 
 After registering new tests, re-run the coverage guard and inspect the five serial shards; legitimate rebalancing is distinct from an identical-input mismatch.
 Keep the immutable comparison inputs and exact outputs in session or PR evidence.
 Broad runner coverage remains in portable CI, stock Bash parsing remains in the macOS job, and native worker privacy remains in Windows coverage.
+
+## Serial runtime and stalled fixtures
+
+[Portable shard verification](../fm-test-portable-shards.md) owns duration-hint refresh and balance evidence.
+Exclude gated skips from timing samples, preserve unmeasured native-platform hints, and verify the complete five-shard partition after updating fork overrides.
+Balanced estimates do not prove that a shutdown race or other intermittent stall has been resolved.
+
+`tests/fm-remote-job.test.sh` bounds the replacement-worker shutdown wait and emits its phase, process snapshot, and recent worker output on failure.
+`tests/fm-remote-job-wait.test.sh` exercises that wait with a real child that ignores TERM and verifies bounded failure and cleanup.
+The full remote-job suite remains the Linux worker integration check; the focused fixture-wait regression does not establish why a real worker stopped responding.

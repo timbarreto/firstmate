@@ -4,6 +4,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/remote-job-helpers.sh
+. "$ROOT/tests/remote-job-helpers.sh"
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 TMP_ROOT=$(fm_test_tmproot fm-remote-job)
@@ -701,6 +703,7 @@ assert_absent "$REPEAT_STATE/worker.lock" \
   "a repeatedly signalled shutdown left its ownership lock behind"
 assert_absent "$REPEAT_STATE/worker.ready" \
   "a repeatedly signalled shutdown left its readiness heartbeat behind"
+printf 'remote-job-fixture: repeated-signal shutdown released ownership\n'
 HOME="$REPEAT_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_REMOTE_JOB_STATE_ROOT="$REPEAT_STATE" \
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux "$REMOTE_ROOT/bin/fm-remote-job-worker.sh" --serve \
   >> "$TMP_ROOT/repeat-signal.out" 2>> "$TMP_ROOT/repeat-signal.err" &
@@ -712,7 +715,11 @@ done
 assert_present "$REPEAT_STATE/worker.ready" \
   "the worker after a repeatedly signalled shutdown never reported ready"
 kill -TERM "$REPEAT_WORKER_PID"
-wait "$REPEAT_WORKER_PID" 2>/dev/null || true
+if ! fm_remote_job_wait_fixture_child "$REPEAT_WORKER_PID" 30 replacement \
+  "$TMP_ROOT/repeat-signal.out" "$TMP_ROOT/repeat-signal.err"; then
+  REPEAT_WORKER_PID=
+  fail "the replacement worker did not finish its shutdown"
+fi
 REPEAT_WORKER_PID=
 pass "a repeatedly signalled shutdown still releases ownership for the next worker"
 
