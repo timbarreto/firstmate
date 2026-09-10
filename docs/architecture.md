@@ -5,6 +5,7 @@ How firstmate works, in depth.
 The [README](../README.md) carries the high-level diagram and a short synopsis.
 This document expands every part of it.
 firstmate's supervisor contract and routing index for conditional procedures is [`AGENTS.md`](../AGENTS.md); this is the human-facing companion.
+[Fork module architecture](fork/architecture.md) owns the Copilot/Pi, platform, test-catalog, and CI extension boundaries without replacing the lifecycle contracts here.
 
 ## Event-driven supervision
 
@@ -122,8 +123,7 @@ Claude's `bin/fm-claude-stop-autoarm.sh` hook fires on every Stop and, when the 
 It suppresses failed-looking closes when the same identity-matched watcher is healthy, retries genuine failures within a bound, and coordinates exhausted failure episodes with the Claude turn-end guard as documented in [`turnend-guard.md`](turnend-guard.md).
 [`watcher-continuity.md`](watcher-continuity.md) owns Claude's residual active-turn coverage and watcher-status command-gating boundary.
 Cursor's `bin/fm-turnend-guard-cursor.sh` hook is the same between-turns shape in one synchronous step: it parks the awaited `stop` hook on the arm wrapper and translates an actionable close into one `followup_message`, with a generation baton that makes an older park still running after the next `stop` claim stand down instead of leaking a stale duplicate wake.
-Copilot starts the same watcher owner through its shell tool's native asynchronous mode, using `bin/fm-watch-arm.ps1` as the native Windows bridge.
-Its tracked shell-completion notification hook converts an actionable close into typed Firstmate input, while `bin/fm-copilot-stop.sh` keeps a session-scoped seven-continuation repair ledger below Copilot CLI's hard eight-block override without launching or waiting for the watcher.
+Copilot's notification-driven continuation and nonblocking repair bounds are owned by [`watcher-continuity.md`](watcher-continuity.md) and [`turnend-guard.md`](turnend-guard.md#harness-integrations).
 The existing turn-end guard remains the final backstop for every harness-engine protocol, with pi-signed sharing Pi's protocol, omp's blocking `session_stop` hook compelling one continuation per turn, the `--claude` mode cooperating with the auto-arm claim, Cursor's `--cursor` mode rendering a bounded follow-up because its `stop` step cannot be blocked, and Copilot using its dedicated nonblocking stop backstop.
 Its `--restart` mode signals only the watcher recorded in the current home's `state/.watch.lock`, so restarting one home cannot kill sibling secondmate watchers.
 A pull-based guard (`bin/fm-guard.sh`) warns through supervision tool output if the primary checkout is tangled or if work, process-event sources, registered custom checks, or Relay polling has an unhealthy model-aware supervision verdict; on main it also warns when queued wakes are waiting for main itself to drain.

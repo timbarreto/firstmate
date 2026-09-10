@@ -11,6 +11,7 @@ The non-credentialed package job detects package API drift and missing runner CL
 The two workflows together produce 18 automatic checks, with one producer for each check name.
 Both use the same main-branch push and pull-request triggers and read-only permissions, with workflow-qualified concurrency groups so neither cancels the other.
 The [Windows Herdr experiment](../../.github/workflows/windows-herdr-spike.yml) remains manual.
+These owners apply to every compatibility section below; focused local cases never replace the complete exact-head CI results.
 
 ## Repeatable checks
 
@@ -80,7 +81,6 @@ The native Copilot identity, nonpilot session ancestry, and Herdr Treehouse suit
 
 Run `FM_TEST_ONLY=test_process_modules_select_all_consumers bin/fm-test-run.sh tests/fm-test-run.test.sh` to check routing for the platform implementation, declarations, compatibility wrappers, and fixture helper.
 The loader and runner still own coverage and scheduling independently; registering this suite does not expand concurrent admission.
-Full portable regression, macOS stock Bash, and real Herdr coverage remain with their existing shared-CI owners.
 Neither deterministic process fixtures nor package type checks establish a changed vendor hook or extension-event assumption.
 
 ## Pilot harness compatibility
@@ -102,5 +102,44 @@ Pi watch, primary types, branch, native Codex, and Windows shell suites remain t
 The startup-network and sessionstart-nudge suites exercise isolated copied code roots, including the complete harness dependency closure and Pi's bounded large-digest delivery.
 Both support the shared named-case selector, as does the lint inventory suite.
 
-Full portable regression, real Herdr, stock macOS Bash, and pinned non-credentialed package coverage stay with the existing CI producers.
 No live fleet operation, vendor prompt, workflow gate change, or remote-doctor pin change is needed for this extraction.
+
+## Divergence and locality audit
+
+Record three literal commit identities before comparing: the frozen canonical upstream, the actual PR base, and the final published head.
+For a multi-PR series, also retain its original fork baseline; do not confuse that historical baseline with the base used for changed-test selection.
+Use the existing bounded reconciliation controller for local validation, with one ledger covering every attempt within each PR-sized allowance.
+The [reconciliation skill](../../skills/reconcile-firstmate-upstream/SKILL.md) owns that workflow and its explicit deferral rules.
+
+Keep rename detection disabled so relocation cannot manufacture a lower divergence count:
+
+```sh
+git diff --no-renames --name-status <frozen-upstream> <pr-base>
+git diff --no-renames --name-status <frozen-upstream> <final-head>
+git diff --no-renames --numstat <pr-base> <final-head>
+git diff --no-renames --unified=0 <frozen-upstream> <final-head> -- <retained-caller>
+```
+
+Separate modified upstream paths from additive modules, deletions, and moved implementation.
+Record retained integration hunks and their owner/removal condition from [fork architecture](architecture.md#remaining-integration-patches), including deliberate legacy exceptions.
+Identify any existing files that actually return to upstream-equivalent contents rather than counting a renamed implementation as removed divergence.
+Keep the commands, path inventories, numeric before/after results, immutable CI identities, and unresolved findings in session or PR evidence rather than copying them into setup documentation.
+
+Check locality through representative behavior and callers, not directory names alone:
+
+| Change example | Owning boundary | Executable evidence |
+| --- | --- | --- |
+| Pilot hook, launch option, or worker extension | Closed interface and the selected adapter; existing lifecycle consumers | Harness contracts, spawn/control/busy cases, and pilot changed-source routing |
+| Ordinary fork test registration | Root-level test and fork catalog; independent concurrency admission | Catalog/runner contracts, unknown-source refusal, and complete lane coverage |
+| Native private-path implementation | Shared native policy owner; unchanged caller transaction authority | Native policy cases and PR/X/worker/Herdr integration |
+| Shared process or transport implementation | Canonical module and compatibility imports | Export/runtime contracts, copied layouts, strict Pi types, and Windows invocation cases |
+
+Use `test_harness_modules_select_all_consumers` and `test_process_modules_select_all_consumers` from `tests/fm-test-run.test.sh` to refresh shared-owner routing through the named-case selector.
+For private paths, inspect the catalog's `route-private-path-modules` selection before the broader process rule, including the explicit X-mode and runner subjects.
+For documentation changes, run `bin/fm-doc-audience-check.sh` and `bin/fm-test-run.sh tests/fm-documentation-audiences.test.sh`, then inspect the complete prose diff for audience, ownership, preserved anchors, and unique safety facts.
+Neither the structural checker nor a smaller line count proves semantic preservation.
+
+Before closing the implementation series, account for every acceptance criterion in the [approved plan](upstream-plan.md#completion-criteria-and-rollback).
+Verify all 18 automatic check names and their single producers against the exact final head, and preserve the manual-only experiment, live-test gates, and package pins.
+Separate deterministic fixtures, actual native execution, installed-package checks, and live vendor/backend proof.
+A gated skip, an unavailable optional package, or historical vendor evidence is not a new live pass; retain any unresolved requirement explicitly instead of declaring the series complete by inference.

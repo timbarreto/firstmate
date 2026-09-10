@@ -1,12 +1,16 @@
 # Firstmate fork-locality implementation plan
 
-**Status:** Implementation authorized separately; CI isolation, the test catalog, private paths, and process/transport have landed, and the Copilot/Pi pilot is in progress.
+**Status:** CI isolation, the test catalog, private paths, process/transport, and the Copilot/Pi pilot have landed; final documentation/consolidation is in progress.
 Settings changes, merges, and live Firstmate operations remain outside this implementation request.
 
 **Repository plan:** `docs\fork\upstream-plan.md`.
 
-**Next step:** Complete and land the Copilot/Pi follow-up PR before starting the final documentation/consolidation slice.
+**Next step:** Complete the documentation follow-up PR and integrated acceptance audit; final-series closure still requires its landing and exact-head verification.
 Delivery evidence and the remaining implementation todos are tracked in session/PR artifacts.
+
+The design sections below retain the approved pre-extraction requirements and planning baseline.
+[Fork architecture](architecture.md) owns the current implementation map; [fork verification](verification.md) owns repeatable checks and the final locality audit.
+Descriptions of proposed paths and pre-extraction ownership below are not claims about the current implementation.
 
 ## Problem and intended outcome
 
@@ -38,7 +42,7 @@ The user confirmed the following decisions:
 
 | Baseline | Recorded value |
 | --- | --- |
-| Landed reconciliation and current local `main` | `172dc95f0faac04c13eadd7884d2b91be54d2622` |
+| Landed reconciliation and planning-time local `main` | `172dc95f0faac04c13eadd7884d2b91be54d2622` |
 | Inspected source tree | `69ca15fe307c3bef0ea93bba22fdcdac29f516cb` |
 | Earlier inspected PR head, with the identical tree | `e6a9fba8cc7919e9db89646fe336d467f7bbcbba` |
 | Frozen canonical upstream comparison | `55d40691ac30a4664217b4e20208287baa88eb21` |

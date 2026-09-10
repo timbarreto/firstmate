@@ -19,6 +19,9 @@ Operate as a repository maintainer in the primary checkout: edit and test Firstm
 Read the target checkout's `AGENTS.md` and `CONTRIBUTING.md` before changing tracked material.
 Treat Firstmate identity, captain-address, and fleet-delegation instructions there as product behavior under maintenance, not as a role change for the external surgeon.
 When the target repository includes `.agents/skills/firstmate-coding-guidelines/SKILL.md`, use it as maintainer guidance rather than as a live Firstmate runtime skill.
+Before reconciling fork behavior, read the target checkout's `docs/fork/architecture.md` for current owners and retained integration patches, and `docs/fork/verification.md` for compatibility and audit procedures.
+Resolve these paths inside the target checkout, even when this skill is installed elsewhere.
+For an older target without those guides, reconstruct the relevant owners from its tracked source and history and record the missing guidance before proceeding.
 
 The leading invariant is **freeze**.
 Fetch upstream once, record the resulting 40-character SHA outside the repository, and use that literal SHA through reconciliation, testing, commit, and pull-request evidence.
@@ -134,8 +137,13 @@ Preserve both upstream intent and fork-specific behavior when they are compatibl
 When they are incompatible, choose the result that fulfills the reconciliation goal and state the trade-off in the PR evidence.
 Resolve each hunk deliberately; whole-file ours/theirs selection is valid only after proving the discarded side is byte-equivalent or duplicate history.
 
-Treat `.github/workflows/ci.yml` and `bin/fm-test-run.sh` as a coupled verification surface.
-Compare both with the frozen upstream versions and classify every remaining difference as an intentional fork behavior or a conflict-resolution defect.
+For each upstream change touching behavior extracted into a fork module, trace the original call site to its current implementation owner even when Git reports no conflict.
+Apply the upstream intent at that owner and its consumers, preserving the documented compatibility and lifecycle boundaries rather than restoring an obsolete inline implementation.
+Account for retained legacy and integrity exceptions through the architecture guide's owner/removal conditions.
+
+Treat both `.github/workflows/ci.yml` and `.github/workflows/fork-ci.yml`, the test catalogs and loader, `bin/fm-test-run.sh`, and `bin/fm-test-isolation-proof.sh` as a coupled verification surface.
+Compare shared paths with frozen upstream and fork-only owners with the frozen fork; upstream's absence of a fork module is not evidence that it can be discarded.
+Classify every remaining difference as intentional fork behavior or a reconciliation defect, keeping catalog registration separate from proof-owned concurrency admission.
 
 Before testing, require all of these to be empty or clean:
 
@@ -150,7 +158,7 @@ If the cached check reports whole-file CRLF noise, apply Step 6's manifest-scope
 Compare the staged path set with the manifest after every conflict resolution.
 Add a newly required portability fix to the manifest before staging it rather than letting the index grow implicitly.
 
-This step is complete when every conflict decision has a primary-source rationale and no unresolved or accidental conflict artifact remains.
+This step is complete when every conflict decision has a primary-source rationale, every upstream change affecting an extracted behavior is accounted for at its current owner, and no unresolved or accidental conflict artifact remains.
 
 ## 5. Establish PR readiness with bounded local checks
 
@@ -162,7 +170,9 @@ The validation invariant is **routing**.
 Local checks establish readiness to open an ordinary PR; GitHub Actions establishes broad regression evidence before merge.
 Keep every mapped subject accounted for, but execute only fast gates and selected conflict-resolution cases locally.
 Route broad portable coverage to the existing Linux lanes, real backend coverage to its dedicated lane, and native-platform contracts to their platform jobs.
-Use `.github/workflows/ci.yml` and the runner's lane listings to identify actual owners rather than inventing a new complete matrix.
+Use the target checkout's fork verification guide, both shared/fork CI workflows, and the runner's lane listings to identify actual owners.
+Record the expanded expected check names and their individual workflow producers from the resolved tree, including matrices, gates, pins, prerequisite/artifact dependencies, and which workflows remain manual-only.
+The workflows own these values; derive them for this reconciliation rather than copying a fixed check count or package matrix into this skill.
 A full-inventory selection is a routing signal, never a reason to stop the reconciliation or start a full local suite.
 
 ### Inventory the exact tree
@@ -194,6 +204,8 @@ Verify its parent, tree, and clean state before running a case.
 Record the inventory count and a local/CI disposition for every selected script.
 Every CI disposition needs an existing job and a reason; an absent capable runner is an explicit coverage gap, not a pass.
 Choose local cases from the actual composed conflicts, prioritizing launch/adapter routing, native command transport, ownership, rollback, and changed test-selection behavior.
+For extracted-module changes, use the fork verification guide's owner and consumer checks, including source-aware lint, changed-source routing, copied fixture dependency closure, and native/package compatibility where applicable.
+A wrapper-only check is insufficient when the underlying implementation or its repository-relative dependencies changed.
 Use a named case when a script is long.
 `tests/lib.sh` owns the shared `FM_TEST_ONLY` and `FM_TEST_LIST_CASES` interface for suites registered with `fm_test_run_cases`.
 For a suite without a case seam, defer its whole script to CI or add a supported case registry rather than repeatedly injecting temporary selectors.
@@ -220,6 +232,7 @@ One serial representative-case retry and, when needed, one frozen-upstream diffe
 
 The validator writes results after each command, preserves per-invocation logs, and caches only successful checks that reported no skip.
 Caching is opt-in: declare complete input files/directories and version probes, and use resume mode only after reviewing those dependencies.
+For a module-dependent check, include its concrete implementation, compatibility wrappers, native code, declarations, fixture helpers, and registration metadata wherever they affect the result or selection.
 The key includes frozen context, command, declared input bytes and modes, environment digest, host/tool versions, and validator/timeout implementation.
 Keep caching off for external-state, git-history-dependent, or incompletely modeled checks.
 Never reuse an interrupted, failed, skipped, or merely preflighted result as a pass.
@@ -290,7 +303,12 @@ Give the ancestry-only merge a non-interactive message containing the frozen ups
 Record both tree SHAs as proof that the anchor changed no reviewed bytes or local-check inputs.
 Create this anchor before the PR so GitHub can calculate mergeability and start checks immediately.
 
-This step is complete when the branch is clean, the reconciliation commit exposes the exact trailer through Git's trailer formatter, any ancestry anchor is tree-identical to its first parent, and the full diff contains only intentional reconciliation changes.
+Build the no-renames divergence/locality audit using the frozen upstream/fork identities, actual PR base, and final committed head.
+Follow the target checkout's `docs/fork/verification.md` procedure when present; use the reconstructed ownership map for an older target without that guide.
+Keep its before/after inventories, moved implementation, remaining duplication, and retained-patch owner/removal conditions outside the repository for PR evidence.
+Distinguish genuinely upstream-equivalent files from relocated code and necessary compatibility calls; a smaller apparent diff is not proof of preserved behavior.
+
+This step is complete when the branch is clean, the reconciliation commit exposes the exact trailer through Git's trailer formatter, any ancestry anchor is tree-identical to its first parent, and the full diff and locality audit account for every intentional reconciliation change.
 
 ## 7. Open the PR early and report CI separately
 
@@ -312,7 +330,8 @@ The PR body must record:
 - meaningful conflict decisions and retained fork behavior;
 - every local command, result, duration, and skip;
 - cache provenance, interrupted attempts, and each deferred/unresolved subject's CI owner;
-- the diff between the PR's Actions workflow/test runner and the frozen upstream versions;
+- the workflow/catalog/runner/proof comparisons and upstream changes reconciled into current fork owners;
+- the before/after divergence/locality audit, including the actual PR base/head and retained integration owners/removal conditions;
 - any frozen-upstream differential failure and any ancestry-anchor tree proof;
 - the statement that GitHub Actions owns the complete cross-platform matrix.
 
@@ -324,8 +343,9 @@ An ancestry-only base merge is acceptable only after proving its resulting tree 
 After a base update, refresh the routing inventory and bounded local plan against the new literal base; the changed context invalidates cached results.
 
 Distinguish PR creation from merge readiness in every handoff.
-Report expected CI checks as pending, successful, failed, or absent for the exact PR head; a skipped or cancelled required lane is not proof.
-Missing checks, unresolved regressions, or missing platform coverage block merge readiness, not the existence of the ordinary PR.
+Compare the exact head's checks with the recorded expanded inventory from both workflows, requiring one producer for each expected check.
+Report each check as pending, successful, failed, or absent; a skipped or cancelled required lane is not proof, and a manual-only experiment remains separate.
+Missing or duplicate producers, unresolved regressions, or missing platform coverage block merge readiness, not the existence of the ordinary PR.
 Use the same named-case and budget policy when investigating CI failures; keep their evidence attached to the PR rather than restarting the local inventory.
 Never call the reconciliation fully validated until required checks for that head are successful and unresolved failures have been explained or fixed.
 

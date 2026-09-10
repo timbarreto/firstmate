@@ -24,8 +24,8 @@ If your team standardizes on GitHub Copilot - including developers at Microsoft 
 - **Windows setup** - a PowerShell installer and watcher bridge complement the macOS and Linux paths; see [Install and launch](#install-and-launch) and the [Copilot supervision protocol](docs/supervision-protocols/copilot.md).
 - **Built on Firstmate** - this fork retains upstream's multi-harness architecture and credits its original author and contributors.
 
-Upstream's [`main` snapshot checked on September 4, 2026](https://github.com/kunchenguid/firstmate/tree/f09de8a3d3a550b13b4d535346fbc7b9ac0d6c19) does not include a GitHub Copilot CLI harness adapter or Copilot hooks; those integrations are additions in this fork.
 See [harness configuration](docs/configuration.md#harness-support) and the [Copilot supervision protocol](docs/supervision-protocols/copilot.md) for supported behavior and operating requirements.
+For contributor-facing implementation ownership and verification, start with [Contributing](CONTRIBUTING.md).
 
 ## What it is
 

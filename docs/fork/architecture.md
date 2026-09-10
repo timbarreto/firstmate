@@ -1,5 +1,22 @@
 # Fork module architecture
 
+This page owns the fork's module boundaries, change-placement rules, and retained upstream integration patches.
+[Fork verification](verification.md) owns compatibility procedures and CI coverage; [product architecture](../architecture.md) and [configuration](../configuration.md) retain their existing lifecycle and operator contracts.
+The [implementation plan](upstream-plan.md) records the approved design and acceptance criteria, not a second current module reference.
+
+## Module map
+
+| Concern | Implementation owner | Boundary retained by callers |
+| --- | --- | --- |
+| Copilot/Pi policy | `bin/fm-harness-lib.sh`, `bin/harnesses/copilot.sh`, `bin/harnesses/pi.sh` | Detection order, profile selection, lifecycle transactions, and every nonpilot path |
+| Process identity and native transport | `bin/platform/process.mjs`, its `.d.mts` declarations, `bin/fm-platform-process-lib.sh`, `bin/platform/windows-process.ps1` | Ownership, generation checks, escalation, and backend leases |
+| Native private paths | `bin/fm-private-path-lib.sh`, `bin/platform/windows-private-path.ps1` | Caller-specific POSIX policy, transaction ordering, publication, and rollback |
+| Test metadata | `bin/fm-test-catalog-lib.sh`, `tests/catalog/core.tsv`, `tests/catalog/fork.tsv` | Runner execution and reference expansion; independent proof admission |
+| Fork CI | `.github/workflows/fork-ci.yml` | Shared-CI regression and artifact dependencies; manual-only Windows Herdr experiment |
+
+Lifecycle callers depend on the harness interface, which depends on generic platform helpers; adapters never import lifecycle owners.
+The existing `bin/fm-windows-git-bash.ps1` remains the PowerShell entrypoints' Git Bash resolver, not a new module distribution mechanism.
+
 ## Copilot and Pi harness seam
 
 `bin/fm-harness-lib.sh` owns the closed, exact-name `copilot` and `pi` registry.
@@ -24,8 +41,6 @@ Explicit supervision overrides remain authoritative before detection, while an a
 Every nonpilot retains legacy dispatch, including `pi-signed` and OMP.
 The signed Pi worker renderer and its primary-extension paths deliberately remain in spawn instead of silently sharing the pilot implementation.
 The self-contained, hash-pinned `bin/fm-remote-doctor.sh` is the intentional static compatibility exception; its entrypoint pin and integrity protocol are unchanged.
-Tracked clones and updates distribute the modules without a deployment copier or automatic reload of running extensions.
-`tests/harness-helpers.sh` installs the complete tracked dependency closure in isolated copied or symlink-shaped fixtures, without an ambient-checkout fallback.
 
 ## Test registration seam
 
@@ -49,8 +64,7 @@ The loader validates once with Bash and awk, then serves in-memory lookups witho
 Validated keys are encoded into Bash 3.2-compatible scalar entries, so lookups do not repeatedly scan or trim the complete TSV snapshot.
 Each successful load replaces the prior cache, including entries no longer present.
 Missing dependencies or invalid records stop selection explicitly.
-`tests/catalog-helpers.sh` installs the real loader and a minimal, valid dependency set for synthetic fixtures; it is not a production fallback or alternative registry.
-Tracked-only clones carry the catalogs and loader, and `.gitattributes` preserves the catalogs' LF format on Windows.
+`.gitattributes` preserves the catalogs' LF format on Windows.
 
 ## Private-path seam
 
@@ -63,19 +77,6 @@ The helper is loaded in the existing native invocation, without a second PowerSh
 They still own POSIX modes, ownership where required, device and link checks, publication ordering, lock identity, worker allocation, and rollback.
 Extraction does not make their policies interchangeable or move transaction authority into the platform module.
 Native failures remain refusals; a missing tracked dependency is not permission to reuse an earlier verdict or fall back to synthetic Windows modes.
-
-`tests/private-path-helpers.sh` installs both tracked dependencies in copied and symlink-shaped test roots.
-Production deployment continues to use the tracked repository layout rather than a generated copy or an ambient-checkout fallback.
-
-## Remaining integration patches
-
-The runner retains compatibility functions that delegate metadata queries, the procedural dependency/reference scan, and its execution algorithms.
-The proof command retains the portable and family admission evidence independently of editable registration metadata.
-The lint owner includes the fork module directories in full and changed mode, while changed-reference discovery includes their shell, module, declaration, and PowerShell files.
-These are deliberate integration patches until upstream accepts compatible seams; moving implementation does not make the fork delta disappear.
-
-[Fork verification](verification.md) owns CI ownership and repeatable checks.
-The remaining delivery sequence follows the [implementation plan](upstream-plan.md).
 
 ## Process and native transport seam
 
@@ -95,6 +96,47 @@ A missing tracked native helper throws explicitly before any native operation or
 `bin/backends/herdr.sh` retains leases, worktree acquisition, presentation, and rollback; its public transport functions and spawn's quoting function delegate to the shared module.
 Git Bash callers retain their inexpensive PATH/cygpath lookup, while existing PowerShell entrypoints continue using `bin/fm-windows-git-bash.ps1`.
 
-`tests/process-helpers.sh` installs the complete tracked process dependency in repository-shaped fixtures.
-Pi type checks preserve that shape rather than flattening libraries, and the Calm rendering fixture places its extensions at the same relative depth.
-Fresh clones and linked worktrees carry the implementation through ordinary tracked files; no deployment copier, symlink requirement, ambient-checkout fallback, or running-extension reload is introduced.
+## Tracked layout and fixture boundaries
+
+Normal Git clones, linked worktrees, and tracked-code fast-forwards carry the modules and catalogs.
+No installer copy step, generated duplicate, ambient-checkout fallback, symlink requirement, or automatic reload of already-running extensions is introduced.
+The existing update and restart owners retain their authority.
+
+| Fixture owner | Dependency closure |
+| --- | --- |
+| `tests/harness-helpers.sh` | Harness interface, both registered adapters, and process dependencies |
+| `tests/process-helpers.sh` | Bash process helpers, canonical module and declarations, and native process implementation |
+| `tests/private-path-helpers.sh` | Bash interface and native ACL implementation |
+| `tests/catalog-helpers.sh` | Real catalog loader, valid fixture catalogs, and the required proof-list dependency |
+
+Synthetic catalogs may describe a minimal test world; they are not another production registry.
+Pi type checks preserve repository-relative module depth rather than flattening libraries, and the Calm rendering fixture keeps the same layout.
+Copied startup and hook fixtures must install the complete dependency closure even when the exercised case does not launch either pilot.
+Missing tracked code remains an explicit error rather than permission to continue with a partially loaded fixture.
+
+## Change placement
+
+A Copilot hook or Pi worker-extension change belongs in the corresponding adapter and focused executable tests.
+Shared lifecycle policy still belongs in its existing owner; a new capability or caller contract may legitimately require an interface and integration change.
+An ordinary fork test addition belongs in a root-level `tests/*.test.sh` file and the fork catalog, with any required changed-source mapping; it does not require editing runner algorithms.
+A native ACL implementation change belongs in the private-path owner and its policy fixtures, not duplicated native code in each caller.
+Registration never substitutes for concurrency proof, and a policy difference must not be flattened merely to reduce changed-file counts.
+
+## Remaining integration patches
+
+The fork remains dependent on explicit compatibility patches until upstream accepts equivalent seams and behavior.
+The removal conditions below are design boundaries, not authorization to revert working integration or submit upstream.
+
+| Retained patch | Current owner and reason | Removal condition |
+| --- | --- | --- |
+| Pilot calls and source-error propagation | Detection, bootstrap, spawn, control, sending, busy/supervision, restart, and teardown retain orchestration while calling the closed interface | Upstream supplies equivalent pilot capabilities and failure semantics across those callers |
+| Pi/OpenCode import compatibility | The existing extension/plugin import paths re-export their original public sets from the canonical process module | Consumers and supported package layouts adopt an equivalent shared import contract |
+| Native policy and transport calls | PR, X-mode, runner-worker, Herdr, and spawn callers preserve their public helpers and transaction-specific policy | Upstream provides equivalent native mechanics without changing ownership, privacy, or subprocess bounds |
+| Catalog and proof integration | Runner compatibility functions delegate metadata queries; reference expansion and execution remain in the runner, while proof lists remain independent | Upstream supports compatible metadata loading, reference selection, and proof-owned admission |
+| Module discovery and fixture closure | Lint and changed-reference discovery include new directories and file types; copied fixtures install complete dependencies | Equivalent upstream discovery and fixture layouts include the owning modules |
+| Fork workflow and shared-CI compatibility | The dedicated workflow owns fork checks; shared CI retains its prerequisite, compiler, action, and artifact integration | Equivalent upstream checks preserve every required subject, gate, and producer |
+| Legacy and integrity exceptions | Nonpilots, including the signed Pi renderer, stay legacy; the remote doctor remains self-contained and hash-pinned | A separately scoped migration or reviewed integrity-protocol change preserves their contracts |
+| Operator and contributor pointers | Setup, trust, delivery, privacy, and cleanup guidance remain with their classified owners | Upstream documents equivalent supported behavior without losing anchors or safety facts |
+
+The proof command's admission evidence, runner execution algorithms, and backend lifecycle transactions are retained authorities, not duplicate implementations awaiting extraction.
+Use the [divergence and locality audit](verification.md#divergence-and-locality-audit) to distinguish those necessary boundaries from remaining duplication.

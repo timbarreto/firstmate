@@ -68,7 +68,8 @@ The crewmate/scout-only Rovo CLI 202609.1.2 adapter added `*rovo*` to the same g
 [`rovo.md`](rovo.md#backend-liveness-tmux-verified-live-herdr-placement-verified-live-with-a-herdr-side-agent-detection-gap) owns the fuller record, including the busy/interrupt/exit facts captured in that same live tmux session and the herdr agent-detection gap found when herdr placement was verified live in an isolated lab session.
 GitHub Copilot CLI 1.0.81-7 was verified separately on 2026-08-21 under Git for Windows.
 Its native process is `copilot.exe`, while the Git Bash child can terminate at `PPID=1` before reaching that process.
-The adapter therefore accepts `COPILOT_LOADER_PID` only when `ps -W` proves that exact Windows PID is live and named `copilot.exe`; the portable tmux classifier accepts both `copilot` and `copilot.exe`.
+That verification used `ps -W` to prove that the exact `COPILOT_LOADER_PID` was live and named `copilot.exe`; the portable tmux classifier accepts both `copilot` and `copilot.exe`.
+Current identity/cache ownership and the shared native-query boundary are documented in [fork architecture](../fork/architecture.md#copilot-and-pi-harness-seam); the recorded vendor observation is not a claim that every current lookup enumerates `ps -W`.
 `tests/fm-copilot-harness.test.sh` pins the Windows ownership bridge, and `tests/fm-harness-liveness-drift-live-e2e.test.sh` includes Copilot in the installed-binary drift guard.
 The same Copilot release ignored dot-prefixed repository hook files and loaded visible hook configurations in descending filename order.
 `tests/fm-copilot-hooks-live-e2e.test.sh` refreshes that discovery and ordering evidence against the installed CLI.
