@@ -6,7 +6,7 @@ Contributions use ordinary GitHub pull requests.
 
 ## Workflow
 
-1. Fork the repo, then clone the parent repo or set your local `origin` back to the parent (`git@github.com:kunchenguid/firstmate.git`).
+1. Clone this fork or your own fork of it, keeping `origin` pointed at the repository where you intend to push.
 2. Create a branch and make your changes.
 3. Run the relevant checks from the [Development](#development) section.
 4. Commit your changes and push the branch to your fork:
@@ -15,8 +15,10 @@ Contributions use ordinary GitHub pull requests.
    git push origin <branch>
    ```
 
-5. Open a pull request against `kunchenguid/firstmate:main`.
+5. Open a pull request against `timbarreto/firstmate:main`.
 6. Address review findings and required CI checks.
+
+Contributing a generic change to `kunchenguid/firstmate` is a separate upstream submission decision, not a prerequisite for a working fork change.
 
 ## Repo conventions
 
@@ -38,7 +40,7 @@ Contributions use ordinary GitHub pull requests.
   It pins one exact shellcheck version and one exact actionlint version and refuses to run under any other.
   Print the shellcheck pin with `bin/fm-lint.sh --required-version` and the actionlint pin with `bin/fm-lint-workflows.sh --required-version`.
   Use `bin/fm-install-shellcheck.sh` and `bin/fm-install-actionlint.sh` to install those exact builds locally; each installer's header owns its destination usage and supported platforms.
-- The [Copilot/Pi harness seam](docs/fork/architecture.md#copilot-and-pi-harness-seam) owns pilot policy through `bin/fm-harness-lib.sh` and `bin/harnesses/`; lifecycle orchestration and nonpilot implementations remain in the existing detection, spawn, control, busy, and teardown owners.
+- [Fork architecture](docs/fork/architecture.md) owns the module map, change-placement rules, fixture dependencies, and retained integration patches.
   Spawn-time Claude workspace trust remains in `bin/fm-claude-trust.sh`, delivery-only rendered guards remain in `bin/fm-composer-lib.sh`, and harness facts remain discoverable from `.agents/skills/harness-adapters/SKILL.md`; the `firstmate-coding-guidelines` skill owns the validation policy for harness-dependent checks.
 - Changes to runtime session backends (`bin/fm-backend.sh`, `bin/backends/`, and the scripts that dispatch through them) keep current setup and limits in the relevant backend guide and active empirical evidence in [`docs/verification/runtime-backends.md`](docs/verification/runtime-backends.md).
 - [`docs/documentation-audiences.md`](docs/documentation-audiences.md) and its machine-consumed inventory own prose classification; run `bin/fm-doc-audience-check.sh` after documentation changes.
@@ -97,8 +99,7 @@ The runner's header and `--help` own runner flags and lanes; the catalog loader 
 `bin/fm-test-isolation-proof.sh` remains the single owner of the portable candidate proof and reusable family proof harness; see `docs/fm-test-isolation-proof.md`.
 Portable shard balance evidence lives in `docs/fm-test-portable-shards.md`.
 Family selection is the ordinary local path; `--all` is deliberate full regression only.
-CI owns broad regression across required portable parallel shards, the portable serial lane's separate-runner shards, the Herdr lane, lint, invariants, the coverage guard, and stock macOS Bash compatibility in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
-[Fork verification](docs/fork/verification.md) owns the additional Windows and non-credentialed pinned Pi/OpenCode compatibility checks in [`.github/workflows/fork-ci.yml`](.github/workflows/fork-ci.yml).
+[Fork verification](docs/fork/verification.md#ci-ownership) owns the shared/fork CI coverage map, native and package proof boundaries, and [divergence/locality audit](docs/fork/verification.md#divergence-and-locality-audit).
 The upstream repository additionally requires a no-mistakes signature workflow, but this fork intentionally omits that pull-request policy because ordinary pull requests remain supported and no-mistakes is optional here.
 Use `bin/fm-test-run.sh --list-lanes` for exact lane names and `--help` for `--jobs` rules and required gate-skip flags when reproducing a lane locally.
 Leave the `sleep 0.1` cadence in the suites' bounded condition waits alone.

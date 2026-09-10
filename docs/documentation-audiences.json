@@ -113,6 +113,30 @@
     {
       "source": "docs/fork/verification.md",
       "target": "docs/fork/architecture.md"
+    },
+    {
+      "source": "CONTRIBUTING.md",
+      "target": "docs/fork/architecture.md"
+    },
+    {
+      "source": "docs/architecture.md",
+      "target": "docs/fork/architecture.md"
+    },
+    {
+      "source": "docs/scripts.md",
+      "target": "docs/fork/architecture.md"
+    },
+    {
+      "source": "docs/fork/architecture.md",
+      "target": "docs/fork/verification.md"
+    },
+    {
+      "source": "docs/fork/upstream-plan.md",
+      "target": "docs/fork/architecture.md"
+    },
+    {
+      "source": "docs/fork/upstream-plan.md",
+      "target": "docs/fork/verification.md"
     }
   ],
   "surfaces": [

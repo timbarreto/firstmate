@@ -65,11 +65,11 @@ Each shard is still strictly serial in itself, and separate runners mean no two 
 
 Assignment is longest-processing-time bin packing in `bin/fm-test-run.sh` over catalog duration records, whose interface is owned by [fork architecture](fork/architecture.md#test-registration-seam).
 The September 9, 2026 refresh takes the slowest successful, non-gated serial measurement per script from three green runs: [34398032263](https://github.com/timbarreto/firstmate/actions/runs/34398032263), [34403820014](https://github.com/timbarreto/firstmate/actions/runs/34403820014), and [34412023048](https://github.com/timbarreto/firstmate/actions/runs/34412023048).
-Those runs provide measurements for 133 current serial scripts.
+Those runs provided measurements for 133 serial scripts in that refresh.
 Scripts without a successful, non-gated measurement retain their existing hint rather than replacing it with the runtime of a skip.
 That includes the 5121 ms native-Windows measurement for `tests/fm-pi-windows-shell-invocation.test.sh` from 2026-09-06T21:02Z.
 Taking the slowest of several CI runs rather than a single run keeps the balance honest on a slow runner.
-A script with no hint gets the conservative `PORTABLE_SERIAL_DEFAULT_WEIGHT_MS` default; 157 of the current 164 serial scripts have hints and seven use the default, giving 5050144 ms of assignment weight.
+A script with no hint gets the conservative `PORTABLE_SERIAL_DEFAULT_WEIGHT_MS` default; at the September 9 refresh, 157 of 164 serial scripts had hints and seven used the default, giving 5050144 ms of assignment weight.
 Hints only affect balance: the coverage guard keeps the partition complete and disjoint whatever they say, so a stale hint costs a slower shard rather than lost coverage.
 Balance is still worth keeping current, because enough unmeasured scripts let one shard carry more than twice another shard's real work and reach the job cap while another runner sits idle.
 That is not hypothetical: by 2026-09-01 the lane had grown from 116 to 139 scripts and from ~42 to ~63 minutes, 17 scripts were still unmeasured, and several hints were low by 2-5x, so shard 3 of 4 ran 17-20 minutes against its 20-minute cap while shard 1 ran 11.5 minutes and run [33574154856](https://github.com/kunchenguid/firstmate/actions/runs/33574154856) timed out seconds after a passing test.
@@ -85,7 +85,8 @@ Refresh the hints whenever the serial lane gains scripts, rather than waiting fo
 | `portable-serial-5of5` | 34 | 1010019 ms (~16.83 min) |
 | imbalance | | 20 ms |
 
-The table uses refreshed measurements, retained hints for unmeasured scripts, and the default for seven unhinted scripts.
+The table is that dated refresh's snapshot, using refreshed measurements, retained hints for unmeasured scripts, and the default for seven unhinted scripts.
+New registrations can change membership and weights; use the runner's lane listing and coverage guard for the current partition rather than treating this snapshot as an inventory.
 Estimated balance does not establish actual wall-time balance; verify the resulting shard runtimes in CI and investigate stalled tests separately.
 Run 34342484144 observed a shard reach about 20 minutes of passing work, so the 30-minute job cap keeps meaningful hang-tripwire margin for job setup and runner-speed spread.
 
