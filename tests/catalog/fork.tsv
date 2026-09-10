@@ -4,8 +4,9 @@ test	tests/fm-test-catalog.test.sh	pure-contract-unit
 test	tests/fm-remote-job-wait.test.sh	pure-contract-unit
 test	tests/fm-private-path.test.sh	pure-contract-unit
 test	tests/fm-platform-process.test.sh	pure-contract-unit
+test	tests/fm-harness-contract.test.sh	pure-contract-unit
 map	route-catalog	10	bin/fm-test-catalog-lib.sh|tests/catalog/*|tests/catalog-helpers.sh	pure-contract-unit
-map	route-pilot-modules	20	bin/fm-harness-lib.sh|bin/harnesses/*	pure-contract-unit,backend-dispatch,watcher-wake-lock,session-bootstrap,pr-forge,standalone,live-harness-optin
+map	route-pilot-modules	20	bin/fm-harness-lib.sh|bin/harnesses/*|tests/harness-helpers.sh	pure-contract-unit,backend-dispatch,watcher-wake-lock,session-bootstrap,pr-forge,standalone,live-harness-optin,real-herdr-gated
 map	route-private-path-modules	30	bin/fm-private-path-lib.sh|bin/platform/windows-private-path.ps1|tests/private-path-helpers.sh	pr-forge,pure-contract-unit,backend-dispatch,real-herdr-gated,__script__:fm-x-mode.test.sh,__script__:fm-test-run.test.sh
 map	route-process-modules	40	bin/fm-platform-process-lib.sh|bin/platform/*|.pi/extensions/lib/fm-process-ancestry.ts|.opencode/plugins/lib/fm-process-ancestry.js|tests/process-helpers.sh|tests/fm-platform-process.test.mjs	pure-contract-unit,watcher-wake-lock,standalone,backend-dispatch,session-bootstrap,live-harness-optin,real-herdr-gated
 test	tests/fm-copilot-harness.test.sh	pure-contract-unit

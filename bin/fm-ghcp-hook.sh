@@ -36,7 +36,7 @@ case "${1:-}" in
     # shellcheck source=bin/fm-primary-scope-lib.sh
     . "$SCRIPT_DIR/fm-primary-scope-lib.sh"
     # shellcheck source=bin/fm-session-lock-lib.sh
-    . "$SCRIPT_DIR/fm-session-lock-lib.sh"
+    . "$SCRIPT_DIR/fm-session-lock-lib.sh" || exit 2
     # shellcheck source=bin/fm-supervision-lib.sh
     . "$SCRIPT_DIR/fm-supervision-lib.sh"
     # shellcheck source=bin/fm-wake-lib.sh
@@ -79,13 +79,15 @@ case "${1:-}" in
     case "$ID:$GEN:$EVENT" in
       *[!A-Za-z0-9._:-]*) exit 0 ;;
     esac
+    # shellcheck source=bin/fm-harness-lib.sh
+    . "$SCRIPT_DIR/fm-harness-lib.sh" || exit 2
     if "$SCRIPT_DIR/fm-busy-event.sh" apply "$STATE" "$ID" "$VERDICT" \
       --gen "$GEN" --source copilot-hook --event "$EVENT" >/dev/null 2>&1; then
       if [ "$TURNEND" != "-" ]; then
         touch "$TURNEND" 2>/dev/null || true
       fi
       if [ "$EVENT" = user-prompt-submitted ]; then
-        ACK="$STATE/$ID.copilot-prompt-submitted"
+        ACK=$(fm_harness_owned_wiring copilot submission-marker "$STATE" "$ID") || exit 2
         ACK_TMP="$ACK.tmp.$$"
         if printf '%s:%s:%s\n' "$GEN" "$$" "${RANDOM:-0}" > "$ACK_TMP" 2>/dev/null; then
           mv -f "$ACK_TMP" "$ACK" 2>/dev/null || rm -f "$ACK_TMP"

@@ -129,9 +129,9 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 # shellcheck source=bin/fm-backend.sh
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-busy-lib.sh
-. "$SCRIPT_DIR/fm-busy-lib.sh"
+. "$SCRIPT_DIR/fm-busy-lib.sh" || exit 2
 # shellcheck source=bin/fm-control-lib.sh
-. "$SCRIPT_DIR/fm-control-lib.sh"
+. "$SCRIPT_DIR/fm-control-lib.sh" || exit 2
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-wake-lib.sh

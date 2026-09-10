@@ -51,7 +51,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=bin/fm-quota-axi-lib.sh
 . "$SCRIPT_DIR/fm-quota-axi-lib.sh"
 # shellcheck source=bin/fm-control-lib.sh
-. "$SCRIPT_DIR/fm-control-lib.sh"
+. "$SCRIPT_DIR/fm-control-lib.sh" || exit 2
 
 die() { printf 'error: %s\n' "$1" >&2; exit 2; }
 usage() {

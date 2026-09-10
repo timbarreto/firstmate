@@ -182,6 +182,11 @@ install_guard_scripts() {
   cp "$ROOT/bin/fm-operational-input.sh" "$dir/bin/fm-operational-input.sh"
   cp "$ROOT/bin/fm-supervision-instructions.sh" "$dir/bin/fm-supervision-instructions.sh"
   cp "$ROOT/bin/fm-harness.sh" "$dir/bin/fm-harness.sh"
+  cp "$ROOT/bin/fm-session-lock-lib.sh" "$ROOT/bin/fm-cursor-lib.sh" \
+    "$ROOT/bin/fm-gemini-lib.sh" "$dir/bin/"
+  # shellcheck source=tests/harness-helpers.sh
+  . "$ROOT/tests/harness-helpers.sh"
+  fm_test_install_harness_modules "$dir" || fail "guard identity adapter dependencies"
   cp "$ROOT/bin/fm-primary-scope-lib.sh" "$dir/bin/fm-primary-scope-lib.sh"
   cp "$ROOT/bin/fm-supervision-lib.sh" "$dir/bin/fm-supervision-lib.sh"
   cp "$ROOT/bin/fm-wake-lib.sh" "$dir/bin/fm-wake-lib.sh"
@@ -1286,6 +1291,9 @@ install_integrated_autoarm() {
   cp "$ROOT/bin/fm-hook-host-lib.sh" "$dir/bin/fm-hook-host-lib.sh"
   cp "$ROOT/bin/fm-session-lock-lib.sh" "$dir/bin/fm-session-lock-lib.sh"
   cp "$ROOT/bin/fm-platform-process-lib.sh" "$dir/bin/fm-platform-process-lib.sh"
+  # shellcheck source=tests/harness-helpers.sh
+  . "$ROOT/tests/harness-helpers.sh"
+  fm_test_install_harness_modules "$dir" || fail "turn-end fixture adapter dependencies"
   cp "$ROOT/bin/fm-cursor-lib.sh" "$dir/bin/fm-cursor-lib.sh"
   cp "$ROOT/bin/fm-lock.sh" "$dir/bin/fm-lock.sh"
   chmod +x "$dir/bin/fm-claude-stop-autoarm.sh" "$dir/bin/fm-lock.sh"

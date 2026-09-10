@@ -1,11 +1,11 @@
 # Firstmate fork-locality implementation plan
 
-**Status:** Implementation authorized separately; CI isolation, the test catalog, and private paths have landed, and the process/transport slice is in progress.
+**Status:** Implementation authorized separately; CI isolation, the test catalog, private paths, and process/transport have landed, and the Copilot/Pi pilot is in progress.
 Settings changes, merges, and live Firstmate operations remain outside this implementation request.
 
 **Repository plan:** `docs\fork\upstream-plan.md`.
 
-**Next step:** Complete the process/transport follow-up PR before starting the Copilot/Pi pilot from its landed change.
+**Next step:** Complete and land the Copilot/Pi follow-up PR before starting the final documentation/consolidation slice.
 Delivery evidence and the remaining implementation todos are tracked in session/PR artifacts.
 
 ## Problem and intended outcome

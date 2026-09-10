@@ -247,6 +247,9 @@ install_autoarm_scripts() {
   cp "$ROOT/bin/fm-wake-lib.sh" "$dir/bin/fm-wake-lib.sh"
   cp "$ROOT/bin/fm-session-lock-lib.sh" "$dir/bin/fm-session-lock-lib.sh"
   cp "$ROOT/bin/fm-platform-process-lib.sh" "$dir/bin/fm-platform-process-lib.sh"
+  # shellcheck source=tests/harness-helpers.sh
+  . "$ROOT/tests/harness-helpers.sh"
+  fm_test_install_harness_modules "$dir" || fail "session identity fixture adapter dependencies"
   cp "$ROOT/bin/fm-cursor-lib.sh" "$dir/bin/fm-cursor-lib.sh"
   cp "$ROOT/bin/fm-hook-host-lib.sh" "$dir/bin/fm-hook-host-lib.sh"
   cp "$ROOT/bin/fm-lock.sh" "$dir/bin/fm-lock.sh"

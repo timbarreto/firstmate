@@ -101,7 +101,7 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 # shellcheck source=bin/fm-classify-lib.sh
 . "$SCRIPT_DIR/fm-classify-lib.sh"
 # shellcheck source=bin/fm-busy-lib.sh
-. "$SCRIPT_DIR/fm-busy-lib.sh"
+. "$SCRIPT_DIR/fm-busy-lib.sh" || exit 2
 # shellcheck source=bin/fm-nm-run-lib.sh
 . "$SCRIPT_DIR/fm-nm-run-lib.sh"
 

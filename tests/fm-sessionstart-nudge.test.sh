@@ -25,8 +25,8 @@ fi
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-# shellcheck source=tests/process-helpers.sh
-. "$ROOT/tests/process-helpers.sh"
+# shellcheck source=tests/harness-helpers.sh
+. "$ROOT/tests/harness-helpers.sh"
 
 unset NO_MISTAKES_GATE
 
@@ -924,8 +924,9 @@ test_pi_large_sessionstart_digest_is_delivered_loudly() {
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" \
     "$ROOT/.pi/extensions/lib/fm-process-ancestry.ts" \
     "$ROOT/.pi/extensions/lib/fm-sessionstart-supervisor.mjs" "$fixture/.pi/extensions/lib/"
-  fm_test_install_process_module "$fixture" || fail "could not install process fixture dependencies"
+  fm_test_install_harness_modules "$fixture" || fail "could not install harness fixture dependencies"
   cp "$ROOT/bin/fm-sessionstart-run.sh" "$ROOT/bin/fm-sessionstart-nudge.sh" \
+    "$ROOT/bin/fm-session-lock-lib.sh" "$ROOT/bin/fm-cursor-lib.sh" \
     "$ROOT/bin/fm-primary-scope-lib.sh" "$ROOT/bin/fm-gate-refuse-lib.sh" \
     "$ROOT/bin/fm-hook-host-lib.sh" \
     "$ROOT/bin/fm-operational-input.sh" "$fixture/bin/"
@@ -957,14 +958,14 @@ handlers.get("session_start")({ reason: "startup" }, ctx);
 const result = await handlers.get("before_agent_start")({ prompt: "test" }, ctx);
 if (!result?.message) throw new Error("expected one persistent preflight message");
 const content = result.message.content;
-if (!content.includes("PI_LARGE_DIGEST_PREFIX")) throw new Error("digest prefix was lost");
+if (!content.includes("PI_LARGE_DIGEST_PREFIX")) throw new Error(`digest prefix was lost: ${content}`);
 if (!content.includes("PI SESSION-START DELIVERY TRUNCATED")) throw new Error("truncation marker was lost");
 if (content.includes("PI_LARGE_DIGEST_SUFFIX")) throw new Error("delivery exceeded its declared bound");
 if (!content.includes("FIRSTMATE_OP: v1 session-start:")) throw new Error("operational provenance was lost");
 JS
   ) || status=$?
-  expect_code 0 "$status" "Pi large session-start delivery"
   [ -z "$out" ] || fail "Pi large session-start delivery printed output: $out"
+  expect_code 0 "$status" "Pi large session-start delivery"
   pass "Pi retains a bounded digest prefix and loudly marks oversized preflight delivery"
 }
 
@@ -1097,26 +1098,27 @@ test_run_reports_a_failed_session_start_as_digest_text() {
   pass "run wrapper: a session start that cannot take the lock still opens the session and says so"
 }
 
-test_genuine_primary_nudges
-test_gate_env_is_silent
-test_gate_common_dir_is_silent
-test_unmarked_linked_worktree_is_silent
-test_linked_secondmate_primary_nudges
-test_missing_state_is_silent
-test_owned_lock_is_silent
-test_opencode_plugin_delivers_exact_nudge_once
-test_run_startup_runs_the_full_digest
-test_run_clear_and_compact_reemit
-test_run_rebuild_forwards_source_to_drifted_instruction_refresh
-test_run_compact_without_completion_refreshes_before_finishing_startup
-test_run_clear_without_completion_finishes_startup
-test_run_clear_rejects_previous_owner_completion
-test_run_resume_delegates_to_the_nudge
-test_run_reads_source_from_the_hook_payload
-test_run_unknown_source_takes_the_helm
-test_run_gate_and_scope_are_silent
-test_run_reports_a_failed_session_start_as_digest_text
-test_pi_startup_classifies_cli_continuations
-test_pi_sessionstart_generation_prerequisite
-test_pi_reload_releases_sessionstart_exit_listener
-test_pi_large_sessionstart_digest_is_delivered_loudly
+fm_test_run_cases \
+  test_genuine_primary_nudges \
+  test_gate_env_is_silent \
+  test_gate_common_dir_is_silent \
+  test_unmarked_linked_worktree_is_silent \
+  test_linked_secondmate_primary_nudges \
+  test_missing_state_is_silent \
+  test_owned_lock_is_silent \
+  test_opencode_plugin_delivers_exact_nudge_once \
+  test_run_startup_runs_the_full_digest \
+  test_run_clear_and_compact_reemit \
+  test_run_rebuild_forwards_source_to_drifted_instruction_refresh \
+  test_run_compact_without_completion_refreshes_before_finishing_startup \
+  test_run_clear_without_completion_finishes_startup \
+  test_run_clear_rejects_previous_owner_completion \
+  test_run_resume_delegates_to_the_nudge \
+  test_run_reads_source_from_the_hook_payload \
+  test_run_unknown_source_takes_the_helm \
+  test_run_gate_and_scope_are_silent \
+  test_run_reports_a_failed_session_start_as_digest_text \
+  test_pi_startup_classifies_cli_continuations \
+  test_pi_sessionstart_generation_prerequisite \
+  test_pi_reload_releases_sessionstart_exit_listener \
+  test_pi_large_sessionstart_digest_is_delivered_loudly

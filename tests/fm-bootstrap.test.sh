@@ -135,6 +135,7 @@ add_real_jq() {
   real_jq=$(command -v jq 2>/dev/null) || fail "jq is required for dispatch profile validation tests"
   cat > "$fakebin/jq" <<SH
 #!/usr/bin/env bash
+if [ "\${OS:-}" = Windows_NT ]; then set -- --binary "\$@"; fi
 exec '$real_jq' "\$@"
 SH
   chmod +x "$fakebin/jq"
@@ -1117,6 +1118,14 @@ test_crew_dispatch_validation() {
     esac
   done <<'ROWS'
 malformed dispatch config is flagged^{"rules":[^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - malformed JSON
+copilot max effort is accepted^{"default":{"harness":"copilot","model":"model","effort":"max"}}^empty^
+copilot ultra is refused^{"default":{"harness":"copilot","model":"codex-native/model","effort":"ultra"}}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - invalid effort: copilot:ultra
+copilot absent optional axes are accepted^{"default":{"harness":"copilot"}}^empty^
+pilot null model is malformed^{"default":{"harness":"pi","model":null,"effort":"ultra"}}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - default profile model and effort must be non-empty strings when present
+pilot null effort is malformed^{"default":{"harness":"copilot","effort":null}}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - default profile model and effort must be non-empty strings when present
+mixed pilot efforts retain sorted aggregation^{"default":[{"harness":"pi","effort":"ultra"},{"harness":"copilot","effort":"ultra"}]}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - invalid effort: copilot:ultra, pi:ultra
+unverified harness precedes invalid pilot effort^{"default":[{"harness":"pi","effort":"ultra"},{"harness":"spaceship"}]}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - unverified harness: spaceship
+gemini control support does not admit dispatch^{"default":{"harness":"gemini"}}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - unverified harness: gemini
 unverified dispatch harness is flagged^{"rules":[{"when":"anything","use":{"harness":"spaceship"}}],"default":{"harness":"codex"}}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - unverified harness: spaceship
 unsupported codex max effort is flagged^{"rules":[{"when":"big feature","use":{"harness":"codex","model":"gpt-5","effort":"max"}}]}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - invalid effort: codex:max
 unsupported grok max effort is flagged^{"rules":[{"when":"deep current work","use":{"harness":"grok","model":"grok-4","effort":"max"}}]}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - invalid effort: grok:max
@@ -1154,31 +1163,32 @@ ROWS
   pass "bootstrap validates crew-dispatch.json and reports malformed or unverified configs"
 }
 
-test_bootstrap_reporting
-test_no_mistakes_min_version
-test_gh_axi_min_version
-test_lavish_axi_min_version
-test_tasks_axi_min_version
-test_quota_axi_min_version
-test_git_is_required_with_supported_install_instruction
-test_orca_backend_gates_orca_tool_only_when_selected
-test_session_provider_backends_do_not_require_tmux
-test_session_provider_backends_gate_own_cli_not_tmux
-test_herdr_install_requires_manual_action
-test_cmux_bundled_cli_satisfies_dependency
-test_unknown_backend_reports_invalid_configuration
-test_json_backends_require_jq_not_tmux
-test_treehouse_lease_check_follows_resolved_backend
-test_fleet_sync_timeout_scales_with_origin_backed_project_count
-test_fleet_sync_timeout_floor_preserves_small_fleets
-test_fleet_sync_timeout_explicit_override_wins
-test_fleet_sync_timeout_empty_override_uses_default
-test_fleet_sync_timeout_is_computed_before_launch
-test_routine_bootstrap_confirmations_are_silent
-test_routine_bootstrap_contract_runs_under_system_bash
-test_network_phase_partitions_the_run
-test_network_sweeps_recheck_lock_ownership
-test_network_phases_record_per_step_elapsed_times
-test_tasks_axi_verdict_handoff_is_consumed_once
-test_crew_dispatch_active_rules_are_verbose_bootstrap_info
-test_crew_dispatch_validation
+fm_test_run_cases \
+  test_bootstrap_reporting \
+  test_no_mistakes_min_version \
+  test_gh_axi_min_version \
+  test_lavish_axi_min_version \
+  test_tasks_axi_min_version \
+  test_quota_axi_min_version \
+  test_git_is_required_with_supported_install_instruction \
+  test_orca_backend_gates_orca_tool_only_when_selected \
+  test_session_provider_backends_do_not_require_tmux \
+  test_session_provider_backends_gate_own_cli_not_tmux \
+  test_herdr_install_requires_manual_action \
+  test_cmux_bundled_cli_satisfies_dependency \
+  test_unknown_backend_reports_invalid_configuration \
+  test_json_backends_require_jq_not_tmux \
+  test_treehouse_lease_check_follows_resolved_backend \
+  test_fleet_sync_timeout_scales_with_origin_backed_project_count \
+  test_fleet_sync_timeout_floor_preserves_small_fleets \
+  test_fleet_sync_timeout_explicit_override_wins \
+  test_fleet_sync_timeout_empty_override_uses_default \
+  test_fleet_sync_timeout_is_computed_before_launch \
+  test_routine_bootstrap_confirmations_are_silent \
+  test_routine_bootstrap_contract_runs_under_system_bash \
+  test_network_phase_partitions_the_run \
+  test_network_sweeps_recheck_lock_ownership \
+  test_network_phases_record_per_step_elapsed_times \
+  test_tasks_axi_verdict_handoff_is_consumed_once \
+  test_crew_dispatch_active_rules_are_verbose_bootstrap_info \
+  test_crew_dispatch_validation

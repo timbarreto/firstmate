@@ -54,7 +54,7 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=bin/fm-busy-lib.sh
-. "$SCRIPT_DIR/fm-busy-lib.sh"
+. "$SCRIPT_DIR/fm-busy-lib.sh" || exit 2
 
 CMD=${1:-}
 case "$CMD" in

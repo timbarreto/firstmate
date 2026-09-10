@@ -82,3 +82,25 @@ Run `FM_TEST_ONLY=test_process_modules_select_all_consumers bin/fm-test-run.sh t
 The loader and runner still own coverage and scheduling independently; registering this suite does not expand concurrent admission.
 Full portable regression, macOS stock Bash, and real Herdr coverage remain with their existing shared-CI owners.
 Neither deterministic process fixtures nor package type checks establish a changed vendor hook or extension-event assumption.
+
+## Pilot harness compatibility
+
+Run `bin/fm-test-run.sh tests/fm-harness-contract.test.sh` for the closed registry, shared caller interface, literal launch arguments, staged identity, owned paths, supervision overrides, and explicit malformed-call or adapter-load failures.
+The suite executes the generated Pi artifact to verify literal data transport, settlement gating, notification-only turn ends, and throttled generation-bound progress.
+The existing Copilot and process suites retain native loader verification, marker precedence, foreign-process rejection, and per-process query/cache contracts.
+
+Run `bin/fm-lint.sh bin/fm-harness-lib.sh bin/harnesses/copilot.sh bin/harnesses/pi.sh tests/fm-harness-contract.test.sh` for source-aware interface and implementation lint.
+Explicit lint roots preserve CI's cross-file analysis; ordinary branch-local lint does not substitute for that check.
+`tests/fm-lint.test.sh` verifies the full inventory, including adapter and platform shell directories, independently of changed-file selection.
+The focused adapter suite is registered in the fork catalog without adding it to any concurrent proof admission.
+
+The spawn, busy-wiring, bootstrap, and control-relaunch suites exercise the migrated lifecycle through existing executable entrypoints.
+All four support the shared named-case selector without changing their unfiltered case order.
+Use their pilot worker/secondmate, native-effort refusal, raw-command, environment-scrubbing, stale-generation, retirement-before-replacement, and failed-launch cases for focused work.
+Bootstrap cases retain malformed/null-field behavior, narrower verified support, and aggregate diagnostic ordering; representative Claude, signed Pi, OMP, and other nonpilot cases retain legacy coverage.
+Pi watch, primary types, branch, native Codex, and Windows shell suites remain the extension/package integration owners.
+The startup-network and sessionstart-nudge suites exercise isolated copied code roots, including the complete harness dependency closure and Pi's bounded large-digest delivery.
+Both support the shared named-case selector, as does the lint inventory suite.
+
+Full portable regression, real Herdr, stock macOS Bash, and pinned non-credentialed package coverage stay with the existing CI producers.
+No live fleet operation, vendor prompt, workflow gate change, or remote-doctor pin change is needed for this extraction.

@@ -10,11 +10,12 @@
 # chat ("[fm-from-firstmate] /quit") that the agent reasons ABOUT instead of
 # executing. bin/fm-control.sh is the CONTROL plane: allowlisted lifecycle
 # verbs addressed to an exact task id, with the per-harness mechanics owned
-# here rather than improvised per harness in agent prose.
+# through this interface rather than improvised per harness in agent prose.
 #
-# This file owns three capability tables plus their pure artifact-path tables
-# and nothing else. It has no side effects, runs no backend command, and reads
-# no state, so it can be sourced by a test as a pure contract:
+# This file owns the compatibility queries and legacy capability/path tables;
+# Copilot/Pi policy delegates to bin/fm-harness-lib.sh. It has no side effects,
+# runs no backend command, and reads no runtime state, so it can be sourced by
+# a test as a pure contract:
 #
 #   1. Verb allowlist. There is no arbitrary-text and no generic raw-key entry
 #      point on the control plane; a caller either names an allowlisted verb or
@@ -42,6 +43,9 @@
 # because the brief on disk - not a harness-private session - is the durable
 # instruction.
 
+# shellcheck source=bin/fm-harness-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fm-harness-lib.sh" || return 2
+
 # The complete control-plane verb allowlist, one per line.
 fm_control_verbs() {
   cat <<'EOF'
@@ -62,8 +66,9 @@ fm_control_verb_allowed() {  # <verb>
 # section 4's verified-adapter list; an unverified adapter is refused rather
 # than guessed at, exactly as a spawn on it would be.
 fm_control_harness_supported() {  # <harness>
+  if fm_harness_registered "${1-}"; then fm_harness_describe "$1" control-supported; return $?; fi
   case "${1-}" in
-    claude|codex|copilot|opencode|pi|pi-signed|grok|kimi|cursor|gemini|muse|rovo|omp) return 0 ;;
+    claude|codex|opencode|pi-signed|grok|kimi|cursor|gemini|muse|rovo|omp) return 0 ;;
   esac
   return 1
 }
@@ -103,6 +108,7 @@ fm_control_harness_family() {  # <recorded-harness>
 # been stopped.
 fm_control_harness_supports_kind() {  # <harness> <kind>
   local harness=${1-} kind=${2-}
+  if fm_harness_registered "$harness"; then fm_harness_describe "$harness" kind-supported "$kind"; return $?; fi
   fm_control_harness_supported "$harness" || return 1
   case "$harness" in
     muse|gemini|rovo) [ "$kind" != secondmate ] || return 1 ;;
@@ -119,9 +125,10 @@ fm_control_harness_supports_kind() {  # <harness> <kind>
 # afterwards, and /quit exit (verified omp 18.1.2 in a PTY, re-verified 18.1.11
 # through Herdr).
 fm_control_interrupt_key() {  # <harness>
+  if fm_harness_registered "${1-}"; then fm_harness_describe "$1" interrupt-key; return $?; fi
   case "${1-}" in
-    claude|codex|opencode|pi|pi-signed|omp|kimi|cursor|gemini|muse|rovo) printf 'Escape' ;;
-    copilot|grok) printf 'C-c' ;;
+    claude|codex|opencode|pi-signed|omp|kimi|cursor|gemini|muse|rovo) printf 'Escape' ;;
+    grok) printf 'C-c' ;;
     *) return 1 ;;
   esac
 }
@@ -129,9 +136,10 @@ fm_control_interrupt_key() {  # <harness>
 # How many times the interrupt key must be delivered. OpenCode needs a double
 # Escape; every other verified adapter interrupts on a single press.
 fm_control_interrupt_repeat() {  # <harness>
+  if fm_harness_registered "${1-}"; then fm_harness_describe "$1" interrupt-repeat; return $?; fi
   case "${1-}" in
     opencode) printf '2' ;;
-    claude|codex|copilot|pi|pi-signed|omp|grok|kimi|cursor|gemini|muse|rovo) printf '1' ;;
+    claude|codex|pi-signed|omp|grok|kimi|cursor|gemini|muse|rovo) printf '1' ;;
     *) return 1 ;;
   esac
 }
@@ -150,14 +158,16 @@ fm_control_interrupt_repeat() {  # <harness>
 # a harness with no verified mechanics returns nonzero, matching the tables
 # above.
 fm_control_interrupt_clear_key() {  # <harness>
+  if fm_harness_registered "${1-}"; then fm_harness_describe "$1" interrupt-clear-key; return $?; fi
   case "${1-}" in
     muse) printf 'C-u' ;;
-    claude|codex|copilot|opencode|pi|pi-signed|omp|grok|kimi|cursor|gemini|rovo) ;;
+    claude|codex|opencode|pi-signed|omp|grok|kimi|cursor|gemini|rovo) ;;
     *) return 1 ;;
   esac
 }
 
 fm_control_interrupt_ack_source() {  # <harness>
+  if fm_harness_registered "${1-}"; then fm_harness_describe "$1" interrupt-ack-source; return $?; fi
   case "${1-}" in
     muse) printf 'muse-session-terminal' ;;
     # cursor's transcript DOES type an aborted close, but its write latency
@@ -167,16 +177,17 @@ fm_control_interrupt_ack_source() {  # <harness>
     # rovo's TUI prints "Agent cancelled" on Escape, but for parity with
     # claude/cursor this stays 'none': the ack is a rendered string, not a
     # recorded state source, and rovo has no busy wiring to confirm against.
-    claude|codex|copilot|opencode|pi|pi-signed|omp|grok|kimi|cursor|gemini|rovo) printf 'none' ;;
+    claude|codex|opencode|pi-signed|omp|grok|kimi|cursor|gemini|rovo) printf 'none' ;;
     *) return 1 ;;
   esac
 }
 
 # The command that exits the agent from its own composer.
 fm_control_exit_command() {  # <harness>
+  if fm_harness_registered "${1-}"; then fm_harness_describe "$1" exit-command; return $?; fi
   case "${1-}" in
-    claude|copilot|opencode|grok|kimi|cursor|muse|rovo) printf '/exit' ;;
-    codex|pi|pi-signed|omp|gemini) printf '/quit' ;;
+    claude|opencode|grok|kimi|cursor|muse|rovo) printf '/exit' ;;
+    codex|pi-signed|omp|gemini) printf '/quit' ;;
     *) return 1 ;;
   esac
 }
@@ -219,10 +230,14 @@ fm_control_backend_state_verified() {  # <backend>
 fm_control_harness_wiring_paths() {  # <harness> <worktree> <state-dir> <id>
   local harness=${1-} wt=${2-} state=${3-} id=${4-}
   [ -n "$wt" ] && [ -n "$state" ] && [ -n "$id" ] || return 1
+  if fm_harness_registered "$harness"; then
+    fm_harness_owned_wiring "$harness" paths "$wt" "$state" "$id"
+    return $?
+  fi
   case "$harness" in
     claude) printf '%s\n' "$wt/.claude/settings.local.json" ;;
     opencode) printf '%s\n' "$wt/.opencode/plugins/fm-busy-state.js" ;;
-    pi|pi-signed) printf '%s\n' "$state/$id.pi-ext.ts" ;;
+    pi-signed) printf '%s\n' "$state/$id.pi-ext.ts" ;;
     omp) printf '%s\n' "$state/$id.omp-ext.ts" ;;
     grok)
       printf '%s\n' "$wt/.fm-grok-turnend"
@@ -247,10 +262,6 @@ fm_control_harness_wiring_paths() {  # <harness> <worktree> <state-dir> <id>
     # is written into the worktree, whose own .gemini/settings.json belongs to
     # the project, and nothing global is installed.
     gemini) printf '%s\n' "$state/$id.gemini-settings.json" ;;
-    copilot)
-      printf '%s\n' "$wt/.github/hooks/zz-firstmate-$id.json"
-      printf '%s\n' "$state/$id.copilot-prompt-submitted"
-      ;;
   esac
 }
 

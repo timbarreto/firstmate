@@ -230,7 +230,7 @@ fi
 # shellcheck source=bin/fm-backend.sh
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-control-lib.sh
-. "$SCRIPT_DIR/fm-control-lib.sh"
+. "$SCRIPT_DIR/fm-control-lib.sh" || exit 2
 # shellcheck source=bin/fm-marker-lib.sh
 . "$SCRIPT_DIR/fm-marker-lib.sh"
 # shellcheck source=bin/fm-pending-reply-lib.sh
@@ -259,7 +259,7 @@ fm_send_copilot_prompt_token() {
   case "$TARGET_HARNESS" in copilot*) ;; *) return 1 ;; esac
   [ -n "$TARGET_META" ] || return 1
   id=$(fm_send_id_from_meta "$TARGET_META")
-  token_file="$STATE/$id.copilot-prompt-submitted"
+  token_file=$(fm_harness_owned_wiring copilot submission-marker "$STATE" "$id") || return 2
   if [ -f "$token_file" ]; then
     cat "$token_file"
   else

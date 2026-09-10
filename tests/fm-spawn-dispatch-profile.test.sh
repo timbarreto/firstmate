@@ -794,12 +794,12 @@ test_pi_signed_missing_binary_refuses_before_endpoint_or_metadata() {
   pass "pi-signed refuses safely and actionably when the selected executable is unavailable"
 }
 
-test_pi_signed_persistent_secondmate_uses_pi_extensions_and_identity() {
-  local rec id sm out status launch
-  id=profile-pi-signed-secondmate-z8d
-  rec=$(make_spawn_case profile-pi-signed-secondmate codex "$id")
+assert_pi_persistent_secondmate_wiring() {
+  local harness=$1 rec id sm out status launch
+  id="profile-$harness-secondmate-z8d"
+  rec=$(make_spawn_case "profile-$harness-secondmate" codex "$id")
   read_case_record "$rec"
-  printf '%s\n' pi-signed > "$HOME_DIR/config/secondmate-harness"
+  printf '%s\n' "$harness" > "$HOME_DIR/config/secondmate-harness"
   sm="$CASE_DIR/secondmate-home"
   make_seeded_secondmate_home "$sm" "$id"
   sm=$(cd "$sm" && pwd -P)
@@ -808,24 +808,35 @@ test_pi_signed_persistent_secondmate_uses_pi_extensions_and_identity() {
 
   out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$sm" --secondmate)
   status=$?
-  expect_code 0 "$status" "pi-signed persistent secondmate spawn should succeed"
-  assert_contains "$out" "spawned $id harness=pi-signed kind=secondmate" \
-    "pi-signed secondmate spawn did not preserve its runtime identity"
-  assert_meta_profile "$HOME_DIR/state/$id.meta" pi-signed default default
+  expect_code 0 "$status" "$harness persistent secondmate spawn should succeed"
+  assert_contains "$out" "spawned $id harness=$harness kind=secondmate" \
+    "$harness secondmate spawn did not preserve its runtime identity"
+  assert_meta_profile "$HOME_DIR/state/$id.meta" "$harness" default default
   cmp -s "$ROOT/AGENTS.md" "$sm/AGENTS.md" || fail "secondmate launch rewrote the supervisor contract"
   cmp -s "$CASE_DIR/charter-before" "$sm/data/charter.md" || fail "secondmate launch rewrote the charter"
   assert_absent "$HOME_DIR/data/$id/launch-brief.md" "secondmate launch received a worker overlay"
+  assert_absent "$HOME_DIR/state/$id.pi-ext.ts" "secondmate received a worker extension"
+  assert_absent "$HOME_DIR/state/$id.busy-gen" "Pi supervision incorrectly armed worker busy state"
   launch=$(cat "$LAUNCH_LOG")
   assert_contains "$launch" "< '$sm/data/charter.md'" "secondmate launch lost its original charter"
-  assert_contains "$launch" "FM_PI_HARNESS=pi-signed '$FAKEBIN_DIR/pi-signed' --tui-mode regular -e '$sm/.pi/extensions/fm-primary-turnend-guard.ts' -e '$sm/.pi/extensions/fm-primary-pi-watch.ts'" \
-    "pi-signed secondmate did not force the regular TUI with Pi's primary extension launch shape"
+  assert_contains "$launch" "FM_PI_HARNESS=$harness '$FAKEBIN_DIR/$harness' --tui-mode regular -e '$sm/.pi/extensions/fm-primary-turnend-guard.ts' -e '$sm/.pi/extensions/fm-primary-pi-watch.ts'" \
+    "$harness secondmate did not force the regular TUI with Pi's primary extension launch shape"
+  assert_contains "$launch" 'FM_SUPERVISION_MODEL=extension' "Pi secondmate supervision"
   if [ "${FM_TEST_EVIDENCE:-0}" = 1 ]; then
     printf '# evidence begin: persistent secondmate\n%s\n' "$out"
     printf 'launch command:\n%s\noriginal charter:\n' "$launch"
     cat "$sm/data/charter.md"
     printf 'supervisor AGENTS.md and charter remain byte-identical; no worker overlay created\n# evidence end\n'
   fi
-  pass "pi-signed is a distinct persistent secondmate runtime with shared Pi supervision semantics"
+  pass "$harness preserves its persistent secondmate identity and primary extension wiring"
+}
+
+test_pi_signed_persistent_secondmate_uses_pi_extensions_and_identity() {
+  assert_pi_persistent_secondmate_wiring pi-signed
+}
+
+test_pi_persistent_secondmate_uses_primary_wiring() {
+  assert_pi_persistent_secondmate_wiring pi
 }
 
 test_copilot_secondmate_uses_semantic_submission_hooks() {
@@ -1307,6 +1318,7 @@ fm_test_run_cases \
   test_pi_signed_threads_shared_pi_profile_and_preserves_identity \
   test_pi_signed_missing_binary_refuses_before_endpoint_or_metadata \
   test_pi_signed_persistent_secondmate_uses_pi_extensions_and_identity \
+  test_pi_persistent_secondmate_uses_primary_wiring \
   test_copilot_secondmate_uses_semantic_submission_hooks \
   test_batch_forwards_shared_profile_flags \
   test_claude_forwards_firstmate_config_dir_when_set \

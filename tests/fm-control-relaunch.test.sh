@@ -549,6 +549,65 @@ test_harness_switch_does_not_carry_the_old_profile_axes() {
   pass "fm-control relaunch: a harness switch resets model and effort unless they are named too"
 }
 
+test_pilot_switches_retire_exact_owned_wiring() {
+  local harness replacement dir id paths path out rc old_gen
+  for harness in copilot pi; do
+    replacement=pi
+    [ "$harness" != pi ] || replacement=copilot
+    id="pilot-switch-$harness"
+    dir=$(new_case "$id" "$id")
+    add_ship_task "$dir" "$id" "$harness"
+    fm_fake_exit0 "$dir/fakebin" copilot pi
+    printf '%s' "$harness" > "$dir/fake/command"
+    printf '%s' "$replacement" > "$dir/fake/becomes"
+    old_gen=$("$ROOT/bin/fm-busy-event.sh" arm "$dir/home/state" "$id") || fail "prior pilot generation"
+    paths=$(fm_control_harness_wiring_paths "$harness" "$dir/wt" "$dir/home/state" "$id") \
+      || fail "prior pilot wiring"
+    while IFS= read -r path; do
+      mkdir -p "$(dirname "$path")"
+      printf 'prior wiring\n' > "$path"
+    done <<< "$paths"
+    printf 'foreign state\n' > "$dir/home/state/foreign.pi-ext.ts"
+    out=$(run_control "$dir" "$id" relaunch --harness "$replacement" --note "replace pilot wiring"); rc=$?
+    expect_code 0 "$rc" "pilot switch should complete"$'\n'"$out"
+    assert_equals "$replacement" "$(meta_field "$dir" "$id" harness)" "replacement metadata"
+    while IFS= read -r path; do assert_absent "$path" "prior pilot artifact survived: $path"; done <<< "$paths"
+    assert_present "$dir/home/state/foreign.pi-ext.ts" "pilot cleanup removed unrelated state"
+    [ "$(cat "$dir/home/state/$id.busy-gen")" != "$old_gen" ] || fail "pilot generation was reused"
+    case "$replacement" in
+      copilot) assert_present "$dir/wt/.github/hooks/zz-firstmate-$id.json" "replacement Copilot hooks" ;;
+      pi) assert_present "$dir/home/state/$id.pi-ext.ts" "replacement Pi worker extension" ;;
+    esac
+  done
+  pass "both pilot switch directions retire exact prior artifacts and publish a fresh replacement generation"
+}
+
+test_failed_pilot_publication_retires_replacement_wiring() {
+  local harness dir id meta real_mv paths path out rc
+  real_mv=$(command -v mv)
+  for harness in copilot pi; do
+    id="pilot-abort-$harness"
+    dir=$(new_case "$id" "$id")
+    add_ship_task "$dir" "$id" claude
+    fm_fake_exit0 "$dir/fakebin" copilot pi
+    printf '%s' "$harness" > "$dir/fake/becomes"
+    meta="$dir/home/state/$id.meta"
+    make_mv_failure_stub "$dir"
+    out=$(FM_REAL_MV="$real_mv" FM_FAKE_META_PUBLISH_MV_FAIL="$meta" \
+      run_control "$dir" "$id" relaunch --harness "$harness" --note "abort pilot publication"); rc=$?
+    expect_code 1 "$rc" "failed pilot publication should refuse"$'\n'"$out"
+    assert_equals claude "$(meta_field "$dir" "$id" harness)" "prior record survives"
+    assert_equals "$harness" "$(journal_field "$dir" "$id" to_harness)" "selected replacement was attempted"
+    assert_equals prior-record-kept "$(journal_field "$dir" "$id" rollback)" "unpublished pilot rollback"
+    paths=$(fm_control_harness_wiring_paths "$harness" "$dir/wt" "$dir/home/state" "$id") \
+      || fail "replacement pilot wiring"
+    while IFS= read -r path; do assert_absent "$path" "aborted pilot artifact survived: $path"; done <<< "$paths"
+    assert_absent "$dir/home/state/$id.busy-gen" "aborted pilot generation survived"
+    assert_absent "$dir/home/state/$id.busy-state" "aborted pilot busy state survived"
+  done
+  pass "both pilots roll back exact replacement wiring and generation when metadata publication fails"
+}
+
 test_harness_switch_resolves_a_prefixed_recorded_harness() {
   local dir out rc auth
   dir=$(new_case prefixcontrol rl32)
@@ -1557,56 +1616,59 @@ test_relaunch_moves_a_drifted_item_back_in_flight() {
   pass "relaunch heals an item that drifted out of In flight while the task stayed live"
 }
 
-test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint
-test_relaunch_from_linked_home_preserves_recorded_worktree
-test_relaunch_preserves_durable_task_metadata
-test_relaunch_serializes_concurrent_durable_metadata_publication
-test_disabled_relaunch_clears_prior_trace_context
-test_relaunch_appends_the_progress_note_to_the_instructions
-test_relaunch_requires_a_note_for_a_ship_task
-test_harness_switch_moves_the_record_and_clears_prior_wiring
-test_harness_switch_does_not_carry_the_old_profile_axes
-test_harness_switch_resolves_a_prefixed_recorded_harness
-test_prefixed_recorded_harness_requires_explicit_replacement
-test_same_harness_relaunch_keeps_the_profile_axes
-test_native_ultra_relaunch_preserves_profile_and_rejects_before_stop
-test_explicit_model_wins_over_the_recorded_one
-test_relaunch_onto_an_unverified_harness_is_refused
-test_prior_harness_turnend_registry_entry_is_cleared
-test_wiring_removal_failure_refuses_before_replacement_arm
-test_turnend_auth_paths_are_owned_by_the_control_adapter
-test_secondmate_relaunch_picks_up_the_configured_harness_pin
-test_secondmate_relaunch_ignores_invalid_configured_effort_before_stop
-test_secondmate_relaunch_onto_a_crewmate_only_adapter_refuses_before_stop
-test_explicit_secondmate_harness_ignores_configured_profile_axes
-test_ship_relaunch_ignores_the_crew_harness_config
-test_spawn_relaunch_without_a_harness_reuses_the_recorded_one
-test_prefixed_prior_harness_wiring_is_still_retired
-test_muse_session_binding_is_retired_on_a_harness_switch
-test_cursor_session_binding_is_retired_on_a_harness_switch
-test_missing_worktree_refuses_before_stopping_anything
-test_missing_instructions_refuse_before_stopping_anything
-test_checkpoint_refusal_leaves_the_record_byte_identical
-test_checkpoint_refuses_uninspectable_head_and_status
-test_launch_failure_keeps_the_prior_record_and_reports_it
-test_prepublication_failure_keeps_concurrent_durable_metadata
-test_post_publication_launch_failure_keeps_the_new_record
-test_stop_transport_failure_reconciles_a_dead_agent
-test_complete_journal_failure_rolls_back_from_durable_phase
-test_prepublication_abort_retires_replacement_wiring_and_busy_state
-test_journal_records_the_checkpoint_it_proved
-test_secondmate_relaunch_checkpoints_child_work_and_spares_the_charter
-test_secondmate_relaunch_refuses_an_unmarked_home
-test_secondmate_checkpoint_refuses_unreadable_child_state
-test_concurrent_relaunch_is_refused
-test_direct_spawn_relaunch_participates_in_the_lifecycle_lock
-test_promotion_participates_in_the_lifecycle_lock_before_metadata_resolution
-test_spawn_relaunch_refuses_a_live_agent
-test_spawn_relaunch_refuses_a_symlinked_task_record_before_inspection
-test_spawn_relaunch_keeps_its_early_meta_lock_continuous
-test_spawn_relaunch_refuses_a_pending_authoritative_close
-test_spawn_relaunch_refuses_contradicting_flags
-test_spawn_relaunch_refuses_an_unrecorded_task
-test_spawn_relaunch_refuses_a_pane_outside_the_worktree
-test_relaunch_reverifies_an_already_in_flight_item_instead_of_rewriting_it
-test_relaunch_moves_a_drifted_item_back_in_flight
+fm_test_run_cases \
+  test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint \
+  test_relaunch_from_linked_home_preserves_recorded_worktree \
+  test_relaunch_preserves_durable_task_metadata \
+  test_relaunch_serializes_concurrent_durable_metadata_publication \
+  test_disabled_relaunch_clears_prior_trace_context \
+  test_relaunch_appends_the_progress_note_to_the_instructions \
+  test_relaunch_requires_a_note_for_a_ship_task \
+  test_harness_switch_moves_the_record_and_clears_prior_wiring \
+  test_pilot_switches_retire_exact_owned_wiring \
+  test_failed_pilot_publication_retires_replacement_wiring \
+  test_harness_switch_does_not_carry_the_old_profile_axes \
+  test_harness_switch_resolves_a_prefixed_recorded_harness \
+  test_prefixed_recorded_harness_requires_explicit_replacement \
+  test_same_harness_relaunch_keeps_the_profile_axes \
+  test_native_ultra_relaunch_preserves_profile_and_rejects_before_stop \
+  test_explicit_model_wins_over_the_recorded_one \
+  test_relaunch_onto_an_unverified_harness_is_refused \
+  test_prior_harness_turnend_registry_entry_is_cleared \
+  test_wiring_removal_failure_refuses_before_replacement_arm \
+  test_turnend_auth_paths_are_owned_by_the_control_adapter \
+  test_secondmate_relaunch_picks_up_the_configured_harness_pin \
+  test_secondmate_relaunch_ignores_invalid_configured_effort_before_stop \
+  test_secondmate_relaunch_onto_a_crewmate_only_adapter_refuses_before_stop \
+  test_explicit_secondmate_harness_ignores_configured_profile_axes \
+  test_ship_relaunch_ignores_the_crew_harness_config \
+  test_spawn_relaunch_without_a_harness_reuses_the_recorded_one \
+  test_prefixed_prior_harness_wiring_is_still_retired \
+  test_muse_session_binding_is_retired_on_a_harness_switch \
+  test_cursor_session_binding_is_retired_on_a_harness_switch \
+  test_missing_worktree_refuses_before_stopping_anything \
+  test_missing_instructions_refuse_before_stopping_anything \
+  test_checkpoint_refusal_leaves_the_record_byte_identical \
+  test_checkpoint_refuses_uninspectable_head_and_status \
+  test_launch_failure_keeps_the_prior_record_and_reports_it \
+  test_prepublication_failure_keeps_concurrent_durable_metadata \
+  test_post_publication_launch_failure_keeps_the_new_record \
+  test_stop_transport_failure_reconciles_a_dead_agent \
+  test_complete_journal_failure_rolls_back_from_durable_phase \
+  test_prepublication_abort_retires_replacement_wiring_and_busy_state \
+  test_journal_records_the_checkpoint_it_proved \
+  test_secondmate_relaunch_checkpoints_child_work_and_spares_the_charter \
+  test_secondmate_relaunch_refuses_an_unmarked_home \
+  test_secondmate_checkpoint_refuses_unreadable_child_state \
+  test_concurrent_relaunch_is_refused \
+  test_direct_spawn_relaunch_participates_in_the_lifecycle_lock \
+  test_promotion_participates_in_the_lifecycle_lock_before_metadata_resolution \
+  test_spawn_relaunch_refuses_a_live_agent \
+  test_spawn_relaunch_refuses_a_symlinked_task_record_before_inspection \
+  test_spawn_relaunch_keeps_its_early_meta_lock_continuous \
+  test_spawn_relaunch_refuses_a_pending_authoritative_close \
+  test_spawn_relaunch_refuses_contradicting_flags \
+  test_spawn_relaunch_refuses_an_unrecorded_task \
+  test_spawn_relaunch_refuses_a_pane_outside_the_worktree \
+  test_relaunch_reverifies_an_already_in_flight_item_instead_of_rewriting_it \
+  test_relaunch_moves_a_drifted_item_back_in_flight

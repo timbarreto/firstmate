@@ -35,6 +35,9 @@ SH
 install_primary_fixture() {
   local dir=$1 f
   mkdir -p "$dir/bin" "$dir/state"
+  # shellcheck source=tests/harness-helpers.sh
+  . "$ROOT/tests/harness-helpers.sh"
+  fm_test_install_harness_modules "$dir" || fail "Copilot fixture adapter dependencies"
   git init -q "$dir"
   git -C "$dir" commit -q --allow-empty -m init
   : > "$dir/AGENTS.md"

@@ -34,7 +34,7 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 
 # shellcheck source=bin/fm-session-lock-lib.sh
-. "$SCRIPT_DIR/fm-session-lock-lib.sh"
+. "$SCRIPT_DIR/fm-session-lock-lib.sh" || exit 2
 # shellcheck source=bin/fm-cursor-lib.sh
 . "$SCRIPT_DIR/fm-cursor-lib.sh"
 # shellcheck source=bin/fm-gemini-lib.sh
@@ -50,9 +50,11 @@ detect_own() {
   # CLAUDECODE inheritance into a kimi child was observed; it was not observed.
   # Copilot is checked first because its child tools can inherit foreign
   # harness markers while its own session markers remain authoritative.
-  if fm_copilot_loader_pid >/dev/null 2>&1; then
+  if fm_copilot_loader_pid >/dev/null; then
     echo copilot
     return
+  elif [ "$?" -eq 2 ]; then
+    return 2
   fi
   # Cursor is checked BEFORE claude, deliberately. cursor-agent does NOT clear
   # an inherited CLAUDECODE, so a cursor worker launched from a claude primary
@@ -104,10 +106,11 @@ detect_own() {
     return
   fi
   [ "${CLAUDECODE:-}" = "1" ] && { echo claude; return; }
-  if [ "${PI_CODING_AGENT:-}" = "true" ]; then
-    if [ "${FM_PI_HARNESS:-}" = pi-signed ]; then echo pi-signed; else echo pi; fi
+  if [ "${PI_CODING_AGENT:-}" = true ] && [ "${FM_PI_HARNESS:-}" = pi-signed ]; then
+    echo pi-signed
     return
   fi
+  if fm_harness_identify pi marker; then return 0; elif [ "$?" -eq 2 ]; then return 2; fi
   # grok set GROK_AGENT=1 for its child/tool processes (verified, grok 0.2.73).
   # It does NOT set CLAUDECODE despite being Claude-Code-compatible, so the marker
   # is unambiguous WHEN PRESENT - but it is not guaranteed present. A grok 1.0.0
@@ -126,7 +129,7 @@ detect_own() {
   # without verifying it reaches children AND that it cannot survive in a
   # multiplexer's stored environment, which is the precedence hazard above.
   # Layer 2: walk the parent chain and match the command name.
-  local pid=$$ comm args argv0
+  local pid=$$ comm args argv0 command_name
   for _ in 1 2 3 4 5 6 7 8; do
     comm=$(ps -o comm= -p "$pid" 2>/dev/null) || break
     argv0=$(fm_cursor_argv0_for_pid "$pid" "$comm" 2>/dev/null || true)
@@ -138,7 +141,8 @@ detect_own() {
       echo gemini
       return
     fi
-    case "$(basename -- "$comm")" in
+    command_name=$(basename -- "$comm")
+    case "$command_name" in
       # gemini precedes claude here for the same precedence reason as the
       # marker layer above, so a gemini worker under a claude primary is never
       # read as claude. This arm covers a natively-named gemini binary only.
@@ -154,7 +158,9 @@ detect_own() {
       # command carrying a harness name in its arguments claim an identity.
       *claude*) echo claude; return ;;
       *codex*) echo codex; return ;;
-      copilot|copilot.exe) echo copilot; return ;;
+    esac
+    if fm_harness_identify copilot command "$command_name"; then return 0; elif [ "$?" -eq 2 ]; then return 2; fi
+    case "$command_name" in
       *opencode*) echo opencode; return ;;
       *grok*) echo grok; return ;;
       kimi) echo kimi; return ;;
@@ -166,7 +172,9 @@ detect_own() {
       # unrelated commands (musescore, amuse) cannot be misread as this harness.
       muse|muse-bin-*) echo muse; return ;;
       pi-signed) echo pi; return ;;
-      pi) echo pi; return ;;
+    esac
+    if fm_harness_identify pi command "$command_name"; then return 0; elif [ "$?" -eq 2 ]; then return 2; fi
+    case "$command_name" in
       # omp is a Bun-compiled single binary whose process name is exactly `omp`
       # (verified, omp 18.1.11: `ps -o comm=` reports omp from both its `!`
       # bash path and the model's bash tool). Anchored, never *omp*, so ompd,
@@ -186,11 +194,14 @@ detect_own() {
         case "$args" in
           *claude*) echo claude; return ;;
           *codex*) echo codex; return ;;
-          */copilot|*/copilot.exe|*\\copilot.exe*) echo copilot; return ;;
+        esac
+        if fm_harness_identify copilot interpreter "$args"; then return 0; elif [ "$?" -eq 2 ]; then return 2; fi
+        case "$args" in
           *opencode*) echo opencode; return ;;
           *grok*) echo grok; return ;;
-          *" pi "*|*/pi) echo pi; return ;;
-        esac ;;
+        esac
+        if fm_harness_identify pi interpreter "$args"; then return 0; elif [ "$?" -eq 2 ]; then return 2; fi
+        ;;
     esac
     pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
     if [ -z "$pid" ] || [ "$pid" -le 1 ]; then
@@ -289,11 +300,15 @@ resolve_secondmate_effort() {
 validate_native_effort() {
   local harness=${1:-} model=${2:-} effort=${3:-}
   [ "$effort" = ultra ] || return 0
+  if fm_harness_registered "$harness"; then
+    fm_harness_describe "$harness" native-effort "$model" "$effort" && return 0
+  else
   case "$harness" in
-    pi|pi-signed)
+    pi-signed)
       case "$model" in codex-native/?*) return 0 ;; esac
       ;;
   esac
+  fi
   echo "error: ultra effort requires pi or pi-signed with an explicit codex-native/<model> model" >&2
   return 1
 }

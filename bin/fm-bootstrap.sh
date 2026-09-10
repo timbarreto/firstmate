@@ -1088,7 +1088,7 @@ EOF
 }
 
 crew_dispatch_validate() {
-  local file err
+  local file err copilot_profile pi_profile
   file="$CONFIG/crew-dispatch.json"
   [ -f "$file" ] || return 0
   if ! command -v jq >/dev/null 2>&1; then
@@ -1099,17 +1099,27 @@ crew_dispatch_validate() {
     echo "CREW_DISPATCH: invalid config/crew-dispatch.json - malformed JSON"
     return 0
   fi
-  err=$(jq -r '
-    def verified($h): ["claude","codex","copilot","opencode","pi","pi-signed","grok","kimi","cursor","muse","rovo","omp"] | index($h);
+  # shellcheck source=bin/fm-harness-lib.sh
+  . "$SCRIPT_DIR/fm-harness-lib.sh" || return 2
+  copilot_profile=$(fm_harness_describe copilot profile) || return 2
+  pi_profile=$(fm_harness_describe pi profile) || return 2
+  err=$(jq -r --argjson pilots "{\"copilot\":$copilot_profile,\"pi\":$pi_profile}" '
+    def verified($h):
+      (["claude","codex","opencode","pi-signed","grok","kimi","cursor","muse","rovo","omp"]
+       + [$pilots | to_entries[] | select(.value.bootstrap) | .key]) | index($h);
     def effort_ok($h; $m; $e):
       if $e == null then true
       elif ($e | type) != "string" then false
-      elif $e == "ultra" then (($h == "pi" or $h == "pi-signed") and (($m | type) == "string") and ($m | startswith("codex-native/")) and ($m | length) > 13)
+      elif $e == "ultra" then
+        (if $pilots | has($h) then $pilots[$h].nativeEffortPrefix
+         elif $h == "pi-signed" then "codex-native/" else null end) as $prefix
+        | if $prefix == null or ($m | type) != "string" then false
+          else ($m | startswith($prefix)) and (($m | length) > ($prefix | length)) end
+      elif $pilots | has($h) then ($pilots[$h].efforts | index($e))
       elif $h == "claude" then (["low","medium","high","xhigh","max"] | index($e))
       elif $h == "codex" then (["low","medium","high","xhigh"] | index($e))
-      elif $h == "copilot" then (["low","medium","high","xhigh","max"] | index($e))
       elif $h == "grok" then (["low","medium","high"] | index($e))
-      elif $h == "pi" or $h == "pi-signed" or $h == "omp" then (["low","medium","high","xhigh","max"] | index($e))
+      elif $h == "pi-signed" or $h == "omp" then (["low","medium","high","xhigh","max"] | index($e))
       elif $h == "muse" then (["low","medium","high","xhigh","max"] | index($e))
       elif $h == "rovo" then (["low","medium","high","max"] | index($e))
       elif $h == "opencode" or $h == "kimi" or $h == "cursor" then false
@@ -1162,7 +1172,10 @@ crew_dispatch_validate() {
         else empty
         end
     end
-  ' "$file" 2>/dev/null || true)
+  ' "$file") || {
+    echo "error: could not validate crew-dispatch.json against harness capabilities" >&2
+    return 2
+  }
   if [ -n "$err" ]; then
     echo "CREW_DISPATCH: invalid config/crew-dispatch.json - $err"
     return 0
@@ -1459,7 +1472,7 @@ detect_local_config() {
   if [ "$crew" = cursor ] && ! fm_cursor_resolve_binary >/dev/null 2>&1; then
     echo "MISSING_MANUAL: cursor-agent (instructions: $(manual_install_url cursor-agent))"
   fi
-  crew_dispatch_validate
+  crew_dispatch_validate || return $?
   if [ "${FM_BOOTSTRAP_VERBOSE_FACTS:-0}" = 1 ] \
     && ! fm_backlog_backend_manual "$CONFIG" && fm_tasks_axi_compatible; then
     echo "BOOTSTRAP_INFO: tasks-axi available"
@@ -1536,7 +1549,7 @@ if network_phase; then
   gh auth status >/dev/null 2>&1 || echo "NEEDS_GH_AUTH"
   fm_timing_record phase gh-auth "$__fm_timing_stamp"
 fi
-local_phase && detect_local_config
+if local_phase; then detect_local_config || exit $?; fi
 
 if [ "${FM_BOOTSTRAP_DETECT_ONLY:-0}" != 1 ]; then
   # secondmate_sync consumes SECONDMATE_RESPAWNED_IDS from the liveness sweep, so
