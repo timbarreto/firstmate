@@ -64,7 +64,11 @@ jobs:
           bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
             tests/fm-reconcile-validation.test.sh \
             tests/fm-backend-herdr-treehouse.test.sh \
-            tests/fm-pi-windows-shell-invocation.test.sh
+            tests/fm-pi-windows-shell-invocation.test.sh \
+            tests/fm-private-path.test.sh
+          FM_TEST_ONLY=test_windows_pr_publication_removes_broad_inheritance \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+              tests/fm-pr-check-security.test.sh
       - name: Run named Windows reconciliation case
         if: matrix.subject != 'core'
         shell: bash

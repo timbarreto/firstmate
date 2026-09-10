@@ -25,6 +25,21 @@ Missing dependencies or invalid records stop selection explicitly.
 `tests/catalog-helpers.sh` installs the real loader and a minimal, valid dependency set for synthetic fixtures; it is not a production fallback or alternative registry.
 Tracked-only clones carry the catalogs and loader, and `.gitattributes` preserves the catalogs' LF format on Windows.
 
+## Private-path seam
+
+`bin/fm-private-path-lib.sh` owns bounded native dispatch, path-data transport, batching, and retries through the interface in its header.
+`bin/platform/windows-private-path.ps1` is the native ACL implementation owner; its header identifies the deliberately different PR, X, worker, and Herdr policies.
+The Bash module caches only the converted location of that tracked PowerShell code, never a target's identity, permissions, or validation result.
+The helper is loaded in the existing native invocation, without a second PowerShell bridge or per-item native calls for PR batches.
+
+`bin/fm-pr-lib.sh`, `bin/fm-x-lib.sh`, `bin/fm-test-run.sh`, and `bin/backends/herdr.sh` retain their public helper names and platform detection.
+They still own POSIX modes, ownership where required, device and link checks, publication ordering, lock identity, worker allocation, and rollback.
+Extraction does not make their policies interchangeable or move transaction authority into the platform module.
+Native failures remain refusals; a missing tracked dependency is not permission to reuse an earlier verdict or fall back to synthetic Windows modes.
+
+`tests/private-path-helpers.sh` installs both tracked dependencies in copied and symlink-shaped test roots.
+Production deployment continues to use the tracked repository layout rather than a generated copy or an ambient-checkout fallback.
+
 ## Remaining integration patches
 
 The runner retains compatibility functions that delegate metadata queries, the procedural dependency/reference scan, and its execution algorithms.
@@ -33,4 +48,4 @@ The lint owner includes the fork module directories in full and changed mode, wh
 These are deliberate integration patches until upstream accepts compatible seams; moving implementation does not make the fork delta disappear.
 
 [Fork verification](verification.md) owns CI ownership and repeatable checks.
-The runtime module extractions and Copilot/Pi pilot in the [implementation plan](upstream-plan.md) are separate delivery slices, not interfaces introduced by the test catalog.
+The remaining process/transport extraction and Copilot/Pi pilot follow the [implementation plan](upstream-plan.md).
