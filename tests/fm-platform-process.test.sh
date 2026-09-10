@@ -82,7 +82,7 @@ test_native_transport_round_trip() {
   value=$(printf "value ' [x]; \044env:PATH\nsecond line")
   printf '#!/usr/bin/env bash\nprintf "bash round trip\\n"\n' > "$dir/launch.sh"
   (
-    # shellcheck source=bin/backends/herdr.sh
+    # shellcheck source=/dev/null
     . "$ROOT/bin/backends/herdr.sh" || exit 1
     fm_backend_herdr_windows_set_environment_command FM_TRANSPORT "$value"
     fm_backend_herdr_windows_enter_worktree_command "$native_dir"

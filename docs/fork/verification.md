@@ -71,6 +71,8 @@ The same suite exercises real native PID translation, graceful TERM, owned desce
 Only task-owned fixture processes are started or stopped; these cases do not exercise a live vendor or Firstmate fleet.
 The Windows reconciliation core job owns native coverage, while the pinned package job runs the shared contracts and strict Pi type checks.
 
+Run `bin/fm-lint.sh tests/fm-platform-process.test.sh bin/fm-platform-process-lib.sh bin/backends/herdr.sh` for focused source-aware lint; the lint owner documents mode selection and test/production source boundaries.
+
 `tests/fm-pi-primary-types.test.sh` compiles the copied repository-shaped extensions and adjacent module declarations against the installed Pi package.
 The existing Pi watch and branch suites retain their full case order and additionally support the shared named-case selector in `tests/lib.sh`.
 Use their generation/replacement, lock-ownership, process-exit cleanup, OpenCode package-boundary, and stock Pi consumer cases for targeted compatibility work.
