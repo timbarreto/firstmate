@@ -79,6 +79,8 @@ test	tests/fm-backend-herdr-launcher-workspace-e2e.test.sh	real-herdr-gated
 test	tests/fm-backend-herdr-prune-safety-e2e.test.sh	real-herdr-gated
 test	tests/fm-backend-herdr-respawn-idem-e2e.test.sh	real-herdr-gated
 test	tests/fm-backend-herdr-focus-flash-e2e.test.sh	real-herdr-gated
+test	tests/fm-backend-herdr-stale-active-tab-e2e.test.sh	real-herdr-gated
+test	tests/fm-backend-herdr-agent-exit-shell-e2e.test.sh	real-herdr-gated
 test	tests/fm-herdr-session-cleanup-e2e.test.sh	real-herdr-gated
 test	tests/fm-backend-herdr-smoke.test.sh	real-herdr-gated
 test	tests/fm-backend-herdr-workspace-per-home-e2e.test.sh	real-herdr-gated
@@ -87,6 +89,7 @@ test	tests/fm-backlog-handoff.test.sh	secondmate
 test	tests/fm-on.test.sh	secondmate
 test	tests/fm-remote-backlog-handoff.test.sh	secondmate
 test	tests/fm-remote-doctor.test.sh	secondmate
+test	tests/fm-remote-herdr-guard.test.sh	secondmate
 test	tests/fm-remote-job.test.sh	secondmate
 test	tests/fm-remote-job-orphan-reap.test.sh	secondmate
 test	tests/fm-remote-transport-lanes.test.sh	secondmate
@@ -286,6 +289,7 @@ duration	tests/fm-quota-choose.test.sh	1461
 duration	tests/fm-remote-backlog-handoff.test.sh	41432
 duration	tests/fm-remote-doctor.test.sh	5198
 duration	tests/fm-remote-entrypoint.test.sh	132
+duration	tests/fm-remote-herdr-guard.test.sh	1500
 duration	tests/fm-remote-job-orphan-reap.test.sh	2972
 duration	tests/fm-remote-job.test.sh	59603
 duration	tests/fm-remote-reply.test.sh	101690
@@ -367,7 +371,7 @@ map	route-pi-extensions-fm-branch-supervision-ts	2000	.pi/extensions/fm-branch-s
 map	route-pi-extensions-lib-fm-operational-input-ts	2100	.pi/extensions/lib/fm-operational-input.ts	__script__:fm-pi-windows-shell-invocation.test.sh,__script__:fm-pi-branch-extension.test.sh,__script__:fm-pi-watch-extension.test.sh,__script__:fm-calm-pi-extension.test.sh,__script__:fm-watch-recovery-loop.test.sh,__script__:fm-turnend-guard.test.sh,__script__:fm-sessionstart-nudge.test.sh,__script__:fm-pi-primary-types.test.sh,live-harness-optin
 map	route-bin-fm-sessionstart-run-sh	2200	bin/fm-sessionstart-run.sh|.claude/settings.json|.codex/hooks.json|.pi/extensions/fm-primary-turnend-guard.ts	__script__:fm-pi-windows-shell-invocation.test.sh,session-bootstrap,live-harness-optin
 map	route-bin-fm-extension-mjs	2300	bin/fm-extension.mjs|bin/fm-extension.sh|docs/examples/process-event-extension/*	__script__:fm-extension-binding.test.sh
-map	route-bin-fm-procevent-sh	2400	bin/fm-procevent.sh|bin/fm-procevent-lib.sh|bin/fm-procevent-extension-capture.pl	__script__:fm-extension-binding.test.sh,__script__:fm-procevent.test.sh,__script__:fm-procevent-when.test.sh,__script__:fm-remote-reply.test.sh
+map	route-bin-fm-procevent-sh	2400	bin/fm-procevent.sh|bin/fm-procevent-lib.sh|bin/fm-procevent-extension-capture.pl	__script__:fm-extension-binding.test.sh,__script__:fm-procevent.test.sh,__script__:fm-procevent-stop-proof.test.sh,__script__:fm-procevent-when.test.sh,__script__:fm-remote-reply.test.sh
 map	route-bin-fm-timeout-lib-sh	2500	bin/fm-timeout-lib.sh	session-bootstrap,snapshot-bearings,pure-contract-unit,secondmate,watcher-wake-lock,__script__:fm-procevent-quota.test.sh
 map	route-bin-fm-pr	2600	bin/fm-pr-*|bin/fm-merge-local.sh|bin/fm-teardown.sh|bin/fm-review-diff.sh|bin/fm-x-*|bin/fm-check*	pr-forge
 map	route-bin-fm-nm-run-lib-sh	2700	bin/fm-nm-run-lib.sh	pure-contract-unit,pr-forge

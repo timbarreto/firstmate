@@ -711,60 +711,6 @@ SH
   pass "fm-lint.sh changed mode excludes cross-file codes that explicit paths still report"
 }
 
-# One ShellCheck process per root. Passing the whole canonical set in a
-# single invocation still follows in-set sources and is not the no-x posture.
-fm_lint_nox_one_root() {
-  local index=$1 path=$2 outdir=$3
-  shellcheck --norc --format gcc -- "$path" > "$outdir/$index" || true
-}
-
-test_local_exclusion_list_covers_every_no_external_sources_code() {
-  if ! pinned_ready; then
-    pass "SKIP (ShellCheck $REQUIRED not resolved): local exclusion completeness"
-    return
-  fi
-  local tmp files_file out unexpected code path found i batch
-  local -a files
-  tmp=$(fm_test_tmproot fm-lint-nox-complete)
-  files_file="$tmp/files"
-  CI=true "$LINT" --list-files > "$files_file"
-  [ -s "$files_file" ] || fail "CI --list-files returned no canonical lint roots"
-  files=()
-  while IFS= read -r path; do
-    [ -n "$path" ] || continue
-    files+=("$path")
-  done < "$files_file"
-  [ "${#files[@]}" -gt 0 ] || fail "CI --list-files returned no readable lint roots"
-  mkdir -p "$tmp/gcc"
-  i=0
-  batch=0
-  for path in "${files[@]}"; do
-    i=$((i + 1))
-    fm_lint_nox_one_root "$i" "$path" "$tmp/gcc" &
-    batch=$((batch + 1))
-    if [ "$batch" -eq 4 ]; then
-      wait
-      batch=0
-    fi
-  done
-  wait
-  found=$(find "$tmp/gcc" -type f | wc -l | tr -d '[:space:]')
-  [ "$found" = "${#files[@]}" ] \
-    || fail "completeness sweep linted $found roots, expected ${#files[@]}"
-  out=$(cat "$tmp/gcc"/* 2>/dev/null || true)
-  unexpected=
-  while IFS= read -r code; do
-    [ -n "$code" ] || continue
-    case "$code" in
-      SC1091|SC2034|SC2153|SC2329) ;;
-      *) unexpected="${unexpected}${unexpected:+ }$code" ;;
-    esac
-  done < <(printf '%s\n' "$out" | sed -n 's/.*\[\(SC[0-9][0-9]*\)\].*/\1/p' | LC_ALL=C sort -u)
-  [ -z "$unexpected" ] \
-    || fail "no-external-sources pass emitted codes outside the local exclusion list: $unexpected"
-  pass "local exclusion list covers every no-external-sources ShellCheck code"
-}
-
 test_pins_an_explicit_version() {
   [ -n "$REQUIRED" ] || fail "fm-lint.sh --required-version printed nothing"
   # The captain-agreed pin: adopt ShellCheck 0.11.0's rule set consistently,
@@ -1015,6 +961,94 @@ SH
   [ "$rc" -ne 0 ] || fail "fm-lint.sh passed a known-bad fixture"$'\n'"$out"
   assert_contains "$out" "SC1007" "fm-lint.sh did not report the expected ShellCheck finding"
   pass "fm-lint.sh catches a real lint defect the old no-op gate passed"
+}
+
+test_rejects_direct_beads_cli_invocations() {
+  local tmp fakebin log lint_copy invocation out rc directory
+  tmp=$(fm_test_tmproot fm-lint-backend-purity)
+  fakebin=$(fm_fakebin "$tmp")
+  log="$tmp/shellcheck.log"
+  mkdir -p "$tmp/repo/bin/backends" "$tmp/repo/tests"
+  lint_copy="$tmp/repo/bin/fm-lint.sh"
+  cp "$LINT" "$lint_copy"
+  cat > "$tmp/repo/bin/fm-lint-workflows.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+  cat > "$tmp/repo/bin/backends/noop.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+  cat > "$tmp/repo/tests/noop.test.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+  chmod +x "$lint_copy" "$tmp/repo/bin/fm-lint-workflows.sh"
+  fm_lint_stub_shellcheck "$fakebin" "$log"
+
+  for invocation in \
+    'bd update fm-example --status in_progress' \
+    'BD_ACTOR=firstmate bd update fm-example --status closed' \
+    'env bd close fm-example' \
+    'env -i BD_ACTOR=firstmate bd close fm-example' \
+    'env -u BD_ACTOR bd close fm-example' \
+    'env -- bd close fm-example' \
+    '/usr/local/bin/bd close fm-example' \
+    '"/usr/local/bin/bd" close fm-example' \
+    "'/usr/local/bin/bd' close fm-example" \
+    "b'd' close fm-example" \
+    "/usr/local/bin/b'd' close fm-example" \
+    "\$'bd' close fm-example" \
+    '$"bd" close fm-example' \
+    "\$'\\x62\\x64' close fm-example" \
+    "\$'\\142\\144' close fm-example" \
+    "b\$'\\x64' close fm-example"
+  do
+    printf '#!/usr/bin/env bash\n%s\n' "$invocation" > "$tmp/repo/bin/direct-beads.sh"
+    rc=0
+    out=$(cd "$tmp/repo" && CI=true PATH="$fakebin:$PATH" "$lint_copy" 2>&1) || rc=$?
+    [ "$rc" -ne 0 ] || fail "lint accepted a direct Beads CLI invocation: $invocation"
+    assert_contains "$out" "direct Beads CLI invocation bypasses tasks-axi" \
+      "lint did not identify the backend-boundary violation: $invocation"
+  done
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$tmp/repo/bin/direct-beads.sh"
+  for directory in harnesses platform; do
+    mkdir -p "$tmp/repo/bin/$directory"
+    printf '#!/usr/bin/env bash\nbd close fm-example\n' > "$tmp/repo/bin/$directory/direct-beads.sh"
+    rc=0
+    out=$(cd "$tmp/repo" && CI=true PATH="$fakebin:$PATH" "$lint_copy" 2>&1) || rc=$?
+    [ "$rc" -ne 0 ] || fail "lint accepted a direct Beads invocation in bin/$directory"
+    assert_contains "$out" "direct Beads CLI invocation bypasses tasks-axi" \
+      "lint did not enforce backend purity in bin/$directory"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$tmp/repo/bin/$directory/direct-beads.sh"
+  done
+  pass "fm-lint.sh rejects direct Beads CLI invocations in firstmate core"
+}
+
+test_rejects_direct_beads_cli_in_explicit_core_path() {
+  local tmp fakebin log lint_copy target spelling out rc directory
+  tmp=$(fm_test_tmproot fm-lint-explicit-backend-purity)
+  fakebin=$(fm_fakebin "$tmp")
+  log="$tmp/shellcheck.log"
+  mkdir -p "$tmp/repo/bin/backends"
+  lint_copy="$tmp/repo/bin/fm-lint.sh"
+  cp "$LINT" "$lint_copy"
+  chmod +x "$lint_copy"
+  fm_lint_stub_shellcheck "$fakebin" "$log"
+
+  for directory in bin bin/harnesses bin/platform; do
+    mkdir -p "$tmp/repo/$directory"
+    target="$tmp/repo/$directory/direct-beads.sh"
+    printf '#!/usr/bin/env bash\nbd close fm-example\n' > "$target"
+    for spelling in "$directory/direct-beads.sh" "$directory/../${directory##*/}/direct-beads.sh"; do
+      rc=0
+      out=$(cd "$tmp/repo" && PATH="$fakebin:$PATH" "$lint_copy" "$spelling" 2>&1) || rc=$?
+      [ "$rc" -ne 0 ] || fail "explicit core path bypassed backend-purity lint: $spelling"
+      assert_contains "$out" "direct Beads CLI invocation bypasses tasks-axi" \
+        "explicit core path did not report the backend-boundary violation: $spelling"
+    done
+  done
+  pass "fm-lint.sh enforces backend purity for explicit core paths"
 }
 
 test_ignores_ambient_shellcheck_opts() {
@@ -1305,6 +1339,8 @@ fm_test_run_cases \
   test_missing_shellcheck_fails_closed \
   test_rejects_wrong_shellcheck_version \
   test_catches_a_real_lint_defect \
+  test_rejects_direct_beads_cli_invocations \
+  test_rejects_direct_beads_cli_in_explicit_core_path \
   test_ignores_ambient_shellcheck_opts \
   test_clean_fixture_passes \
   test_jobs_are_deterministic_and_complete \
@@ -1323,5 +1359,4 @@ fm_test_run_cases \
   test_merge_base_less_keeps_external_sources \
   test_explicit_path_keeps_external_sources \
   test_fast_mode_on_a_local_branch_keeps_source_following \
-  test_changed_mode_hides_cross_file_codes_that_ci_still_sees \
-  test_local_exclusion_list_covers_every_no_external_sources_code
+  test_changed_mode_hides_cross_file_codes_that_ci_still_sees

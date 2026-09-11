@@ -8,6 +8,7 @@ The workflow owns exact subjects, named-case selectors, package pins, timeouts, 
 The non-credentialed package job detects package API drift and missing runner CLIs without vendor credentials.
 
 [Shared CI](../../.github/workflows/ci.yml) retains lint, coverage, portable parallel and serial shards, real Herdr, timing aggregation, stock macOS Bash, and repository invariants.
+The real-Herdr job also installs the pinned Pi prerequisite for the non-credentialed agent exit-to-shell regression; an absent Pi is a job failure, not accepted missing coverage.
 The two workflows together produce 18 automatic checks, with one producer for each check name.
 Both use the same main-branch push and pull-request triggers and read-only permissions, with workflow-qualified concurrency groups so neither cancels the other.
 The [Windows Herdr experiment](../../.github/workflows/windows-herdr-spike.yml) remains manual.
@@ -29,6 +30,15 @@ Keep commands, timings, exact base/head identifiers, and deferred-check outcomes
 Live vendor checks remain separately gated and require explicit authorization in controlled fixtures.
 [Runtime backend verification](../verification/runtime-backends.md) owns empirical backend evidence; moving CI jobs does not establish new vendor or native-platform guarantees.
 
+## Herdr cleanup compatibility
+
+The backend and teardown suites support the shared named-case selector without changing full-suite order.
+Use `test_projection_close_allows_stale_active_tab_without_foreground_client` in `tests/fm-backend-herdr.test.sh` and `test_herdr_projection_teardown_cleans_detached_without_safe_parent` in `tests/fm-teardown.test.sh` for the composed detached-focus boundary.
+The same suites retain exact-parent handoff, quiet deferral, unknown attachment, and late-attachment cases.
+The presentation E2E suite performs real isolated Herdr mutations; its handoff and deferral fixtures explicitly inject a live-viewer response and are not proof of an actual attached client.
+Default detached-client and agent exit-to-shell coverage remains owned by the real-Herdr CI job.
+The exit-to-shell fixture waits for Pi's `session_start` readiness marker as well as Herdr's idle registration before submitting `/quit`.
+
 ## Catalog compatibility
 
 [Fork architecture](architecture.md) owns the registration seam and its integration patches.
@@ -47,6 +57,8 @@ Broad runner coverage remains in portable CI, stock Bash parsing remains in the 
 [Portable shard verification](../fm-test-portable-shards.md) owns duration-hint refresh and balance evidence.
 Exclude gated skips from timing samples, preserve unmeasured native-platform hints, and verify the complete five-shard partition after updating fork overrides.
 Balanced estimates do not prove that a shutdown race or other intermittent stall has been resolved.
+`tests/fm-lint-inventory.test.sh` keeps the complete no-external-sources exclusion audit in the serial lanes, outside the fast lint-contract suite's parallel-lane budget.
+Its catalog registration does not grant concurrent admission or reduce the audited root set.
 
 `tests/fm-remote-job.test.sh` bounds the replacement-worker shutdown wait and emits its phase, process snapshot, and recent worker output on failure.
 `tests/fm-remote-job-wait.test.sh` exercises that wait with a real child that ignores TERM and verifies bounded failure and cleanup.
@@ -71,6 +83,8 @@ Run `bin/fm-test-run.sh tests/fm-platform-process.test.sh` for compatibility exp
 The same suite exercises real native PID translation, graceful TERM, owned descendant termination, foreign-process preservation, and literal PowerShell/Bash transport on Windows.
 Only task-owned fixture processes are started or stopped; these cases do not exercise a live vendor or Firstmate fleet.
 The Windows reconciliation core job owns native coverage, while the pinned package job runs the shared contracts and strict Pi type checks.
+`tests/fm-procevent-stop-proof.test.sh` owns named first-signal refusal and same-stop escalation cases in portable serial CI.
+Its PGID fault injection targets the fork's Perl `getpgrp` query, while birth-identity injection remains on the existing `ps` boundary.
 
 Run `bin/fm-lint.sh tests/fm-platform-process.test.sh bin/fm-platform-process-lib.sh bin/backends/herdr.sh` for focused source-aware lint; the lint owner documents mode selection and test/production source boundaries.
 
