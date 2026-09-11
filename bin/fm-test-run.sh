@@ -1296,6 +1296,12 @@ families_for_unmapped_bin() {
 families_for_changed_path() {
   local path=$1 fixture_ref
   if fm_test_catalog_maps "$path"; then
+    case "$path" in
+      tests/lib.sh|tests/*-helpers.sh|tests/*-fixture.sh|tests/fixtures.sh|tests/assets/*)
+        # A curated mapping supplements, rather than replaces, fixture consumers.
+        families_for_test_reference "${path##*/}" || true
+        ;;
+    esac
     return 0
   fi
   case "$path" in

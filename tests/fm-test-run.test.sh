@@ -517,7 +517,7 @@ test_mail_sources_select_mail_coverage() {
 }
 
 test_changed_shared_fixtures_select_consumers() {
-  local tmp repo fixture listed code
+  local tmp repo fixture listed code consumer
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-shared-fixture.XXXXXX")
   repo="$tmp/repo"
   init_changed_fixture_repo "$repo"
@@ -534,8 +534,28 @@ test_changed_shared_fixtures_select_consumers() {
       || fail "$fixture must select its consumers"
     assert_contains "$listed" "tests/fm-backend.test.sh" "$fixture selects backend coverage"
     assert_contains "$listed" "tests/fm-secondmate-safety.test.sh" "$fixture selects secondmate coverage"
+    if [ "$fixture" = herdr-client-pair-fixture.sh ]; then
+      assert_contains "$listed" "tests/fm-backend-herdr-smoke.test.sh" \
+        "$fixture also retains its curated backend families"
+    fi
+    assert_not_contains "$listed" "tests/fm-pr-merge.test.sh" \
+      "$fixture must not select an unrelated family"
     rm "$repo/tests/$fixture"
   done
+
+  for consumer in fm-backend.test.sh fm-secondmate-safety.test.sh; do
+    printf '#!/usr/bin/env bash\n' >"$repo/tests/$consumer"
+  done
+  git -C "$repo" add tests/fm-backend.test.sh tests/fm-secondmate-safety.test.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm fixture-without-references
+  printf '\n' >"$repo/tests/herdr-client-pair-fixture.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+    || fail "a curated fixture must remain mapped without direct references"
+  assert_contains "$listed" "tests/fm-backend-herdr-smoke.test.sh" \
+    "an unreferenced curated fixture retains its registered families"
+  assert_not_contains "$listed" "tests/fm-secondmate-safety.test.sh" \
+    "an unreferenced curated fixture must not invent consumer families"
+  rm "$repo/tests/herdr-client-pair-fixture.sh"
 
   printf '\n' >"$repo/tests/unreferenced-fixture.sh"
   if listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD 2>&1); then
@@ -547,7 +567,7 @@ test_changed_shared_fixtures_select_consumers() {
   assert_contains "$listed" "no changed-test mapping for source path: tests/unreferenced-fixture.sh" \
     "unreferenced fixture refusal identifies its source"
   rm -rf "$tmp"
-  pass "shared fixtures select consumer families and reject unreferenced additions"
+  pass "shared fixtures combine curated and consumer families and reject unmapped unreferenced additions"
 }
 
 test_changed_dependency_selection_and_unmapped_failure() {

@@ -56,6 +56,7 @@ The catalog supplies classification, expected gate-skip classes, separate serial
 `bin/fm-test-run.sh` retains flat discovery, procedural reference expansion, scheduling, timeouts, worker privacy, coverage, and reporting.
 Add a root-level test file and its fork registration rather than editing runner algorithms for an ordinary new test.
 Add changed-source mappings when the test introduces or covers a new source owner, and retain unknown-source refusal rather than supplying a permissive fallback.
+For shared test fixtures and helpers, curated mappings supplement reference-derived consumer families rather than replacing them.
 
 Registration does not confer concurrency permission.
 `bin/fm-test-isolation-proof.sh` owns portable candidates and frozen family admissions; the runner consumes those results once per invocation and retains its family caps.

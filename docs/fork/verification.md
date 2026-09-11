@@ -45,6 +45,8 @@ The exit-to-shell fixture waits for Pi's `session_start` readiness marker as wel
 Run `bin/fm-test-run.sh tests/fm-test-catalog.test.sh` for strict metadata, override, dependency, ordered-map, lightweight-listing, and proof-admission contracts.
 The existing runner and isolation-proof suites retain scheduler, named-case, JSON, reference-selection, and proof integration coverage.
 Shared backend-classifier changes select both backend families, Orca, gated live identity checks, and the fork's native Treehouse contract; selection does not grant concurrent or live execution.
+Run `FM_TEST_ONLY=test_changed_shared_fixtures_select_consumers bin/fm-test-run.sh tests/fm-test-run.test.sh` to verify that shared fixtures retain both curated mappings and reference-derived consumer families.
+A curated fixture remains mapped without direct references; a fixture with neither a curated mapping nor consumers is still refused.
 
 Before adding new registrations during a metadata extraction, compare old and new listing, family, scheduled-order, lane, and JSON results on identical inventory and metadata inputs.
 Include every family's expected gate-skip class; JSON fixtures covering only ungated families cannot establish gate compatibility.
