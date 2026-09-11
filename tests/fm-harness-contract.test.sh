@@ -108,6 +108,20 @@ test_closed_interface_and_identity_stages() {
   pass "the closed interface preserves exact registration and staged identity"
 }
 
+test_shared_backend_process_identity_keeps_pilot_boundaries() {
+  local name
+  # shellcheck source=bin/fm-agent-process-lib.sh
+  . "$ROOT/bin/fm-agent-process-lib.sh" || fail "shared backend classifier dependencies"
+  for name in copilot copilot.exe pi pi-signed omp; do
+    assert_equals agent "$(fm_agent_process_classify "$name" "$name" "$name")" "$name backend identity"
+  done
+  for name in copilot-helper mycopilot comp; do
+    assert_equals other "$(fm_agent_process_classify "$name" "$name" "$name")" "$name must not become an agent"
+  done
+  assert_equals shell "$(fm_agent_process_classify bash -bash -bash)" "bare shell remains agent-free"
+  pass "shared backend identity preserves native Copilot, Pi, legacy names, and exact-match refusals"
+}
+
 test_preparation_keeps_executable_and_probe_contracts() {
   local fakebin="$TMP_ROOT/launch ' [x]/bin" result option rc=0
   mkdir -p "$fakebin"
@@ -168,6 +182,12 @@ test_missing_or_broken_adapter_refuses() {
   out=$(CLAUDECODE=1 bash "$fixture/bin/fm-harness.sh" 2>&1) || rc=$?
   assert_equals 2 "$rc" "the real detector must not bypass a broken adapter via a legacy marker"
   assert_contains "$out" 'missing identify' "real detector load failure"
+  cp "$ROOT/bin/fm-agent-process-lib.sh" "$fixture/bin/"
+  rc=0
+  out=$(bash -c '. "$1" || exit $?; fm_agent_process_classify_name copilot' \
+    _ "$fixture/bin/fm-agent-process-lib.sh" 2>&1) || rc=$?
+  assert_equals 2 "$rc" "backend identity must not hide an adapter load failure"
+  assert_contains "$out" 'missing identify' "shared classifier load failure"
   pass "missing and incomplete registered adapters fail explicitly before dispatch"
 }
 
@@ -294,6 +314,7 @@ fm_test_run_cases \
   test_recorded_names_and_owned_wiring \
   test_primary_supervision_and_override_contracts \
   test_closed_interface_and_identity_stages \
+  test_shared_backend_process_identity_keeps_pilot_boundaries \
   test_preparation_keeps_executable_and_probe_contracts \
   test_missing_or_broken_adapter_refuses \
   test_invalid_interface_calls_are_explicit \

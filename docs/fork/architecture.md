@@ -10,6 +10,7 @@ The [implementation plan](upstream-plan.md) records the approved design and acce
 | --- | --- | --- |
 | Copilot/Pi policy | `bin/fm-harness-lib.sh`, `bin/harnesses/copilot.sh`, `bin/harnesses/pi.sh` | Detection order, profile selection, lifecycle transactions, and every nonpilot path |
 | Process identity and native transport | `bin/platform/process.mjs`, its `.d.mts` declarations, `bin/fm-platform-process-lib.sh`, `bin/platform/windows-process.ps1` | Ownership, generation checks, escalation, and backend leases |
+| Backend harness-process classification | `bin/fm-agent-process-lib.sh` | tmux and Herdr retain recovery, busy-state, and close-authority decisions |
 | Native private paths | `bin/fm-private-path-lib.sh`, `bin/platform/windows-private-path.ps1` | Caller-specific POSIX policy, transaction ordering, publication, and rollback |
 | Test metadata | `bin/fm-test-catalog-lib.sh`, `tests/catalog/core.tsv`, `tests/catalog/fork.tsv` | Runner execution and reference expansion; independent proof admission |
 | Fork CI | `.github/workflows/fork-ci.yml` | Shared-CI regression and artifact dependencies; manual-only Windows Herdr experiment |
@@ -51,7 +52,7 @@ Its header owns the versioned record schema and the `fm_test_catalog_load`, `fm_
 Core holds shared registrations; fork holds additions and explicit overrides that name the expected prior value.
 Both catalogs are introduced by this fork, not interfaces already supplied by canonical upstream.
 
-The catalog supplies classification, expected gate-skip classes, duration hints, and ordered changed-path registrations.
+The catalog supplies classification, expected gate-skip classes, separate serial and parallel-lane duration hints, and ordered changed-path registrations.
 `bin/fm-test-run.sh` retains flat discovery, procedural reference expansion, scheduling, timeouts, worker privacy, coverage, and reporting.
 Add a root-level test file and its fork registration rather than editing runner algorithms for an ordinary new test.
 Add changed-source mappings when the test introduces or covers a new source owner, and retain unknown-source refusal rather than supplying a permissive fallback.
@@ -65,6 +66,7 @@ Changes to a family assignment cannot reuse admission recorded for a different f
 The loader validates once with Bash and awk, then serves in-memory lookups without evaluating metadata as shell code.
 Validated keys are encoded into Bash 3.2-compatible scalar entries, so lookups do not repeatedly scan or trim the complete TSV snapshot.
 Each successful load replaces the prior cache, including entries no longer present.
+Parallel-lane hint overrides do not change serial scheduling weights or concurrency admission.
 Missing dependencies or invalid records stop selection explicitly.
 `.gitattributes` preserves the catalogs' LF format on Windows.
 

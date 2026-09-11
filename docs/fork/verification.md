@@ -44,6 +44,7 @@ The exit-to-shell fixture waits for Pi's `session_start` readiness marker as wel
 [Fork architecture](architecture.md) owns the registration seam and its integration patches.
 Run `bin/fm-test-run.sh tests/fm-test-catalog.test.sh` for strict metadata, override, dependency, ordered-map, lightweight-listing, and proof-admission contracts.
 The existing runner and isolation-proof suites retain scheduler, named-case, JSON, reference-selection, and proof integration coverage.
+Shared backend-classifier changes select both backend families, Orca, gated live identity checks, and the fork's native Treehouse contract; selection does not grant concurrent or live execution.
 
 Before adding new registrations during a metadata extraction, compare old and new listing, family, scheduled-order, lane, and JSON results on identical inventory and metadata inputs.
 Include every family's expected gate-skip class; JSON fixtures covering only ungated families cannot establish gate compatibility.
@@ -102,6 +103,7 @@ Neither deterministic process fixtures nor package type checks establish a chang
 Run `bin/fm-test-run.sh tests/fm-harness-contract.test.sh` for the closed registry, shared caller interface, literal launch arguments, staged identity, owned paths, supervision overrides, and explicit malformed-call or adapter-load failures.
 The suite executes the generated Pi artifact to verify literal data transport, settlement gating, notification-only turn ends, and throttled generation-bound progress.
 The existing Copilot and process suites retain native loader verification, marker precedence, foreign-process rejection, and per-process query/cache contracts.
+The shared tmux/Herdr classifier's Copilot names and adapter-load failure propagation are also exercised through the harness contract suite.
 
 Run `bin/fm-lint.sh bin/fm-harness-lib.sh bin/harnesses/copilot.sh bin/harnesses/pi.sh tests/fm-harness-contract.test.sh` for source-aware interface and implementation lint.
 Explicit lint roots preserve CI's cross-file analysis; ordinary branch-local lint does not substitute for that check.

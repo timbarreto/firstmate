@@ -26,7 +26,7 @@ fm_test_install_catalog() {
     NR == FNR { if ($0 != "") present[$0] = 1; next }
     BEGIN { OFS = "\t" }
     $1 == "family" { print; next }
-    $1 == "test" || $1 == "duration" { if ($2 in present) print; next }
+    $1 == "test" || $1 == "duration" || $1 == "parallel-duration" { if ($2 in present) print; next }
     $1 == "map" {
       count = split($5, targets, ",")
       selected = ""

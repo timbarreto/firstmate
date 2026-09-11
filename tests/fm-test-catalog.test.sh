@@ -24,6 +24,7 @@ catalog_fixture() {
     $'test\ttests/fm-brief.test.sh\tpure-contract-unit' \
     $'test\ttests/fm-calm-pi-extension.test.sh\tpure-contract-unit' \
     $'duration\ttests/fm-brief.test.sh\t10' \
+    $'parallel-duration\ttests/fm-brief.test.sh\t100' \
     $'map\towned\t10\tbin/owned.*\t__script__:fm-brief.test.sh' \
     $'map\tbroad\t20\tbin/*\tpure-contract-unit' >"$repo/tests/catalog/core.tsv"
   printf 'version\t1\n' >"$repo/tests/catalog/fork.tsv"
@@ -60,6 +61,13 @@ test_catalog_preserves_existing_gate_classes() {
     fm_test_catalog_get family "$family" || fail "family gate missing: $family"
     assert_equals "$expected" "$FM_TEST_CATALOG_VALUE" "existing gate class changed for $family"
   done <<<"$FM_TEST_CATALOG_FAMILIES"
+  fm_test_catalog_get test tests/fm-herdr-pi-stale-registration-live-e2e.test.sh \
+    || fail "stale-registration live guard is unclassified"
+  assert_equals live-harness-optin "$FM_TEST_CATALOG_VALUE" "live guard lost its capability gate"
+  assert_equals "$(printf 'backend-dispatch\nreal-herdr-gated\npure-contract-unit\norca\nlive-harness-optin\n__script__:fm-backend-herdr-treehouse.test.sh')" \
+    "$(fm_test_catalog_maps bin/fm-agent-process-lib.sh)" "shared classifier must select both backend consumers"
+  assert_equals "$(printf 'real-herdr-gated\nbackend-dispatch\npure-contract-unit')" \
+    "$(fm_test_catalog_maps tests/herdr-client-pair-fixture.sh)" "Herdr fixture must select its backend consumers"
   pass "every existing family retains its pre-extraction gate class"
 }
 
@@ -90,6 +98,8 @@ test_catalog_cache_keys_and_reload() {
   fm_test_catalog_get test tests/fm-x-mode.test.sh || fail "real registration missing"
   fm_test_catalog_load "$repo" || fail "fixture catalogs must load"
   if fm_test_catalog_get test tests/fm-x-mode.test.sh; then fail "reload retained a stale registration"; fi
+  if fm_test_catalog_get parallel-duration tests/fm-x-mode.test.sh; then fail "reload retained a stale parallel hint"; fi
+  assert_equals $'tests/fm-brief.test.sh 100\n' "$FM_TEST_CATALOG_PARALLEL_WEIGHTS" "parallel hint cache was not replaced"
   weight=10
   for name in cache-key cache_key cache.key cache_hkey; do
     fm_test_catalog_get duration "tests/$name.test.sh" || fail "duration missing for $name"
@@ -110,6 +120,7 @@ test_catalog_overrides_and_ordering() {
   printf '%s\n' \
     $'override-test\ttests/fm-brief.test.sh\tpure-contract-unit\tunclassified' \
     $'override-duration\ttests/fm-brief.test.sh\t10\t40' \
+    $'override-parallel-duration\ttests/fm-brief.test.sh\t100\t2' \
     $'override-map\towned\t10\tbin/owned.*\t__script__:fm-brief.test.sh\t5\tbin/owned.*\t__script__:fm-calm-pi-extension.test.sh' \
     >>"$repo/tests/catalog/fork.tsv"
   fm_test_catalog_load "$repo" || fail "valid overrides must load"
@@ -117,6 +128,10 @@ test_catalog_overrides_and_ordering() {
   [ "$FM_TEST_CATALOG_VALUE" = unclassified ] || fail "test override not applied"
   fm_test_catalog_get duration tests/fm-brief.test.sh || fail "duration missing"
   [ "$FM_TEST_CATALOG_VALUE" = 40 ] || fail "duration override not applied"
+  fm_test_catalog_get parallel-duration tests/fm-brief.test.sh || fail "parallel duration missing"
+  [ "$FM_TEST_CATALOG_VALUE" = 2 ] || fail "parallel duration override not applied independently"
+  assert_equals $'tests/fm-brief.test.sh 40\n' "$FM_TEST_CATALOG_WEIGHTS" "parallel override changed serial weights"
+  assert_equals $'tests/fm-brief.test.sh 2\n' "$FM_TEST_CATALOG_PARALLEL_WEIGHTS" "parallel override missing from bulk weights"
   selected=$(fm_test_catalog_maps bin/owned.sh) || fail "owned path is unmapped"
   [ "$selected" = __script__:fm-calm-pi-extension.test.sh ] || fail "ordered override lost to broad map"
   [ "$(fm_test_catalog_maps bin/other.sh)" = pure-contract-unit ] || fail "broad fallback lost"
@@ -147,6 +162,11 @@ invalid duration~duration	tests/fm-new.test.sh	0
 invalid duration~duration	tests/fm-new.test.sh	-1
 invalid duration~duration	tests/fm-new.test.sh	1e3
 invalid duration~duration	tests/fm-new.test.sh	2147483648
+duration references missing test~parallel-duration	tests/absent.test.sh	20
+invalid duration~parallel-duration	tests/fm-new.test.sh	0
+invalid duration~parallel-duration	tests/fm-new.test.sh	1e3
+stale override~override-parallel-duration	tests/fm-brief.test.sh	101	20
+duplicate key~parallel-duration	tests/fm-brief.test.sh	20
 unknown gate~family	demo	unsafe
 stale override~override-duration	tests/fm-brief.test.sh	11	20
 no existing key~override-duration	tests/fm-new.test.sh	10	20
