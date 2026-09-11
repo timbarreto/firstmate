@@ -100,6 +100,60 @@ decision_reason() {
   jq -r 'select(.decision == "block") | .reason // empty'
 }
 
+# Copilot also imports .claude/settings.json. Its platform-specific fields
+# take precedence over command; Claude and the other Claude-compatible hosts
+# still consume command. Exercise those selected commands, not JSON source
+# spelling, so accidental duplicate execution or PowerShell parse errors fail.
+test_claude_settings_are_inert_for_copilot() {
+  local dir="$TMP_ROOT/claude-settings" settings="$ROOT/.claude/settings.json" script cmd count=0 out rc
+  mkdir -p "$dir/bin"
+  for script in fm-sessionstart-run.sh fm-arm-pretool-check.sh fm-cd-pretool-check.sh \
+    fm-subagent-pretool-check.sh fm-turnend-guard.sh fm-claude-stop-autoarm.sh; do
+    printf '#!/usr/bin/env bash\nprintf ran >> %q\n' "$dir/invoked" > "$dir/bin/$script"
+    chmod +x "$dir/bin/$script"
+  done
+  while IFS= read -r cmd; do
+    rc=0
+    out=$(env -u GROK_AGENT -u GROK_HOOK_EVENT COPILOT_CLI=1 CLAUDE_PROJECT_DIR="$dir" \
+      bash -c "$cmd" </dev/null 2>&1) || rc=$?
+    expect_code 0 "$rc" "Copilot's imported Bash hook must be a successful no-op: $out"
+    [ ! -e "$dir/invoked" ] || fail "Copilot's imported Claude hook executed a duplicate operational script"
+    [ -z "$out" ] || fail "Copilot's imported Claude hook emitted output: $out"
+    count=$((count + 1))
+  done < <(jq -r '.hooks[][].hooks[] | .bash // .command' "$settings")
+  [ "$count" -eq 6 ] || fail "expected all six imported Claude hooks to be checked, saw $count"
+
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+      count=0
+      while IFS= read -r cmd; do
+        rc=0
+        out=$(MSYS_NO_PATHCONV=1 COPILOT_CLI=1 CLAUDE_PROJECT_DIR="$dir" \
+          powershell.exe -NoProfile -NonInteractive -Command "$cmd" </dev/null 2>&1) || rc=$?
+        expect_code 0 "$rc" "Copilot's imported Windows hook must parse and succeed: $out"
+        [ ! -e "$dir/invoked" ] || fail "Copilot's imported Windows hook executed a Claude script"
+        [ -z "$out" ] || fail "Copilot's imported Windows hook emitted output: $out"
+        count=$((count + 1))
+      done < <(jq -r '.hooks[][].hooks[] | .powershell // .command' "$settings")
+      [ "$count" -eq 6 ] || fail "expected all six imported Windows hooks to be checked, saw $count"
+      ;;
+  esac
+  # Claude still uses command, including when a parent shell left Copilot's
+  # environment marker behind. A blanket marker guard would disarm it here.
+  count=0
+  while IFS= read -r cmd; do
+    rm -f "$dir/invoked"
+    rc=0
+    out=$(env -u GROK_AGENT -u GROK_HOOK_EVENT COPILOT_CLI=1 CLAUDECODE=1 CLAUDE_PROJECT_DIR="$dir" \
+      bash -c "$cmd" </dev/null 2>&1) || rc=$?
+    expect_code 0 "$rc" "Claude's own command must still execute: $out"
+    [ -e "$dir/invoked" ] || fail "a Claude command was disabled by Copilot compatibility fields"
+    count=$((count + 1))
+  done < <(jq -r '.hooks[][].hooks[].command' "$settings")
+  [ "$count" -eq 6 ] || fail "expected all six Claude commands to remain active, saw $count"
+  pass "Copilot imports are silent no-ops in both shells while all Claude commands remain active"
+}
+
 test_tracked_hook_registration() {
   local config="$ROOT/.github/hooks/firstmate.json"
   jq -e '
@@ -444,18 +498,20 @@ test_worker_hook_semantic_lifecycle() {
   pass "Copilot worker hooks open busy on prompts and close idle on stop"
 }
 
-test_tracked_hook_registration
-test_marker_identity_outranks_inherited_harnesses
-test_windows_loader_pid_owns_session_lock
-test_loader_marker_rejects_foreign_live_process
-test_primary_session_start_returns_additional_context
-test_windows_powershell_pretool_transport
-test_windows_bearings_transport_avoids_ambient_bash
-test_primary_stop_requests_async_arm_and_bounds_forced_continuations
-test_primary_stop_allows_healthy_async_watcher
-test_legacy_copilot_park_entry_redirects_without_parking
-test_shell_completion_notification_routes_supervision
-test_primary_repair_continuation_restores_parent_busy
-test_worker_hook_semantic_lifecycle
+fm_test_run_cases \
+  test_claude_settings_are_inert_for_copilot \
+  test_tracked_hook_registration \
+  test_marker_identity_outranks_inherited_harnesses \
+  test_windows_loader_pid_owns_session_lock \
+  test_loader_marker_rejects_foreign_live_process \
+  test_primary_session_start_returns_additional_context \
+  test_windows_powershell_pretool_transport \
+  test_windows_bearings_transport_avoids_ambient_bash \
+  test_primary_stop_requests_async_arm_and_bounds_forced_continuations \
+  test_primary_stop_allows_healthy_async_watcher \
+  test_legacy_copilot_park_entry_redirects_without_parking \
+  test_shell_completion_notification_routes_supervision \
+  test_primary_repair_continuation_restores_parent_busy \
+  test_worker_hook_semantic_lifecycle
 
 echo "all fm-copilot-harness tests passed"
