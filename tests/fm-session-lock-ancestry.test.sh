@@ -387,10 +387,299 @@ test_e2e_daemon_parented_version_named_session_keeps_its_lock() {
   pass "session-lock e2e: a version-named session under a harness-named daemon keeps its own lock"
 }
 
-test_version_named_session_is_identified_on_both_platforms
-test_ordinary_paths_are_never_harness_processes
-test_harness_beyond_a_gap_never_owns_the_lock
-test_competing_version_named_session_is_seen_as_live
-test_e2e_version_named_session_claims_the_home
-test_e2e_daemon_parented_session_claims_the_home
-test_e2e_daemon_parented_version_named_session_keeps_its_lock
+# A portable model of the observed split: tool shell -> MSYS bash pid 38 -> 1,
+# while that bash's native PID 90380 has Claude parents outside the MSYS tree.
+# Only OS fact providers are faked; acquisition, identity and ownership are real.
+make_windows_process_fixture() {  # <dir>
+  local dir=$1 fakebin
+  fakebin=$(fm_fakebin "$dir")
+  mkdir -p "$dir/proc/38" "$dir/state"
+  printf '90380\n' > "$dir/proc/38/winpid"
+  printf '90381\tC:/Tools/claude.exe\tclaude.exe --bg-worker\n90382\tC:/Program Files/Claude/claude.exe\tclaude.exe\n90383\tC:/Windows/powershell.exe\tpowershell.exe\n90384\tclaude.exe\tclaude.exe\n' > "$dir/parents"
+  printf '90382\tC:/Program Files/Claude/claude.exe\tclaude.exe\n' > "$dir/info-90382"
+  printf '90399\tC:/Tools/claude.exe\tclaude.exe --resume\n' > "$dir/info-90399"
+  cat > "$dir/child-env.sh" <<'SH'
+mkdir -p "$FM_PROC_ROOT_OVERRIDE/$$"
+printf '90400\n' > "$FM_PROC_ROOT_OVERRIDE/$$/winpid"
+SH
+  cat > "$fakebin/uname" <<'SH'
+#!/usr/bin/env bash
+printf 'MINGW64_NT\n'
+SH
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  '-W') printf 'PID PPID PGID WINPID COMMAND\n' ;;
+  '-o comm= -p '*) printf 'bash\n' ;;
+  '-o args= -p '*) printf 'bash\n' ;;
+  '-o ppid= -p 38') printf '1\n' ;;
+  '-o ppid= -p '*) printf '38\n' ;;
+  *) exit 1 ;;
+esac
+SH
+  cat > "$fakebin/tasklist.exe" <<'SH'
+#!/usr/bin/env bash
+printf 'INFO: no matching task\n'
+SH
+  cat > "$fakebin/powershell.exe" <<'SH'
+#!/usr/bin/env bash
+set -u
+operation=${!#}
+printf '%s %s\n' "$operation" "$FM_PROCESS_NATIVE_PID" >> "$FM_HOME/native-queries"
+case "$operation" in
+  parent-processes)
+    [ "$FM_PROCESS_NATIVE_PID" = 90380 ] || exit 2
+    cat "$FM_HOME/parents"
+    [ ! -e "$FM_HOME/parents-error" ] || exit 2
+    ;;
+  process-info)
+    [ ! -e "$FM_HOME/info-error" ] || exit 1
+    [ -f "$FM_HOME/info-$FM_PROCESS_NATIVE_PID" ] || exit 3
+    cat "$FM_HOME/info-$FM_PROCESS_NATIVE_PID"
+    ;;
+  *) exit 2 ;;
+esac
+SH
+  chmod +x "$fakebin/"*
+}
+
+windows_fixture_run() {  # <dir> <command...>
+  local dir=$1
+  shift
+  env -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+    -u CLAUDECODE -u CLAUDE_PID -u CLAUDE_CODE_SESSION_ID \
+    FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_PROC_ROOT_OVERRIDE="$dir/proc" \
+    PATH="$dir/fakebin:$PATH" BASH_ENV="$dir/child-env.sh" "$@"
+}
+
+test_windows_native_ancestry_uses_verified_parent_rows() {
+  local dir="$TMP_ROOT/windows-parents" out
+  make_windows_process_fixture "$dir"
+  out=$(windows_fixture_run "$dir" bash -c '. "$1"; fm_harness_ancestry_pids' _ "$LIB") \
+    || fail "native ancestry did not bridge the MSYS parent"
+  [ "$out" = "$(printf '90381\n90382')" ] \
+    || fail "native ancestry lost the contiguous Claude chain or crossed its gap: $out"
+  [ "$(<"$dir/native-queries")" = 'parent-processes 90380' ] \
+    || fail "native ancestry did not use one query of the translated Windows PID"
+  out=$(windows_fixture_run "$dir" bash "$ROOT/bin/fm-lock.sh") \
+    || fail "native Windows acquisition failed: $out"
+  [ "$(<"$dir/state/.lock")" = 90382 ] || fail "lock names a transient native worker"
+  out=$(windows_fixture_run "$dir" bash "$ROOT/bin/fm-lock.sh" status)
+  assert_contains "$out" 'held by live harness pid 90382' "native lock liveness"
+  windows_fixture_run "$dir" bash -c '. "$1"; fm_session_lock_owned_by_self "$2"' \
+    _ "$LIB" "$dir/state" || fail "another hook from the same native session did not own its lock"
+  printf '90384\n' > "$dir/state/.lock"
+  if windows_fixture_run "$dir" bash -c '. "$1"; fm_session_lock_owned_by_self "$2"' _ "$LIB" "$dir/state"; then
+    fail "native ownership crossed a non-harness parent gap"
+  fi
+  pass "session-lock: native parent rows preserve Claude nesting, numeric PID domains, and gap refusal"
+}
+
+test_windows_native_competitor_and_stale_owner() {
+  local dir="$TMP_ROOT/windows-competitor" out rc=0
+  make_windows_process_fixture "$dir"
+  printf '90399\n' > "$dir/state/.lock"
+  out=$(windows_fixture_run "$dir" bash "$ROOT/bin/fm-lock.sh" 2>&1) || rc=$?
+  expect_code 1 "$rc" "native competitor must prevent acquisition"
+  assert_contains "$out" 'another live firstmate session' "native competitor diagnostic"
+  [ "$(<"$dir/state/.lock")" = 90399 ] || fail "native competitor's lock was overwritten"
+  rm "$dir/info-90399"
+  out=$(windows_fixture_run "$dir" bash "$ROOT/bin/fm-lock.sh") \
+    || fail "a verified dead native owner was not reclaimed: $out"
+  [ "$(<"$dir/state/.lock")" = 90382 ] || fail "stale native owner was not replaced"
+  pass "session-lock: native competitors stay protected and verified dead owners can be replaced"
+}
+
+test_windows_native_lookup_failure_never_means_stale() {
+  local dir="$TMP_ROOT/windows-query-failure" out rc=0
+  make_windows_process_fixture "$dir"
+  printf '90399\n' > "$dir/state/.lock"
+  : > "$dir/info-error"
+  out=$(windows_fixture_run "$dir" bash "$ROOT/bin/fm-lock.sh" 2>&1) || rc=$?
+  expect_code 1 "$rc" "failed native lookup must refuse acquisition"
+  assert_contains "$out" 'cannot verify session-lock holder' "native lookup failure diagnostic"
+  [ "$(<"$dir/state/.lock")" = 90399 ] || fail "query failure overwrote an unverified owner"
+  out=$(windows_fixture_run "$dir" bash "$ROOT/bin/fm-lock.sh" status)
+  assert_contains "$out" 'lock: unverifiable' "failed lookup was reported as a stale owner"
+  rm "$dir/state/.lock"
+  : > "$dir/parents-error"
+  rc=0
+  out=$(windows_fixture_run "$dir" bash "$ROOT/bin/fm-lock.sh" 2>&1) || rc=$?
+  expect_code 1 "$rc" "partial rows from a failed native query must not acquire"
+  [ ! -e "$dir/state/.lock" ] || fail "partial native ancestry was published as an owner"
+  pass "session-lock: failed native queries neither acquire nor reclaim a lock"
+}
+
+test_windows_native_identity_does_not_trust_markers_or_bad_rows() {
+  local dir="$TMP_ROOT/windows-no-proof" out rc row
+  make_windows_process_fixture "$dir"
+  for row in \
+    $'90381\tC:/Windows/powershell.exe\tpowershell.exe -Command claude' \
+    $'not-a-pid\tclaude.exe\tclaude.exe' \
+    $'1\tclaude.exe\tclaude.exe'; do
+    printf '%s\n' "$row" > "$dir/parents"
+    rc=0
+    out=$(windows_fixture_run "$dir" bash -c 'export CLAUDECODE=1; exec bash "$1"' _ "$ROOT/bin/fm-lock.sh" 2>&1) || rc=$?
+    expect_code 1 "$rc" "a marker or invalid row cannot establish native ancestry: $out"
+    [ ! -e "$dir/state/.lock" ] || fail "unverified native process acquired the lock"
+  done
+  pass "session-lock: inherited markers, argument-only names, and malformed native rows remain untrusted"
+}
+
+test_windows_native_pid_collision_cannot_claim_an_msys_session() {
+  local dir="$TMP_ROOT/windows-pid-collision" out rc=0
+  make_windows_process_fixture "$dir"
+  # PID 90382 is BOTH our native Claude and an unrelated MSYS Claude whose
+  # actual native PID is 99990. A numeric lock must not conflate the sessions.
+  mkdir -p "$dir/proc/90382"
+  printf '99990\n' > "$dir/proc/90382/winpid"
+  printf 'Name:\tclaude\nPPid:\t1\n' > "$dir/proc/90382/status"
+  printf 'claude\0' > "$dir/proc/90382/cmdline"
+  printf '90382\n' > "$dir/state/.lock"
+  if windows_fixture_run "$dir" bash -c '. "$1"; fm_session_lock_owned_by_self "$2"' _ "$LIB" "$dir/state"; then
+    fail "a native PID collision claimed an unrelated MSYS session's numeric lock"
+  fi
+  out=$(windows_fixture_run "$dir" bash "$ROOT/bin/fm-lock.sh" 2>&1) || rc=$?
+  expect_code 1 "$rc" "ambiguous native/MSYS owner must refuse acquisition: $out"
+  [ "$(<"$dir/state/.lock")" = 90382 ] || fail "ambiguous owner was overwritten"
+  # The reverse collision is equally unsafe: a visible MSYS Claude cannot
+  # claim a numeric lock that may name a different native Claude process.
+  rm -rf "$dir/proc/90382"
+  printf 'Name:\tclaude\nPPid:\t1\n' > "$dir/proc/38/status"
+  printf 'claude\0' > "$dir/proc/38/cmdline"
+  printf '38\tC:/Tools/claude.exe\tclaude.exe\n' > "$dir/info-38"
+  printf '38\n' > "$dir/state/.lock"
+  if windows_fixture_run "$dir" bash -c '. "$1"; fm_session_lock_owned_by_self "$2"' _ "$LIB" "$dir/state"; then
+    fail "an MSYS PID collision claimed an unrelated native session's numeric lock"
+  fi
+  pass "session-lock: colliding native/MSYS harness PIDs never establish ownership"
+}
+
+test_windows_orphaned_claude_uses_verified_pid_handoff() {
+  local dir="$TMP_ROOT/windows-orphaned" out
+  make_windows_process_fixture "$dir"
+  # Real Claude can reap its intermediate launcher before a hook runs, leaving
+  # no native parents either. It supplies its long-lived native session PID.
+  : > "$dir/parents"
+  out=$(windows_fixture_run "$dir" bash -c '
+    export CLAUDECODE=1 CLAUDE_PID=90382 CLAUDE_CODE_SESSION_ID=11111111-2222-4333-8444-555555555555
+    bash "$1/bin/fm-lock.sh" || exit 1
+    . "$1/bin/fm-session-lock-lib.sh"
+    fm_session_lock_owned_by_self "$FM_HOME/state" || exit 1
+    fm_harness_pid_alive 90382
+  ' _ "$ROOT") || fail "orphaned Claude did not acquire and recognize its handed-off session PID: $out"
+  [ "$(<"$dir/state/.lock")" = 90382 ] || fail "orphaned Claude recorded the wrong native owner"
+  # A concrete nearer session always wins over an inherited handoff marker.
+  printf '90381\tclaude.exe\tclaude.exe\n' > "$dir/parents"
+  out=$(windows_fixture_run "$dir" bash -c '
+    export CLAUDECODE=1 CLAUDE_PID=90382 CLAUDE_CODE_SESSION_ID=11111111-2222-4333-8444-555555555555
+    . "$1"; fm_harness_ancestry_pid
+  ' _ "$LIB") || fail "native ancestry was lost in the presence of a handoff"
+  [ "$out" = 90381 ] || fail "inherited handoff overrode a concrete native ancestor: $out"
+  pass "session-lock: orphaned Claude hooks use a verified native PID handoff without overriding concrete ancestry"
+}
+
+test_windows_orphaned_claude_rejects_unverified_handoffs() {
+  local dir="$TMP_ROOT/windows-bad-handoff" out rc scenario
+  make_windows_process_fixture "$dir"
+  : > "$dir/parents"
+  printf '90398\tC:/Windows/powershell.exe\tpowershell.exe -Command claude\n' > "$dir/info-90398"
+  for scenario in no-marker no-session bad-session invalid-pid foreign-pid dead-pid; do
+    rc=0
+    out=$(windows_fixture_run "$dir" bash -c '
+      export CLAUDECODE=1 CLAUDE_PID=90382 CLAUDE_CODE_SESSION_ID=11111111-2222-4333-8444-555555555555
+      case "$2" in
+        no-marker) unset CLAUDECODE ;;
+        no-session) unset CLAUDE_CODE_SESSION_ID ;;
+        bad-session) CLAUDE_CODE_SESSION_ID="not a session" ;;
+        invalid-pid) CLAUDE_PID="90382; echo forged" ;;
+        foreign-pid) CLAUDE_PID=90398 ;;
+        dead-pid) CLAUDE_PID=90397 ;;
+      esac
+      exec bash "$1/bin/fm-lock.sh"
+    ' _ "$ROOT" "$scenario" 2>&1) || rc=$?
+    expect_code 1 "$rc" "$scenario handoff must refuse acquisition: $out"
+    [ ! -e "$dir/state/.lock" ] || fail "$scenario handoff published a lock"
+  done
+  pass "session-lock: orphaned hooks reject incomplete, invalid, stale and non-Claude PID handoffs"
+}
+
+# Cross the real native-Windows -> Git Bash boundary without a model session or
+# any real fleet state. The renamed Node binary is only the long-lived native
+# parent; the child runs the production lock executable and ownership checks.
+test_native_windows_claude_session_acquires_lock() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) return 0 ;;
+  esac
+  local dir native_dir native_bash out rc=0
+  dir="$TMP_ROOT/native-session"
+  mkdir -p "$dir/state"
+  native_dir=$(cygpath -w "$dir") || fail "could not convert native fixture directory"
+  native_bash=$(cygpath -w "$(command -v bash)") || fail "could not resolve native Bash"
+  cat > "$dir/check.sh" <<'SH'
+#!/usr/bin/env bash
+set -eu
+"$FM_TEST_REPO/bin/fm-lock.sh"
+. "$FM_TEST_REPO/bin/fm-session-lock-lib.sh"
+owner=$(<"$FM_HOME/state/.lock")
+[ "$owner" = "$FM_TEST_NATIVE_SESSION_PID" ] || {
+  printf 'wrong session owner: expected %s, got %s\n' "$FM_TEST_NATIVE_SESSION_PID" "$owner" >&2
+  exit 1
+}
+fm_session_lock_owned_by_self "$FM_HOME/state"
+fm_harness_pid_alive "$owner"
+printf 'native session owns the lock\n'
+SH
+  cat > "$dir/session.cjs" <<'JS'
+const { spawnSync } = require("node:child_process");
+const result = spawnSync(process.env.FM_TEST_NATIVE_BASH, [process.env.FM_TEST_CHECK], {
+  env: { ...process.env, FM_TEST_NATIVE_SESSION_PID: String(process.pid) },
+  encoding: "utf8",
+  timeout: 30000,
+});
+process.stdout.write(result.stdout || "");
+process.stderr.write(result.stderr || "");
+if (result.error) throw result.error;
+process.exit(result.status ?? 1);
+JS
+  out=$(env -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+    FM_TEST_REPO="$ROOT" FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" \
+    FM_TEST_NATIVE_DIR="$native_dir" FM_TEST_NATIVE_BASH="$native_bash" \
+    FM_TEST_CHECK="$dir/check.sh" node 2>&1 <<'JS'
+const { copyFileSync } = require("node:fs");
+const { join } = require("node:path");
+const { spawnSync } = require("node:child_process");
+const dir = process.env.FM_TEST_NATIVE_DIR;
+const session = join(dir, "claude.exe");
+copyFileSync(process.execPath, session);
+const result = spawnSync(session, [join(dir, "session.cjs")], {
+  env: process.env, encoding: "utf8", timeout: 45000,
+});
+process.stdout.write(result.stdout || "");
+process.stderr.write(result.stderr || "");
+if (result.error) throw result.error;
+process.exit(result.status ?? 1);
+JS
+  ) || rc=$?
+  expect_code 0 "$rc" "native Claude-shaped session must acquire and recognize its lock: $out"
+  assert_contains "$out" 'native session owns the lock' "native session ownership proof"
+  pass "session-lock: native Windows Claude parent owns the lock across the Git Bash boundary"
+}
+
+fm_test_run_cases \
+  test_windows_native_ancestry_uses_verified_parent_rows \
+  test_windows_native_competitor_and_stale_owner \
+  test_windows_native_lookup_failure_never_means_stale \
+  test_windows_native_identity_does_not_trust_markers_or_bad_rows \
+  test_windows_native_pid_collision_cannot_claim_an_msys_session \
+  test_windows_orphaned_claude_uses_verified_pid_handoff \
+  test_windows_orphaned_claude_rejects_unverified_handoffs \
+  test_native_windows_claude_session_acquires_lock \
+  test_version_named_session_is_identified_on_both_platforms \
+  test_ordinary_paths_are_never_harness_processes \
+  test_harness_beyond_a_gap_never_owns_the_lock \
+  test_competing_version_named_session_is_seen_as_live \
+  test_e2e_version_named_session_claims_the_home \
+  test_e2e_daemon_parented_session_claims_the_home \
+  test_e2e_daemon_parented_version_named_session_keeps_its_lock

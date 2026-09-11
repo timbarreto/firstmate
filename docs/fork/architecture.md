@@ -91,13 +91,15 @@ Pi retains `shellVisibleProcessPid` and `pidAlive`; OpenCode does not acquire th
 Both wrappers use the same functions rather than generated implementations, while lifecycle decisions remain in their extension/plugin callers.
 
 The module retains per-instance Windows ancestry caching, verifies native liveness on every ancestry query, and takes fresh process rows for ordinary PID liveness.
-`bin/platform/windows-process.ps1` owns native watch-arm root discovery and batched descendant termination in the same PowerShell invocation.
+`bin/platform/windows-process.ps1` owns bounded native process-fact queries, watch-arm root discovery, and batched descendant termination.
 Graceful cleanup still finds the owned MSYS root and sends TERM through Bash before callers choose their existing escalation path.
 Forced cleanup preserves the existing direct-PID TERM fallback after a native operation fails; this is not authority to terminate an arbitrary process, and callers must retain their owned-child and generation checks.
 A missing tracked native helper throws explicitly before any native operation or direct-PID fallback.
 
 `bin/fm-platform-process-lib.sh` owns generic Bash process facts, single-PID image queries, and literal PowerShell command rendering without a Node dependency.
 `bin/fm-session-lock-lib.sh` retains ownership and ancestry orchestration, delegating Copilot marker verification and PID-result caching through the harness interface.
+Its Windows ancestry bridge and verified Claude session-PID handoff use the shared native process facts without adding a Node dependency to Bash callers; the library header owns their precedence and numeric-PID ambiguity rules.
+Native lookup failures remain distinct from verified process absence, so `bin/fm-lock.sh` refuses rather than reclaiming an unverified owner.
 `bin/backends/herdr.sh` retains leases, worktree acquisition, presentation, and rollback; its public transport functions and spawn's quoting function delegate to the shared module.
 Git Bash callers retain their inexpensive PATH/cygpath lookup, while existing PowerShell entrypoints continue using `bin/fm-windows-git-bash.ps1`.
 

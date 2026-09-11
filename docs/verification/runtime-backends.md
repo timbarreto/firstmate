@@ -6,6 +6,30 @@ This record contains reusable version-scoped evidence for active runtime guarant
 The backend guides own current setup, safety boundaries, and limitations.
 Exact task chronology, branch names, temporary homes, local paths, process ids, thread ids, and delivery transcripts remain in private reports or PR evidence.
 
+## Windows Claude session ownership
+
+Verified on 2026-09-11 with Claude Code 2.1.268, Git Bash on `MINGW64_NT-10.0-26200`, and Windows PowerShell 5.1.26100.9444.
+The Git Bash process tree ended at `PPID=1` below the native Claude process.
+In the real hook launch, the intermediate native Bash launcher had also exited, so a Windows process snapshot alone could not recover that parent chain.
+Claude supplied `CLAUDE_PID`, and the live guard proved it equaled the native Claude process that the guard launched, rather than a transient hook worker or a different session.
+
+```sh
+FM_CLAUDE_SESSION_LOCK_LIVE_E2E=1 bin/fm-test-run.sh tests/fm-claude-session-lock-live-e2e.test.sh
+```
+
+Relevant output:
+
+```text
+ok - Claude 2.1.268 (Claude Code): SessionStart, Bash pre-tool hooks, and both Stop hooks verify one live session owner
+```
+
+The guard launches the installed Claude executable from native Node in an isolated temporary project and uses the working-tree `.claude/settings.json` registration.
+Its hook bodies call the real lock acquisition and ownership predicates instead of running fleet bootstrap or supervision, so this evidence proves session identity across all six registered commands, not watcher rearming or network sweeps.
+The model performs one harmless Bash command and completes its turn; no real fleet home is used.
+`tests/fm-session-lock-ancestry.test.sh` covers the native parent bridge, orphaned-launcher handoff, competing and stale owners, lookup failures, and native/MSYS PID collisions.
+`tests/fm-platform-process.test.sh` exercises the native snapshot's depth bound, reused-parent rejection, row framing, and missing-PID versus query-error results.
+[Fork architecture](../fork/architecture.md#process-and-native-transport-seam) owns implementation placement and compatibility boundaries.
+
 ## tmux
 
 Foreground-process behavior was verified on 2026-07-07 with tmux 3.6a on macOS.

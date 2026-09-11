@@ -3,6 +3,13 @@
 #
 # fm_platform_process_comm|args|ppid <pid>
 #   Read FM_PROC_ROOT_OVERRIDE (default /proc), then the existing POSIX ps field.
+# fm_platform_windows_parent_processes <shell-pid>
+#   Bridge an MSYS/Cygwin PID through winpid to fresh native parent rows.
+# fm_platform_windows_process_info <native-pid>
+#   Query a native PID without treating it as an MSYS PID or using kill -0.
+#   Both return PID<TAB>comm<TAB>args rows from platform/windows-process.ps1;
+#   1 means unavailable mapping/platform or absent PID, 2 means lookup failure.
+#   An explicit proc override without winpid data never escapes to host facts.
 # fm_platform_windows_pid_matches <native-pid> <executable-name>
 #   Prefer one tasklist PID query; use ps -W only when it has no result.
 #   This module never caches facts or makes a harness/ownership decision.
@@ -79,6 +86,58 @@ fm_platform_process_ppid() {
     return
   fi
   ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' '
+}
+
+fm_platform_windows_process_supported() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) return 1 ;;
+  esac
+  [ -z "${FM_PROC_ROOT_OVERRIDE:-}" ] || [ -r "$FM_PROC_ROOT_OVERRIDE/$$/winpid" ]
+}
+
+_fm_platform_windows_process_query() {  # <operation> <native-pid>
+  local operation=$1 pid=$2 script output rc
+  case "$operation" in parent-processes|process-info) ;; *) return 2 ;; esac
+  case "$pid" in ''|*[!0-9]*|0|1) return 2 ;; esac
+  script="$(dirname "${BASH_SOURCE[0]}")/platform/windows-process.ps1"
+  [ -r "$script" ] || return 2
+  command -v powershell.exe >/dev/null 2>&1 || return 2
+  if command -v cygpath >/dev/null 2>&1; then
+    script=$(cygpath -w "$script") || return 2
+  fi
+  if output=$(FM_PROCESS_NATIVE_PID="$pid" powershell.exe -NoProfile -NoLogo -NonInteractive \
+    -ExecutionPolicy Bypass -File "$script" "$operation" 2>/dev/null); then
+    output=${output//$'\r'/}
+    [ -z "$output" ] || printf '%s\n' "$output"
+    return 0
+  else
+    rc=$?
+    [ "$operation" = process-info ] && [ "$rc" -eq 3 ] && return 1
+    return 2
+  fi
+}
+
+fm_platform_windows_parent_processes() {  # <shell-pid>
+  local pid=$1 native_pid proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
+  fm_platform_windows_process_supported || return 1
+  case "$pid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+  if [ -r "$proc_root/$pid/winpid" ]; then
+    native_pid=$(<"$proc_root/$pid/winpid")
+  elif [ -z "${FM_PROC_ROOT_OVERRIDE:-}" ]; then
+    native_pid=$(LC_ALL=C ps -p "$pid" 2>/dev/null | awk -v p="$pid" '
+      NR > 1 && $1 == p { print $4; exit }
+    ')
+  else
+    return 1
+  fi
+  case "$native_pid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+  _fm_platform_windows_process_query parent-processes "$native_pid"
+}
+
+fm_platform_windows_process_info() {  # <native-pid>
+  fm_platform_windows_process_supported || return 1
+  _fm_platform_windows_process_query process-info "$1"
 }
 
 fm_platform_windows_pid_matches() {
