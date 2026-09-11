@@ -40,7 +40,9 @@ Explicit supervision overrides remain authoritative before detection, while an a
 
 Every nonpilot retains legacy dispatch, including `pi-signed` and OMP.
 The signed Pi worker renderer and its primary-extension paths deliberately remain in spawn instead of silently sharing the pilot implementation.
-The self-contained, hash-pinned `bin/fm-remote-doctor.sh` is the intentional static compatibility exception; its entrypoint pin and integrity protocol are unchanged.
+The hash-pinned `bin/fm-remote-doctor.sh` retains intentional static harness-compatibility facts rather than importing the pilot registry.
+It sources the remote job, tasks-axi, and Herdr ownership libraries; copied fixtures must carry those dependencies.
+Any doctor-byte change requires recalculating its entrypoint hash without changing the integrity protocol.
 
 ## Test registration seam
 
@@ -135,7 +137,7 @@ The removal conditions below are design boundaries, not authorization to revert 
 | Catalog and proof integration | Runner compatibility functions delegate metadata queries; reference expansion and execution remain in the runner, while proof lists remain independent | Upstream supports compatible metadata loading, reference selection, and proof-owned admission |
 | Module discovery and fixture closure | Lint and changed-reference discovery include new directories and file types; copied fixtures install complete dependencies | Equivalent upstream discovery and fixture layouts include the owning modules |
 | Fork workflow and shared-CI compatibility | The dedicated workflow owns fork checks; shared CI retains its prerequisite, compiler, action, and artifact integration | Equivalent upstream checks preserve every required subject, gate, and producer |
-| Legacy and integrity exceptions | Nonpilots, including the signed Pi renderer, stay legacy; the remote doctor remains self-contained and hash-pinned | A separately scoped migration or reviewed integrity-protocol change preserves their contracts |
+| Legacy and integrity exceptions | Nonpilots, including the signed Pi renderer, stay legacy; the remote doctor's harness facts remain static and its entrypoint remains hash-pinned | A separately scoped migration or reviewed integrity-protocol change preserves their contracts |
 | Operator and contributor pointers | Setup, trust, delivery, privacy, and cleanup guidance remain with their classified owners | Upstream documents equivalent supported behavior without losing anchors or safety facts |
 
 The proof command's admission evidence, runner execution algorithms, and backend lifecycle transactions are retained authorities, not duplicate implementations awaiting extraction.

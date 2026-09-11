@@ -11,22 +11,24 @@
 # completion links (the PR, the report path, a local-main note) live only in the
 # record being removed, the intended transition is recorded in
 # state/<id>.backlog-close first, so a process killed between the halves leaves
-# the next session start enough to finish it; a landed transition removes that
-# record. A transition that fails is fatal and loud, preserves its pending-close
-# record, and is retried by the next session start. The transition is skipped on a
-# config/backlog-backend=manual home and in a home that keeps no
-# data/backlog.md; those cases print the manual follow-up. An automatic-backend
-# home with a backlog but no compatible tasks-axi refuses before cleanup.
+# the next session start enough to finish it; a landed close removes that record.
+# A close that fails is fatal and loud, preserves its pending-close record, and
+# is retried by the next session start. The transition is skipped on a
+# config/backlog-backend=manual home and in a markdown home that keeps no
+# data/backlog.md; those cases print the manual follow-up. A configured
+# non-markdown adapter remains active without a markdown file; any active
+# automatic backend without compatible tasks-axi refuses before cleanup.
 # None of this loosens the landed-work gates below: the transition runs only on
 # the paths that already proceed to remove the record.
 # The close - and only the close - is replaced by `tasks-axi reopen` with the
 # deliverable recorded while the backlog item is still an open captain call
 # (bin/fm-captain-hold.sh `open` owns that predicate), because the policy holds
+# the very work item a question gates and cleanup must never retire the
+# captain's own question.
 # NOTE: this uses `open`'s silent default and depends only on its unchanged
 # 0/1/2 exit-code contract. The optional `--identity` output that bin/fm-watch.sh
 # asks for prints only on an exit 0 and changes nothing read here.
-# the very work item a question gates and cleanup must never retire the
-# captain's own question. The same pending-close record carries that intent as
+# The same pending-close record carries that intent as
 # `mode=retain`, so an interrupted cleanup replays the retention rather than a
 # close. "Cannot tell" refuses before any destructive step, --force does not
 # lift the deferral (it authorizes discarding unlanded WORK, never the
@@ -1407,10 +1409,13 @@ backlog_done_args() {
 # invariant). This prints what already happened, so the follow-up wording stays
 # only where a human still owes the edit.
 backlog_refresh_reminder() {
-  local backlog_display root
+  local backlog_display root backend=markdown
   [ "$KIND" = secondmate ] && return 0
   [ "$CLEANUP_RECOVERY" = orca ] && return 0
-  if root=$(fm_backlog_root "$DATA") && [ "$(fm_tasks_axi_backend "$root")" != markdown ]; then
+  if root=$(fm_backlog_root "$DATA"); then
+    backend=$(fm_tasks_axi_backend "$root") || return 2
+  fi
+  if [ "$backend" != markdown ]; then
     backlog_display="this home's configured tasks-axi backend (data directory $DATA)"
   elif backlog_display=$(fm_backlog_file "$DATA"); then
     :
@@ -3142,6 +3147,7 @@ HERDR_PRESENTATION_TAB=
 HERDR_PRESENTATION_PANE=
 HERDR_PRESENTATION_SAFE_FOCUS=
 HERDR_PRESENTATION_FOCUS=
+HERDR_PRESENTATION_FOREGROUND=0
 HERDR_PRESENTATION_CLOSE_CONFIRMED=0
 HERDR_PRESENTATION_SPAWN_GEN=$(meta_value "$META" spawn_gen)
 if [ "$BACKEND" = herdr ]; then
@@ -3160,6 +3166,8 @@ if [ "$BACKEND" = herdr ]; then
        && [ -n "$HERDR_PRESENTATION_PANE" ] \
        && [ "$T" = "$HERDR_PRESENTATION_SESSION:$HERDR_PRESENTATION_PANE" ]; then
       HERDR_PRESENTATION_CLOSE_CANDIDATE=1
+      fm_backend_herdr_foreground_client_present "$HERDR_PRESENTATION_SESSION" \
+        || HERDR_PRESENTATION_FOREGROUND=$?
       if fm_backend_herdr_projection_journal_binding_matches \
         "$HERDR_PRESENTATION_SESSION" "$HERDR_PRESENTATION_JOURNAL" "$ID" \
         "$FM_HOME" "$HERDR_PRESENTATION_WORKSPACE" \
@@ -3185,7 +3193,8 @@ if [ "$BACKEND" = herdr ]; then
           fm_backend_herdr_projection_focus_snapshot \
             "$HERDR_PRESENTATION_SESSION" 2>/dev/null || true
         )
-        if [ -z "$HERDR_PRESENTATION_SAFE_FOCUS" ] \
+        if [ "$HERDR_PRESENTATION_FOREGROUND" -ne 1 ] \
+           && [ -z "$HERDR_PRESENTATION_SAFE_FOCUS" ] \
            && { [ -z "$HERDR_PRESENTATION_FOCUS" ] \
              || [ "${HERDR_PRESENTATION_FOCUS#*$'\t'}" = "$HERDR_PRESENTATION_TAB" ]; }; then
           teardown_herdr_defer \
@@ -3199,8 +3208,9 @@ if [ "$BACKEND" = herdr ]; then
           fm_backend_herdr_projection_focus_snapshot \
             "$HERDR_PRESENTATION_SESSION" 2>/dev/null || true
         )
-        if [ -z "$HERDR_PRESENTATION_FOCUS" ] \
-           || [ "${HERDR_PRESENTATION_FOCUS#*$'\t'}" = "$HERDR_PRESENTATION_TAB" ]; then
+        if [ "$HERDR_PRESENTATION_FOREGROUND" -ne 1 ] \
+           && { [ -z "$HERDR_PRESENTATION_FOCUS" ] \
+             || [ "${HERDR_PRESENTATION_FOCUS#*$'\t'}" = "$HERDR_PRESENTATION_TAB" ]; }; then
           teardown_herdr_defer \
             "$HERDR_PRESENTATION_DEFER_MARKER" "$HERDR_PRESENTATION_SPAWN_GEN" \
             "$HERDR_PRESENTATION_SESSION" "$HERDR_PRESENTATION_PANE" "$ID" \
@@ -3258,8 +3268,12 @@ if [ "$HERDR_PRESENTATION_CLOSE_CANDIDATE" = 1 ] \
     fm_backend_herdr_projection_focus_snapshot \
       "$HERDR_PRESENTATION_SESSION" 2>/dev/null || true
   )
-  if [ -z "$HERDR_PRESENTATION_FOCUS" ] \
-     || [ "${HERDR_PRESENTATION_FOCUS#*$'\t'}" = "$HERDR_PRESENTATION_TAB" ]; then
+  HERDR_PRESENTATION_FOREGROUND=0
+  fm_backend_herdr_foreground_client_present "$HERDR_PRESENTATION_SESSION" \
+    || HERDR_PRESENTATION_FOREGROUND=$?
+  if [ "$HERDR_PRESENTATION_FOREGROUND" -ne 1 ] \
+     && { [ -z "$HERDR_PRESENTATION_FOCUS" ] \
+       || [ "${HERDR_PRESENTATION_FOCUS#*$'\t'}" = "$HERDR_PRESENTATION_TAB" ]; }; then
     HERDR_PRESENTATION_SAFE_FOCUS=$(
       fm_backend_herdr_projection_focus_safe_target \
         "$HERDR_PRESENTATION_SESSION" "$HERDR_PRESENTATION_JOURNAL" "$ID" \

@@ -8,6 +8,7 @@ The workflow owns exact subjects, named-case selectors, package pins, timeouts, 
 The non-credentialed package job detects package API drift and missing runner CLIs without vendor credentials.
 
 [Shared CI](../../.github/workflows/ci.yml) retains lint, coverage, portable parallel and serial shards, real Herdr, timing aggregation, stock macOS Bash, and repository invariants.
+The real-Herdr job also installs the pinned Pi prerequisite for the non-credentialed agent exit-to-shell regression; an absent Pi is a job failure, not accepted missing coverage.
 The two workflows together produce 18 automatic checks, with one producer for each check name.
 Both use the same main-branch push and pull-request triggers and read-only permissions, with workflow-qualified concurrency groups so neither cancels the other.
 The [Windows Herdr experiment](../../.github/workflows/windows-herdr-spike.yml) remains manual.
@@ -28,6 +29,14 @@ Keep commands, timings, exact base/head identifiers, and deferred-check outcomes
 
 Live vendor checks remain separately gated and require explicit authorization in controlled fixtures.
 [Runtime backend verification](../verification/runtime-backends.md) owns empirical backend evidence; moving CI jobs does not establish new vendor or native-platform guarantees.
+
+## Herdr cleanup compatibility
+
+The backend and teardown suites support the shared named-case selector without changing full-suite order.
+Use `test_projection_close_allows_stale_active_tab_without_foreground_client` in `tests/fm-backend-herdr.test.sh` and `test_herdr_projection_teardown_cleans_detached_without_safe_parent` in `tests/fm-teardown.test.sh` for the composed detached-focus boundary.
+The same suites retain exact-parent handoff, quiet deferral, unknown attachment, and late-attachment cases.
+The presentation E2E suite performs real isolated Herdr mutations; its handoff and deferral fixtures explicitly inject a live-viewer response and are not proof of an actual attached client.
+Default detached-client and agent exit-to-shell coverage remains owned by the real-Herdr CI job.
 
 ## Catalog compatibility
 

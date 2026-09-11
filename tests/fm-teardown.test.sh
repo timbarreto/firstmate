@@ -1105,14 +1105,25 @@ test_content_in_default_fallback_allows() {
   # the same net change has independently landed on origin/main via a squash commit.
   wt_commit_file "$case_dir" feature.txt hello "add feature"
   land_on_origin_main "$case_dir" feature.txt hello
+  cat > "$case_dir/fakebin/treehouse" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" > "${FM_TEST_TREEHOUSE_LOG:?}"
+exit 0
+SH
+  chmod +x "$case_dir/fakebin/treehouse"
 
   set +e
-  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  FM_TEST_TREEHOUSE_LOG="$case_dir/treehouse.log" \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
   rc=$?
   set -e
 
   expect_code 0 "$rc" "content-landed: teardown should succeed when content is already in the default branch"
   ! grep -q REFUSED "$case_dir/stderr" || fail "content-landed: teardown printed a REFUSED line"
+  assert_present "$case_dir/treehouse.log" \
+    "content-landed: teardown never reached destructive worktree cleanup"
+  assert_absent "$case_dir/state/task-x1.meta" \
+    "content-landed: teardown left task metadata after destructive cleanup"
   pass "worktree whose content already landed in the default branch is torn down (content fallback)"
 }
 
@@ -2601,6 +2612,19 @@ printf '%s\n' "$*" >> "${FM_FAKE_HERDR_LOG:?}"
 focused=task
 [ ! -e "${FM_FAKE_HERDR_SAFE_FOCUSED:?}" ] || focused=safe
 case "${1:-} ${2:-}" in
+  "terminal title")
+    [ "${3:-}" = clear ] || exit 1
+    reason=${FM_FAKE_HERDR_FOREGROUND_REASON:-cleared}
+    if [ -n "${FM_FAKE_HERDR_ATTACH_AFTER:-}" ]; then
+      count=$(grep -c '^terminal title clear' "$FM_FAKE_HERDR_LOG")
+      if [ "$count" -le "$FM_FAKE_HERDR_ATTACH_AFTER" ]; then
+        reason=no_foreground_client
+      else
+        reason=cleared
+      fi
+    fi
+    printf '{"result":{"reason":"%s"}}\n' "$reason"
+    ;;
   "workspace list")
     if [ -e "${FM_FAKE_HERDR_CLOSED:?}" ]; then
       printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w0","active_tab_id":"w0:t1","label":"firstmate","focused":true}]}}'
@@ -2704,6 +2728,63 @@ test_herdr_projection_teardown_restores_safe_focus() {
   assert_contains "$(cat "$log")" "pane close w1:p2" \
     "herdr-projection-active-safe-focus: cleanup did not close the exact task pane"
   pass "herdr projection teardown restores a proven Firstmate tab before cleanup"
+}
+
+test_herdr_projection_teardown_cleans_detached_without_safe_parent() {
+  local case_dir log closed safe_focused
+  case_dir=$(make_case herdr-projection-detached)
+  write_meta "$case_dir" local-only ship
+  configure_active_herdr_projection_teardown_case "$case_dir"
+  isolate_unrelated_projection_teardown_helpers "$case_dir"
+  sed -i.bak 's/^parent_workspace_id=.*/parent_workspace_id=missing-parent/' \
+    "$case_dir/state/task-x1.herdr-presentation"
+  rm -f "$case_dir/state/task-x1.herdr-presentation.bak"
+  log="$case_dir/herdr.log"; closed="$case_dir/closed"; safe_focused="$case_dir/safe-focused"; : > "$log"
+
+  FM_TEARDOWN_GUARD_DONE=1 FM_HOME_SUMMARY_TIMEOUT=1 \
+    FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" \
+    FM_FAKE_HERDR_SAFE_FOCUSED="$safe_focused" \
+    FM_FAKE_HERDR_FOREGROUND_REASON=no_foreground_client \
+    run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "herdr-projection-detached: cleanup failed without a live viewer: $(cat "$case_dir/stderr")"
+  [ -e "$closed" ] || fail "herdr-projection-detached: persisted focus blocked the exact pane close"
+  [ ! -e "$case_dir/state/task-x1.meta" ] \
+    || fail "herdr-projection-detached: cleanup retained a phantom task"
+  [ ! -e "$case_dir/state/task-x1.herdr-cleanup-deferred" ] \
+    || fail "herdr-projection-detached: cleanup left a stale deferral"
+  assert_not_contains "$(cat "$log")" "tab focus" \
+    "herdr-projection-detached: cleanup attempted an unnecessary or unproved focus handoff"
+  pass "herdr projection teardown closes detached persisted focus without a safe parent"
+}
+
+test_herdr_projection_teardown_rechecks_detachment_before_close() {
+  local case_dir log closed safe_focused attach_after
+  for attach_after in 1 2; do
+    case_dir=$(make_case "herdr-projection-late-attach-$attach_after")
+    write_meta "$case_dir" local-only ship
+    configure_active_herdr_projection_teardown_case "$case_dir"
+    isolate_unrelated_projection_teardown_helpers "$case_dir"
+    sed -i.bak 's/^parent_workspace_id=.*/parent_workspace_id=missing-parent/' \
+      "$case_dir/state/task-x1.herdr-presentation"
+    rm -f "$case_dir/state/task-x1.herdr-presentation.bak"
+    log="$case_dir/herdr.log"; closed="$case_dir/closed"; safe_focused="$case_dir/safe-focused"; : > "$log"
+
+    FM_TEARDOWN_GUARD_DONE=1 FM_HOME_SUMMARY_TIMEOUT=1 \
+      FM_FAKE_HERDR_LOG="$log" FM_FAKE_HERDR_CLOSED="$closed" \
+      FM_FAKE_HERDR_SAFE_FOCUSED="$safe_focused" FM_FAKE_HERDR_ATTACH_AFTER="$attach_after" \
+      run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" \
+      || fail "herdr-projection-late-attach: attachment after check $attach_after did not defer: $(cat "$case_dir/stderr")"
+    [ -d "$case_dir/wt" ] && [ -e "$case_dir/state/task-x1.meta" ] \
+      || fail "herdr-projection-late-attach: stale detachment authorized task removal"
+    [ -e "$case_dir/state/task-x1.herdr-cleanup-deferred" ] \
+      || fail "herdr-projection-late-attach: cleanup did not record its deferred result"
+    [ ! -e "$case_dir/state/task-x1.backlog-close" ] \
+      || fail "herdr-projection-late-attach: cleanup recorded completion before deferral"
+    [ ! -e "$closed" ] || fail "herdr-projection-late-attach: cleanup closed a live viewer's active tab"
+    assert_not_contains "$(cat "$log")" "pane close" \
+      "herdr-projection-late-attach: cached detachment reached a pane mutation"
+  done
+  pass "herdr projection teardown rechecks detached evidence at handoff and close boundaries"
 }
 
 test_herdr_projection_teardown_defers_idempotently_without_a_captain_decision() {
@@ -3929,6 +4010,8 @@ fm_test_run_cases \
   test_forced_secondmate_herdr_child_retains_records_when_close_unconfirmed \
   test_forced_teardown_retains_nested_secondmate_home_when_grandchild_close_unconfirmed \
   test_herdr_projection_teardown_restores_safe_focus \
+  test_herdr_projection_teardown_cleans_detached_without_safe_parent \
+  test_herdr_projection_teardown_rechecks_detachment_before_close \
   test_herdr_projection_teardown_defers_idempotently_without_a_captain_decision \
   test_herdr_projection_teardown_recovers_after_confirmed_close \
   test_herdr_projection_teardown_retires_journal_only_after_confirmed_close \
