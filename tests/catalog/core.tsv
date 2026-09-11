@@ -132,6 +132,7 @@ test	tests/fm-harness-liveness-drift-live-e2e.test.sh	live-harness-optin
 test	tests/fm-muse-signals-live-e2e.test.sh	live-harness-optin
 test	tests/fm-rovo-signals-live-e2e.test.sh	live-harness-optin
 test	tests/fm-herdr-version-floor-live-e2e.test.sh	live-harness-optin
+test	tests/fm-herdr-pi-stale-registration-live-e2e.test.sh	live-harness-optin
 test	tests/fm-opencode-primary-live-e2e.test.sh	live-harness-optin
 test	tests/fm-pi-branch-live-e2e.test.sh	live-harness-optin
 test	tests/fm-pi-branch-responsiveness-live-e2e.test.sh	live-harness-optin
@@ -351,14 +352,39 @@ duration	tests/fm-watch-checkpoint.test.sh	5779
 duration	tests/fm-watch-recovery-loop.test.sh	58731
 duration	tests/fm-watch-triage.test.sh	262626
 duration	tests/fm-watcher-lock.test.sh	88554
+parallel-duration	tests/fm-arm-pretool-check.test.sh	30898
+parallel-duration	tests/fm-backend-herdr.test.sh	22144
+parallel-duration	tests/fm-brief.test.sh	1625
+parallel-duration	tests/fm-captain-hold-lifecycle.test.sh	296481
+parallel-duration	tests/fm-cd-pretool-check.test.sh	16964
+parallel-duration	tests/fm-composer-ghost.test.sh	2120
+parallel-duration	tests/fm-composer-lib.test.sh	4798
+parallel-duration	tests/fm-crew-state.test.sh	11557
+parallel-duration	tests/fm-ensure-agents-md.test.sh	901
+parallel-duration	tests/fm-grok-harness.test.sh	6563
+parallel-duration	tests/fm-herdr-lab.test.sh	6936
+parallel-duration	tests/fm-lint.test.sh	164262
+parallel-duration	tests/fm-pi-primary-types.test.sh	8624
+parallel-duration	tests/fm-pr-merge.test.sh	111145
+parallel-duration	tests/fm-review-diff.test.sh	2747
+parallel-duration	tests/fm-send-popup-settle.test.sh	4939
+parallel-duration	tests/fm-send-settle.test.sh	2051
+parallel-duration	tests/fm-send-strict.test.sh	3861
+parallel-duration	tests/fm-spawn-batch.test.sh	2265
+parallel-duration	tests/fm-supervision-instructions.test.sh	297
+parallel-duration	tests/fm-test-run.test.sh	92944
+parallel-duration	tests/fm-tmux-submit-busy.test.sh	2477
+parallel-duration	tests/fm-transition-lib.test.sh	99
+parallel-duration	tests/fm-x-mode.test.sh	31870
 map	route-tests-fm-backend-herdr-eventwait-test-py	200	tests/fm-backend-herdr-eventwait.test.py	real-herdr-gated,backend-dispatch
 map	route-bin-fm-test-run-sh	400	bin/fm-test-run.sh|bin/fm-test-isolation-proof.sh	pure-contract-unit
-map	route-bin-backends-herdr	500	bin/backends/herdr*|bin/fm-herdr-lab.sh|tests/herdr-test-safety.sh	real-herdr-gated,backend-dispatch,pure-contract-unit
+map	route-bin-backends-herdr	500	bin/backends/herdr*|bin/fm-herdr-lab.sh|tests/herdr-test-safety.sh|tests/herdr-client-pair-fixture.sh	real-herdr-gated,backend-dispatch,pure-contract-unit
 map	route-bin-fm-herdr-session-cleanup-sh	600	bin/fm-herdr-session-cleanup.sh	session-bootstrap,real-herdr-gated,backend-dispatch
 map	route-bin-backends-zellij	700	bin/backends/zellij*|tests/zellij-test-safety.sh	zellij,backend-dispatch
 map	route-bin-backends-cmux	800	bin/backends/cmux*|tests/cmux-test-safety.sh	cmux,backend-dispatch
 map	route-bin-backends-orca	900	bin/backends/orca*|bin/backends/tmux.sh	backend-dispatch,orca
 map	route-bin-fm-backend-sh	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh	backend-dispatch,real-herdr-gated
+map	route-bin-fm-agent-process-lib-sh	1050	bin/fm-agent-process-lib.sh	backend-dispatch,real-herdr-gated,pure-contract-unit,orca,live-harness-optin
 map	route-bin-fm-watch	1100	bin/fm-watch*|bin/fm-wake*|bin/fm-inactive-reconcile.sh|bin/fm-classify-lib.sh|bin/fm-daemon*|bin/fm-turnend-guard*|bin/fm-guard.sh	watcher-wake-lock
 map	route-bin-fm-afk	1200	bin/fm-afk*	afk,real-herdr-gated
 map	route-bin-fm-supervisor-target-lib-sh	1300	bin/fm-supervisor-target-lib.sh	watcher-wake-lock,real-herdr-gated,live-harness-optin,afk

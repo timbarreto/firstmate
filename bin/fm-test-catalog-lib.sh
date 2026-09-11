@@ -7,6 +7,7 @@
 #   family<TAB>name<TAB>gate
 #   test<TAB>tests/name.test.sh<TAB>family
 #   duration<TAB>tests/name.test.sh<TAB>positive-milliseconds
+#   parallel-duration<TAB>tests/name.test.sh<TAB>positive-milliseconds
 #   map<TAB>key<TAB>positive-order<TAB>glob|glob<TAB>target,target
 # A target is a family or __script__:name.test.sh. Globs support * and ?,
 # not executable shell syntax. The first matching ordered map wins.
@@ -16,7 +17,8 @@
 # fm_test_catalog_get <kind> <key> sets FM_TEST_CATALOG_VALUE, returns 1 if absent.
 # fm_test_catalog_maps <path> prints the first matching map's targets, or returns
 # 1 if unmapped. FM_TEST_CATALOG_FAMILIES and FM_TEST_CATALOG_WEIGHTS contain
-# ordered family names and space-separated duration rows for bulk consumers.
+# ordered family names and space-separated serial duration rows for bulk consumers.
+# FM_TEST_CATALOG_PARALLEL_WEIGHTS holds separate parallel-lane duration rows.
 # FM_TEST_CATALOG_RECORDS retains normalized TSV for fixture projection.
 # Loading uses one awk process; lookups use Bash builtins, never eval or source
 # on metadata. This module cannot admit concurrency or change worker caps.
@@ -25,7 +27,8 @@
 fm_test_catalog_cache_key() {
   local kind=$1 encoded=$2 LC_ALL=C
   FM_TEST_CATALOG_CACHE_KEY=
-  case "$kind" in family|test|duration|map) ;; *) return 1 ;; esac
+  case "$kind" in family|test|duration|parallel-duration|map) ;; *) return 1 ;; esac
+  kind=${kind//-/_}
   case "$encoded" in ''|*[!a-zA-Z0-9_./-]*) return 1 ;; esac
   encoded=${encoded//_/_u}
   encoded=${encoded//\//_s}
@@ -67,7 +70,7 @@ fm_test_catalog_load() {
       } else if (kind == "test") {
         if (!test_path(key)) fail("test is missing or not a root-level test: " key)
         if (value !~ /^[a-z][a-z0-9-]*$/) fail("invalid family: " value)
-      } else if (kind == "duration") {
+      } else if (kind == "duration" || kind == "parallel-duration") {
         if (!test_path(key)) fail("duration references missing test: " key)
         if (!positive(value)) fail("invalid duration milliseconds: " value)
       } else if (kind == "map") {
@@ -108,7 +111,7 @@ fm_test_catalog_load() {
       kind = $1
       override = sub(/^override-/, "", kind)
       width = kind == "map" ? 3 : 1
-      if (kind !~ /^(family|test|duration|map)$/) fail("unknown record kind: " $1)
+      if (kind !~ /^(family|test|duration|parallel-duration|map)$/) fail("unknown record kind: " $1)
       if (NF != 2 + width * (override ? 2 : 1)) fail("wrong field count for " $1)
       key = $2
       id = kind SUBSEP key
@@ -176,6 +179,7 @@ fm_test_catalog_load() {
   FM_TEST_CATALOG_RECORDS=$'\n'"$records"$'\n'
   FM_TEST_CATALOG_FAMILIES=
   FM_TEST_CATALOG_WEIGHTS=
+  FM_TEST_CATALOG_PARALLEL_WEIGHTS=
   FM_TEST_CATALOG_MAP_PATTERNS=()
   FM_TEST_CATALOG_MAP_TARGETS=()
   for cache_key in "${FM_TEST_CATALOG_CACHE_KEYS[@]+"${FM_TEST_CATALOG_CACHE_KEYS[@]}"}"; do
@@ -194,6 +198,7 @@ fm_test_catalog_load() {
     case "$kind" in
       family) FM_TEST_CATALOG_FAMILIES="${FM_TEST_CATALOG_FAMILIES}${key}"$'\n' ;;
       duration) FM_TEST_CATALOG_WEIGHTS="${FM_TEST_CATALOG_WEIGHTS}${key} ${value}"$'\n' ;;
+      parallel-duration) FM_TEST_CATALOG_PARALLEL_WEIGHTS="${FM_TEST_CATALOG_PARALLEL_WEIGHTS}${key} ${value}"$'\n' ;;
       map)
         FM_TEST_CATALOG_MAP_PATTERNS+=("${rest%%$'\t'*}")
         FM_TEST_CATALOG_MAP_TARGETS+=("${rest#*$'\t'}")

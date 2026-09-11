@@ -517,7 +517,7 @@ test_mail_sources_select_mail_coverage() {
 }
 
 test_changed_shared_fixtures_select_consumers() {
-  local tmp repo fixture listed code
+  local tmp repo fixture listed code consumer
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-shared-fixture.XXXXXX")
   repo="$tmp/repo"
   init_changed_fixture_repo "$repo"
@@ -534,8 +534,28 @@ test_changed_shared_fixtures_select_consumers() {
       || fail "$fixture must select its consumers"
     assert_contains "$listed" "tests/fm-backend.test.sh" "$fixture selects backend coverage"
     assert_contains "$listed" "tests/fm-secondmate-safety.test.sh" "$fixture selects secondmate coverage"
+    if [ "$fixture" = herdr-client-pair-fixture.sh ]; then
+      assert_contains "$listed" "tests/fm-backend-herdr-smoke.test.sh" \
+        "$fixture also retains its curated backend families"
+    fi
+    assert_not_contains "$listed" "tests/fm-pr-merge.test.sh" \
+      "$fixture must not select an unrelated family"
     rm "$repo/tests/$fixture"
   done
+
+  for consumer in fm-backend.test.sh fm-secondmate-safety.test.sh; do
+    printf '#!/usr/bin/env bash\n' >"$repo/tests/$consumer"
+  done
+  git -C "$repo" add tests/fm-backend.test.sh tests/fm-secondmate-safety.test.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm fixture-without-references
+  printf '\n' >"$repo/tests/herdr-client-pair-fixture.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+    || fail "a curated fixture must remain mapped without direct references"
+  assert_contains "$listed" "tests/fm-backend-herdr-smoke.test.sh" \
+    "an unreferenced curated fixture retains its registered families"
+  assert_not_contains "$listed" "tests/fm-secondmate-safety.test.sh" \
+    "an unreferenced curated fixture must not invent consumer families"
+  rm "$repo/tests/herdr-client-pair-fixture.sh"
 
   printf '\n' >"$repo/tests/unreferenced-fixture.sh"
   if listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD 2>&1); then
@@ -547,7 +567,7 @@ test_changed_shared_fixtures_select_consumers() {
   assert_contains "$listed" "no changed-test mapping for source path: tests/unreferenced-fixture.sh" \
     "unreferenced fixture refusal identifies its source"
   rm -rf "$tmp"
-  pass "shared fixtures select consumer families and reject unreferenced additions"
+  pass "shared fixtures combine curated and consumer families and reject unmapped unreferenced additions"
 }
 
 test_changed_dependency_selection_and_unmapped_failure() {
@@ -1376,8 +1396,113 @@ test_exclude_family() {
   pass "exclude-family drops the named primary family after selection"
 }
 
+test_list_scheduled_proven_isolated_uses_serial_weights() {
+  local tmp
+  tmp=$(fm_test_tmproot fm-test-run-proven-schedule)
+  "$RUNNER" --list --proven-isolated | LC_ALL=C sort >"$tmp/expected"
+  "$RUNNER" --list-scheduled --proven-isolated >"$tmp/actual" \
+    || fail "--list-scheduled --proven-isolated failed"
+  cmp -s "$tmp/expected" "$tmp/actual" \
+    || fail "proven-isolated scheduling must break serial-default ties by path"
+  pass "proven-isolated scheduling ignores parallel hints"
+}
+
+test_list_scheduled_non_lane_selections_use_serial_weights() {
+  local tmp repo script selection weight kind
+  local -a scripts=(
+    tests/fm-operational-input.test.sh
+    tests/fm-lint.test.sh
+    tests/fm-muse-harness.test.sh
+    tests/fm-captain-hold-lifecycle.test.sh
+    tests/fm-kimi-harness.test.sh
+    tests/fm-brief.test.sh
+  )
+  tmp=$(fm_test_tmproot fm-test-run-non-lane-schedule)
+  repo="$tmp/repo"
+  mkdir -p "$repo/bin" "$repo/tests"
+  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  for script in "${scripts[@]}"; do
+    printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/$script"
+    chmod +x "$repo/$script"
+  done
+  fm_test_install_catalog "$repo"
+  fm_test_catalog_load "$repo" || fail "schedule fixture catalogs must load"
+  while read -r script weight; do
+    for kind in duration parallel-duration; do
+      if fm_test_catalog_get "$kind" "$script"; then
+        printf 'override-%s\t%s\t%s\t%s\n' "$kind" "$script" "$FM_TEST_CATALOG_VALUE" "$weight"
+      else
+        printf '%s\t%s\t%s\n' "$kind" "$script" "$weight"
+      fi
+      weight=$((100 - weight))
+    done
+  done >>"$repo/tests/catalog/fork.tsv" <<'WEIGHTS'
+tests/fm-muse-harness.test.sh 60
+tests/fm-brief.test.sh 40
+tests/fm-captain-hold-lifecycle.test.sh 40
+tests/fm-lint.test.sh 40
+tests/fm-kimi-harness.test.sh 20
+tests/fm-operational-input.test.sh 10
+WEIGHTS
+  git -C "$repo" init -q
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
+  for script in "${scripts[@]}"; do
+    printf '\n' >>"$repo/$script"
+  done
+  printf '%s\n' \
+    tests/fm-muse-harness.test.sh \
+    tests/fm-brief.test.sh \
+    tests/fm-captain-hold-lifecycle.test.sh \
+    tests/fm-lint.test.sh \
+    tests/fm-kimi-harness.test.sh \
+    tests/fm-operational-input.test.sh >"$tmp/expected"
+  for selection in family all changed scripts; do
+    case "$selection" in
+      family) set -- --family pure-contract-unit ;;
+      all) set -- --all ;;
+      changed) set -- --changed --base HEAD ;;
+      scripts) set -- "${scripts[@]}" ;;
+    esac
+    "$repo/bin/fm-test-run.sh" --list-scheduled "$@" >"$tmp/actual" \
+      || fail "--list-scheduled $selection failed"
+    cmp -s "$tmp/expected" "$tmp/actual" \
+      || fail "$selection scheduling must use serial hints and path-ordered default ties"
+  done
+  pass "family, all, changed, and script selections ignore parallel hints"
+}
+
+test_empty_duration_hints_preserve_serial_fallback_and_parallel_coverage() {
+  local tmp repo script out parallel_count
+  tmp=$(fm_test_tmproot fm-test-run-empty-hints)
+  repo="$tmp/repo"
+  mkdir -p "$repo/bin" "$repo/tests"
+  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  for script in "$ROOT"/tests/*.test.sh; do
+    : >"$repo/tests/${script##*/}"
+  done
+  fm_test_install_catalog "$repo"
+  awk -F '\t' '$1 != "parallel-duration"' "$repo/tests/catalog/core.tsv" >"$tmp/without-parallel"
+  mv "$tmp/without-parallel" "$repo/tests/catalog/core.tsv"
+  parallel_count=$("$repo/bin/fm-test-run.sh" --list --proven-isolated | wc -l | tr -d ' ')
+  [ "$parallel_count" -gt 0 ] || fail "empty-hint fixture must retain the parallel proof"
+  out=$("$repo/bin/fm-test-run.sh" --check-coverage) \
+    || fail "missing parallel hints must remain reportable without changing lane coverage"
+  assert_contains "$out" "parallel_unhinted=$parallel_count " "empty parallel hints must count every lane member"
+  assert_contains "$out" "parallel_max_ms=0 " "unhinted lanes must not invent duration estimates"
+
+  awk -F '\t' '$1 != "duration"' "$repo/tests/catalog/core.tsv" >"$tmp/without-serial"
+  mv "$tmp/without-serial" "$repo/tests/catalog/core.tsv"
+  "$repo/bin/fm-test-run.sh" --list --proven-isolated | LC_ALL=C sort >"$tmp/expected"
+  "$repo/bin/fm-test-run.sh" --list-scheduled --proven-isolated >"$tmp/actual" \
+    || fail "empty serial hints must retain default-weight scheduling"
+  cmp -s "$tmp/expected" "$tmp/actual" \
+    || fail "empty serial hints dropped scripts or changed default-weight path ties"
+  pass "empty duration catalogs preserve serial fallback and accurate parallel coverage"
+}
+
 test_portable_shard_union_and_coverage_guard() {
-  local s1 s2 proven serial herdr all_count union_count overlap out first
+  local s1 s2 proven serial herdr all_count union_count overlap out lane
   s1=$("$RUNNER" --list --lane portable-parallel-1)
   s2=$("$RUNNER" --list --lane portable-parallel-2)
   proven=$("$RUNNER" --list --proven-isolated)
@@ -1405,11 +1530,36 @@ test_portable_shard_union_and_coverage_guard() {
   # No duplicates across the four partitions.
   [ "$(printf '%s\n' "$s1" "$s2" "$serial" "$herdr" | LC_ALL=C sort | uniq -d | wc -l | tr -d ' ')" = "0" ] \
     || fail "lanes must not duplicate scripts"
-  # LPT order: first script of shard 1 is the longest proven script.
-  first=$(printf '%s\n' "$s1" | head -n 1)
-  [ "$first" = "tests/fm-x-mode.test.sh" ] \
-    || fail "shard 1 must start with the longest proven script, got $first"
+  # LPT execution order, asserted against the runner's own measured schedule
+  # rather than against a script name: naming the current longest script here is
+  # what let the recorded lane duration go stale unnoticed in the first place.
+  for lane in portable-parallel-1 portable-parallel-2; do
+    [ "$("$RUNNER" --list --lane "$lane")" = "$("$RUNNER" --list-scheduled --lane "$lane")" ] \
+      || fail "$lane membership must be stored longest-measured-first"
+  done
   pass "portable shard union, disjointness, and coverage guard hold"
+}
+
+# The two parallel lanes are only "duration-balanced" while every member has a
+# measured hint and the packing over those hints stays even. Both halves went
+# unchecked until one lane grew past its CI job cap and was cancelled on every
+# run, so assert them through the guard's own reported numbers.
+test_portable_parallel_lanes_stay_duration_balanced() {
+  local out max imbalance unhinted
+  out=$("$RUNNER" --check-coverage)
+  unhinted=$(printf '%s\n' "$out" | sed -n 's/.*parallel_unhinted=\([0-9]*\).*/\1/p')
+  max=$(printf '%s\n' "$out" | sed -n 's/.*parallel_max_ms=\([0-9]*\).*/\1/p')
+  imbalance=$(printf '%s\n' "$out" | sed -n 's/.*parallel_imbalance_ms=\([0-9]*\).*/\1/p')
+  [ -n "$unhinted" ] && [ -n "$max" ] && [ -n "$imbalance" ] \
+    || fail "coverage guard must report parallel_unhinted, parallel_max_ms, parallel_imbalance_ms: $out"
+  [ "$unhinted" = "0" ] \
+    || fail "$unhinted proven-isolated scripts have no measured parallel hint, so the lanes are packed on a guess"
+  [ "$max" -gt 0 ] || fail "parallel_max_ms must be a positive packed duration, got $max"
+  # 5% of the worst lane: wide enough that one script's growth does not trip it,
+  # narrow enough that a lopsided partition cannot call itself balanced.
+  [ "$((imbalance * 20))" -le "$max" ] \
+    || fail "parallel lanes differ by ${imbalance}ms against a ${max}ms worst lane, more than 5%"
+  pass "portable parallel lanes are fully hinted and packed within 5% of each other"
 }
 
 test_portable_serial_shards_partition_the_serial_lane() {
@@ -2050,7 +2200,11 @@ fm_test_run_cases \
   test_live_guards_expect_a_capability_skip_class \
   test_fail_on_gate_skip_token \
   test_exclude_family \
+  test_list_scheduled_proven_isolated_uses_serial_weights \
+  test_list_scheduled_non_lane_selections_use_serial_weights \
+  test_empty_duration_hints_preserve_serial_fallback_and_parallel_coverage \
   test_portable_shard_union_and_coverage_guard \
+  test_portable_parallel_lanes_stay_duration_balanced \
   test_portable_serial_shards_partition_the_serial_lane \
   test_portable_serial_hint_coverage_is_reported_and_bounded \
   test_portable_serial_shard_lane_refusals \
