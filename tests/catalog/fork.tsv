@@ -5,6 +5,8 @@ test	tests/fm-remote-job-wait.test.sh	pure-contract-unit
 test	tests/fm-private-path.test.sh	pure-contract-unit
 test	tests/fm-platform-process.test.sh	pure-contract-unit
 test	tests/fm-harness-contract.test.sh	pure-contract-unit
+test	tests/fm-procevent-stop-proof.test.sh	standalone
+test	tests/fm-lint-inventory.test.sh	pure-contract-unit
 map	route-catalog	10	bin/fm-test-catalog-lib.sh|tests/catalog/*|tests/catalog-helpers.sh	pure-contract-unit
 map	route-pilot-modules	20	bin/fm-harness-lib.sh|bin/harnesses/*|tests/harness-helpers.sh	pure-contract-unit,backend-dispatch,watcher-wake-lock,session-bootstrap,pr-forge,standalone,live-harness-optin,real-herdr-gated
 map	route-private-path-modules	30	bin/fm-private-path-lib.sh|bin/platform/windows-private-path.ps1|tests/private-path-helpers.sh	pr-forge,pure-contract-unit,backend-dispatch,real-herdr-gated,__script__:fm-x-mode.test.sh,__script__:fm-test-run.test.sh

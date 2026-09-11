@@ -24,7 +24,8 @@ TMP_ROOT=$(fm_test_tmproot fm-herdr-agent-exit-shell-e2e)
 FAKEBIN="$TMP_ROOT/fakebin"
 PROJECT="$TMP_ROOT/project"
 PI_DIR="$TMP_ROOT/pi-agent"
-mkdir -p "$FAKEBIN" "$PROJECT" "$PI_DIR"
+READY_DIR="$TMP_ROOT/ready"
+mkdir -p "$FAKEBIN" "$PROJECT" "$PI_DIR" "$READY_DIR"
 printf '# Isolated herdr agent-exit lab\n' > "$PROJECT/AGENTS.md"
 
 HERDR_LAB_SESSION=$("$HERDR_LAB_HELPER" name fm-herdr-agent-exit-shell)
@@ -102,14 +103,18 @@ pane_agent_status_field() {  # <pane_id>
   lab pane get "$1" 2>/dev/null | jq -r '.result.pane.agent_status // empty'
 }
 
-wait_until() {  # <pane_id> <idle|gone> [attempts]
-  local pane=$1 want=$2 attempts=${3:-90} code status
+wait_until() {  # <pane_id> <idle|gone> [attempts] [ready-file]
+  local pane=$1 want=$2 attempts=${3:-90} ready_file=${4:-} code status
   for _ in $(seq 1 "$attempts"); do
     code=$(agent_get_code "$pane")
     status=$(agent_get_status "$pane")
     case "$want" in
       idle)
-        case "$status" in idle|done|blocked) return 0 ;; esac
+        case "$status" in
+          idle|done|blocked)
+            if [ -z "$ready_file" ] || [ -s "$ready_file" ]; then return 0; fi
+            ;;
+        esac
         ;;
       gone)
         [ "$code" = agent_not_found ] && return 0
@@ -117,6 +122,9 @@ wait_until() {  # <pane_id> <idle|gone> [attempts]
     esac
     sleep 0.5
   done
+  lab agent get "$pane" >&2 || printf 'agent diagnostics unavailable for %s\n' "$pane" >&2
+  lab pane read "$pane" --source recent --lines 20 >&2 \
+    || printf 'pane diagnostics unavailable for %s\n' "$pane" >&2
   return 1
 }
 
@@ -157,13 +165,22 @@ assert_exited_to_shell() {  # <pane_id> <label>
 TRUST="$TMP_ROOT/trust.ts"
 cat > "$TRUST" <<'EOF'
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { writeFileSync } from "node:fs";
 export default function (pi: ExtensionAPI) {
+  const readyFile = process.env.FM_HERDR_PI_READY_FILE;
+  if (!readyFile) throw new Error("missing Pi liveness fixture readiness path");
   pi.on("project_trust", () => ({ trusted: "yes", remember: false }));
+  pi.on("session_start", () => { writeFileSync(readyFile, `${process.pid}\n`); });
 }
 EOF
 
-# Child of the pane shell, never exec, so /quit and SIGKILL return to zsh.
-PI_CMD=$(printf 'env PI_CODING_AGENT_DIR=%q pi -e %q --no-context-files --no-session' "$PI_DIR" "$TRUST")
+launch_pi() {  # <pane_id> <ready-file>
+  local command
+  # Never exec: /quit and SIGKILL must return to the surviving pane shell.
+  command=$(printf 'env PI_CODING_AGENT_DIR=%q FM_HERDR_PI_READY_FILE=%q pi -e %q --no-context-files --no-session' \
+    "$PI_DIR" "$2" "$TRUST")
+  lab pane run "$1" "$command"
+}
 
 CREATE=$(lab workspace create --cwd "$PROJECT" --label 'agent-exit-shell' --no-focus) \
   || fail 'could not create the lab workspace'
@@ -181,13 +198,14 @@ KILL_TAB=$(lab tab create --workspace "$WS" --cwd "$PROJECT" --label kill-to-she
 P_KILL=$(printf '%s' "$KILL_TAB" | jq -er '.result.root_pane.pane_id // .result.pane.pane_id') \
   || fail 'could not read the SIGKILL pane id'
 
-lab pane run "$P_LIVE" "$PI_CMD" >/dev/null || fail 'could not launch live-idle Pi'
-lab pane run "$P_QUIT" "$PI_CMD" >/dev/null || fail 'could not launch /quit Pi'
-lab pane run "$P_KILL" "$PI_CMD" >/dev/null || fail 'could not launch SIGKILL Pi'
+launch_pi "$P_LIVE" "$READY_DIR/live" >/dev/null || fail 'could not launch live-idle Pi'
+launch_pi "$P_QUIT" "$READY_DIR/quit" >/dev/null || fail 'could not launch /quit Pi'
+launch_pi "$P_KILL" "$READY_DIR/kill" >/dev/null || fail 'could not launch SIGKILL Pi'
 
-wait_until "$P_LIVE" idle || fail 'live-idle Pi never became idle on agent get'
-wait_until "$P_QUIT" idle || fail '/quit Pi never became idle on agent get'
-wait_until "$P_KILL" idle || fail 'SIGKILL Pi never became idle on agent get'
+# Agent registration precedes Pi's editor readiness while managed tools load.
+wait_until "$P_LIVE" idle 90 "$READY_DIR/live" || fail 'live-idle Pi never became ready and idle'
+wait_until "$P_QUIT" idle 90 "$READY_DIR/quit" || fail '/quit Pi never became ready and idle'
+wait_until "$P_KILL" idle 90 "$READY_DIR/kill" || fail 'SIGKILL Pi never became ready and idle'
 
 assert_live_idle "$P_LIVE" 'before-exit live-idle'
 
