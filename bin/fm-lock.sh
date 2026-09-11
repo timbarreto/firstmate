@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Acquire or inspect the per-home firstmate session lock.
-# Writes the harness (agent) process PID found by walking the shell's ancestry,
-# which lives as long as the firstmate session - unlike the transient subshell
+# Writes the harness (agent) process PID from ancestry or a verified Windows
+# session handoff, which lives as long as the session - unlike the transient subshell
 # PID of any one tool call, which is dead moments after it is written.
 # Usage: fm-lock.sh           acquire; exit 1 unless ownership is verified
 #        fm-lock.sh status    print holder and liveness; always exits 0
@@ -29,9 +29,30 @@ if [ "${1:-}" = "status" ]; then
     echo "lock: unreadable"
     exit 0
   }
-  if fm_harness_pid_alive "$old"; then echo "lock: held by live harness pid $old"; else echo "lock: stale (pid $old dead or not a harness)"; fi
+  if fm_harness_pid_alive "$old"; then
+    echo "lock: held by live harness pid $old"
+  elif [ "$?" -eq 1 ]; then
+    echo "lock: stale (pid $old dead or not a harness)"
+  else
+    echo "lock: unverifiable (cannot inspect harness pid $old)"
+  fi
   exit 0
 fi
+
+# A native process query can fail independently of the holder's liveness.
+# Only verified dead/non-harness owners are eligible for replacement.
+require_stale_holder() {
+  local pid=$1 rc
+  if fm_harness_pid_alive "$pid"; then
+    echo "error: another live firstmate session holds the lock (pid $pid); operate read-only until resolved" >&2
+    return 1
+  else
+    rc=$?
+    [ "$rc" -eq 1 ] && return 0
+    echo "error: cannot verify session-lock holder (pid $pid); operate read-only until resolved" >&2
+    return 1
+  fi
+}
 
 me=$(fm_harness_ancestry_pid) || { echo "error: cannot locate harness process in ancestry" >&2; exit 1; }
 probe=$(mktemp "$STATE/.lock-write.XXXXXX" 2>/dev/null) || {
@@ -61,10 +82,7 @@ if [ -f "$LOCK" ] && [ ! -L "$LOCK" ]; then
     echo "lock acquired: harness pid $me"
     exit 0
   fi
-  if fm_harness_pid_alive "$old"; then
-    echo "error: another live firstmate session holds the lock (pid $old); operate read-only until resolved" >&2
-    exit 1
-  fi
+  require_stale_holder "$old" || exit 1
 fi
 
 if ! fm_lock_try_acquire "$CLAIM_LOCK"; then
@@ -86,9 +104,8 @@ if [ -e "$LOCK" ] || [ -L "$LOCK" ]; then
     echo "error: session lock is unreadable; operate read-only until resolved" >&2
     exit 1
   }
-  if [ "$old" != "$me" ] && fm_harness_pid_alive "$old"; then
-    echo "error: another live firstmate session holds the lock (pid $old); operate read-only until resolved" >&2
-    exit 1
+  if [ "$old" != "$me" ]; then
+    require_stale_holder "$old" || exit 1
   fi
 fi
 if ! { printf '%s\n' "$me" > "$LOCK"; } 2>/dev/null; then

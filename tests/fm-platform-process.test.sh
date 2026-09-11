@@ -206,7 +206,99 @@ JS
   pass "fresh clones and worktree-shaped homes execute both wrappers and tracked native dependencies"
 }
 
+# Exercise the actual PowerShell interface with a deterministic CIM provider.
+# Unlike the portable Bash fixtures, this pins snapshot traversal, PID reuse,
+# formatting and error distinctions inside the native implementation itself.
+test_native_process_facts_validate_ancestry_and_queries() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) return 0 ;;
+  esac
+  local dir="$TMP_ROOT/native-facts" probe helper input log out rc before
+  mkdir -p "$dir"
+  cat > "$dir/probe.ps1" <<'PS'
+param([string]$Helper, [string]$Operation)
+function Get-CimInstance {
+    param([string]$ClassName, [string]$Filter, [int]$OperationTimeoutSec)
+    Add-Content -LiteralPath $env:FM_NATIVE_TEST_LOG -Value "$ClassName|$Filter|$OperationTimeoutSec"
+    if ($env:FM_NATIVE_TEST_FAIL -eq '1') { throw 'simulated native query failure' }
+    $rows = Get-Content -LiteralPath $env:FM_NATIVE_TEST_INPUT -Raw | ConvertFrom-Json
+    foreach ($row in $rows) {
+        if ($row.CreationDate) { $row.CreationDate = [datetime]$row.CreationDate }
+    }
+    if ($Filter) {
+        if ($Filter -notmatch '^ProcessId = ([0-9]+)$') { throw 'unsafe native PID filter' }
+        return @($rows | Where-Object { $_.ProcessId -eq [int]$Matches[1] })
+    }
+    $rows
+}
+& $Helper $Operation
+exit $LASTEXITCODE
+PS
+  cat > "$dir/input.json" <<'JSON'
+[
+  {"ProcessId":9000,"ParentProcessId":8100,"Name":"bash.exe","ExecutablePath":"C:\\Git\\bash.exe","CommandLine":"bash.exe","CreationDate":"2026-01-03T00:00:00Z"},
+  {"ProcessId":8100,"ParentProcessId":8000,"Name":"claude.exe","ExecutablePath":"C:\\Tools\\claude.exe","CommandLine":"claude.exe --note a\tb\n123\tforged.exe","CreationDate":"2026-01-02T00:00:00Z"},
+  {"ProcessId":8000,"ParentProcessId":1,"Name":"powershell.exe","ExecutablePath":null,"CommandLine":"powershell.exe","CreationDate":"2026-01-01T00:00:00Z"}
+]
+JSON
+  cp "$dir/input.json" "$dir/original.json"
+  probe=$(cygpath -w "$dir/probe.ps1")
+  helper=$(cygpath -w "$ROOT/bin/platform/windows-process.ps1")
+  input=$(cygpath -w "$dir/input.json")
+  log=$(cygpath -w "$dir/queries")
+  native_facts_query() {
+    FM_NATIVE_TEST_INPUT="$input" FM_NATIVE_TEST_LOG="$log" FM_PROCESS_NATIVE_PID="$2" \
+      powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$probe" "$helper" "$1"
+  }
+
+  out=$(native_facts_query parent-processes 9000) || fail "native parent snapshot failed"
+  out=${out//$'\r'/}
+  [ "$out" = "$(printf '8100\tC:/Tools/claude.exe\tclaude.exe --note a b 123 forged.exe\n8000\tpowershell.exe\tpowershell.exe')" ] \
+    || fail "native rows lost parent order or allowed command-line row injection: $out"
+  [ "$(wc -l < "$dir/queries" | tr -d ' ')" = 1 ] || fail "native ancestry queried once per hop"
+  out=$(native_facts_query process-info 8100) || fail "native single-PID lookup failed"
+  out=${out//$'\r'/}
+  [ "$out" = "$(printf '8100\tC:/Tools/claude.exe\tclaude.exe --note a b 123 forged.exe')" ] \
+    || fail "native single-PID lookup changed identity fields"
+
+  rc=0
+  out=$(native_facts_query process-info 7777) || rc=$?
+  expect_code 3 "$rc" "missing native PID must be distinguished from query failure"
+  [ -z "$out" ] || fail "absent native PID printed process facts"
+  rc=0
+  out=$(FM_NATIVE_TEST_FAIL=1 native_facts_query process-info 8100) || rc=$?
+  expect_code 2 "$rc" "failed native query must be uncertainty, not death"
+  [ -z "$out" ] || fail "failed native query printed process facts"
+  before=$(wc -l < "$dir/queries" | tr -d ' ')
+  rc=0
+  out=$(native_facts_query process-info '8100; exit 0') || rc=$?
+  expect_code 2 "$rc" "invalid native PID must be rejected before querying"
+  [ "$(wc -l < "$dir/queries" | tr -d ' ')" = "$before" ] || fail "invalid PID reached the native query"
+
+  jq '.[1].CreationDate = "2026-01-04T00:00:00Z"' "$dir/original.json" > "$dir/input.json"
+  out=$(native_facts_query parent-processes 9000) || fail "reused-parent detection failed"
+  [ -z "$out" ] || fail "a reused parent PID was included in native ancestry"
+  jq 'map(select(.ProcessId != 8100))' "$dir/original.json" > "$dir/input.json"
+  out=$(native_facts_query parent-processes 9000) || fail "orphaned native root was not handled"
+  [ -z "$out" ] || fail "a missing parent was replaced by an unrelated native process"
+  jq '.[1].ParentProcessId = 9000' "$dir/original.json" > "$dir/input.json"
+  rc=0
+  out=$(native_facts_query parent-processes 9000) || rc=$?
+  expect_code 2 "$rc" "a cyclic native snapshot must refuse"
+  [ -z "$out" ] || fail "cyclic snapshot leaked partial trusted ancestry"
+  rc=0
+  out=$(native_facts_query parent-processes 7777) || rc=$?
+  expect_code 2 "$rc" "an absent native root is not a successful empty ancestry"
+
+  jq -n '[range(0;20) | {ProcessId:(1000+.),ParentProcessId:(1001+.),Name:"bash.exe",ExecutablePath:null,CommandLine:"bash.exe",CreationDate:"2026-01-01T00:00:00Z"}]' > "$dir/input.json"
+  out=$(native_facts_query parent-processes 1000) || fail "bounded native ancestry failed"
+  [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 16 ] || fail "native ancestry exceeded its depth bound"
+  pass "native process facts use one bounded snapshot, sanitize rows, reject reused parents, and distinguish missing PIDs from query errors"
+}
+
 fm_test_run_cases \
+  test_native_process_facts_validate_ancestry_and_queries \
   test_process_compatibility_contracts \
   test_process_facts_preserve_proc_and_ps \
   test_transport_preserves_literal_data \

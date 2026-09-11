@@ -86,6 +86,50 @@ fm_harness_process_matches() {  # <comm> <args>
   return 1
 }
 
+# The lock format is a numeric PID shared with existing POSIX/Copilot callers.
+# MSYS and Windows can assign that number to different live harnesses. Refuse
+# ownership in that ambiguous case; never let a native lookup claim a different
+# MSYS session (or vice versa). The subshell preserves the caller's Claude flag.
+_fm_harness_pid_namespace_unambiguous() (
+  local pid=$1 native_mode=$2 proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc} winpid row other_pid comm args rc
+  [ -r "$proc_root/$pid/winpid" ] || return 0
+  fm_platform_windows_process_supported || return 0
+  winpid=$(<"$proc_root/$pid/winpid")
+  case "$winpid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+  [ "$winpid" != "$pid" ] || return 0
+  if [ "$native_mode" -eq 1 ]; then
+    comm=$(fm_session_process_comm "$pid") || return 1
+    args=$(fm_session_process_args "$pid")
+  elif row=$(fm_platform_windows_process_info "$pid"); then
+    IFS=$'\t' read -r other_pid comm args <<< "$row"
+    [ "$other_pid" = "$pid" ] && [ -n "$comm" ] || return 1
+  else
+    rc=$?
+    [ "$rc" -eq 1 ]
+    return
+  fi
+  ! fm_harness_process_matches "$comm" "$args"
+)
+
+# Claude's Windows hook/tool launcher may exit before its child runs, so even
+# the native parent chain can be gone. Claude supplies CLAUDE_PID as a session
+# handoff (verified by tests/fm-claude-session-lock-live-e2e.test.sh). Use it only
+# after ancestry finds no harness, only with Claude's session markers, and only
+# after a fresh native lookup proves that PID still names Claude. Never trust a
+# bare environment PID, reinterpret it as MSYS, or accept a different harness.
+fm_claude_windows_session_pid() {
+  local pid=${CLAUDE_PID:-} session=${CLAUDE_CODE_SESSION_ID:-} row native_pid comm args
+  [ "${CLAUDECODE:-}" = 1 ] || return 1
+  case "$pid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+  [[ "$session" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 1
+  row=$(fm_platform_windows_process_info "$pid") || return 1
+  IFS=$'\t' read -r native_pid comm args <<< "$row"
+  [ "$native_pid" = "$pid" ] && [ -n "$comm" ] || return 1
+  fm_harness_process_matches "$comm" "$args" && [ "$FM_HARNESS_IS_CLAUDE" -eq 1 ] || return 1
+  _fm_harness_pid_namespace_unambiguous "$pid" 1 || return 2
+  printf '%s\n' "$pid"
+}
+
 # Walk the current process ancestry (up to 16 hops) and print this session's
 # contiguous verified-harness ancestry, innermost pid first.
 #
@@ -104,17 +148,44 @@ fm_harness_process_matches() {  # <comm> <args>
 # claude), with no non-harness process between them. Which pid in that run is the
 # session cannot be read off the ancestry at all, so the whole contiguous run is
 # reported and the callers below decide what they need from it.
+# On MSYS/Cygwin the visible tree can end at PPID 1 below a native Windows
+# parent. Cross that edge once using the platform's native snapshot, keeping
+# native PIDs in their own lookup path rather than feeding them to POSIX ps.
 fm_harness_ancestry_pids() {
-  local pid=$$ comm args extending=0 printed=0
+  local pid=$$ comm args parent row native_rows='' native_mode=0 rc extending=0 printed=0
   if pid=$(fm_copilot_loader_pid 2>/dev/null); then
     printf '%s\n' "$pid"
     return 0
   fi
   pid=$$
   for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
-    comm=$(fm_session_process_comm "$pid") || break
-    args=$(fm_session_process_args "$pid")
+    if [ "$native_mode" -eq 0 ]; then
+      if comm=$(fm_session_process_comm "$pid"); then
+        args=$(fm_session_process_args "$pid")
+      else
+        # Some MSYS versions expose winpid but not the POSIX status/ps fields.
+        if native_rows=$(fm_platform_windows_parent_processes "$pid"); then
+          native_mode=1
+        else
+          rc=$?
+          [ "$rc" -eq 1 ] || return 2
+          break
+        fi
+      fi
+    fi
+    if [ "$native_mode" -eq 1 ]; then
+      [ -n "$native_rows" ] || break
+      row=${native_rows%%$'\n'*}
+      case "$native_rows" in
+        *$'\n'*) native_rows=${native_rows#*$'\n'} ;;
+        *) native_rows='' ;;
+      esac
+      IFS=$'\t' read -r pid comm args <<< "$row"
+      case "$pid" in ''|*[!0-9]*|0|1) return 2 ;; esac
+      [ -n "$comm" ] || return 2
+    fi
     if fm_harness_process_matches "$comm" "$args"; then
+      _fm_harness_pid_namespace_unambiguous "$pid" "$native_mode" || return 2
       printf '%s\n' "$pid"
       printed=1
       [ "$FM_HARNESS_IS_CLAUDE" -eq 1 ] || break
@@ -122,10 +193,23 @@ fm_harness_ancestry_pids() {
     elif [ "$extending" -eq 1 ]; then
       break
     fi
-    pid=$(fm_session_process_ppid "$pid")
-    [ -n "$pid" ] && [ "$pid" -gt 1 ] || break
+    if [ "$native_mode" -eq 0 ]; then
+      parent=$(fm_session_process_ppid "$pid")
+      if [ -n "$parent" ] && [ "$parent" -gt 1 ] 2>/dev/null; then
+        pid=$parent
+      elif native_rows=$(fm_platform_windows_parent_processes "$pid"); then
+        native_mode=1
+      else
+        rc=$?
+        [ "$rc" -eq 1 ] || return 2
+        break
+      fi
+    fi
   done
-  [ "$printed" -eq 1 ]
+  if [ "$printed" -eq 1 ]; then
+    return 0
+  fi
+  fm_claude_windows_session_pid
 }
 
 # Print the one pid that identifies this session when the session lock is being
@@ -147,20 +231,33 @@ EOF
 }
 
 # True if $1 is a live process that looks like a verified harness.
+# Return 1 for dead/non-harness, 2 when native facts cannot be verified. A caller
+# reclaiming a lock must not confuse a failed query with evidence of death.
 fm_harness_pid_alive() {
-  local pid=$1 comm args
-  if ! kill -0 "$pid" 2>/dev/null; then
-    fm_copilot_windows_pid_matches "$pid"
-    return
+  local pid=$1 comm args row native_pid rc
+  case "$pid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+  if kill -0 "$pid" 2>/dev/null; then
+    comm=$(fm_session_process_comm "$pid") || comm=''
+    args=$(fm_session_process_args "$pid")
+    if [ -n "$comm" ] && fm_harness_process_matches "$comm" "$args"; then
+      return 0
+    fi
+  elif fm_copilot_windows_pid_matches "$pid"; then
+    return 0
   fi
-  comm=$(fm_session_process_comm "$pid") || return 1
-  args=$(fm_session_process_args "$pid")
-  fm_harness_process_matches "$comm" "$args"
+  if row=$(fm_platform_windows_process_info "$pid"); then
+    IFS=$'\t' read -r native_pid comm args <<< "$row"
+    [ "$native_pid" = "$pid" ] && [ -n "$comm" ] || return 2
+    fm_harness_process_matches "$comm" "$args"
+  else
+    rc=$?
+    return "$rc"
+  fi
 }
 
-# True when state dir $1 holds a session lock whose pid is ANY harness ancestor
-# of the current process: this script runs inside the session that owns the
-# home's fleet lock. Membership is the honest test of that question, because the
+# True when state dir $1 holds a session lock whose pid is one of this session's
+# verified harness PIDs (live ancestry or the Windows handoff above): this script
+# runs inside the session that owns the home. Membership matters because the
 # lock owner sits at an unknown depth in a contiguous Claude run - it is the
 # outermost pid when the hook fires inside the session's own nested worker chain,
 # and an inner pid when a harness-named daemon parents the session. A missing
