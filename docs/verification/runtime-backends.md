@@ -30,6 +30,31 @@ The model performs one harmless Bash command and completes its turn; no real fle
 `tests/fm-platform-process.test.sh` exercises the native snapshot's depth bound, reused-parent rejection, row framing, and missing-PID versus query-error results.
 [Fork architecture](../fork/architecture.md#process-and-native-transport-seam) owns implementation placement and compatibility boundaries.
 
+### Enabled Claude settings alongside Copilot
+
+Verified on 2026-09-11 with GitHub Copilot CLI 1.0.84-3 and Claude Code 2.1.269 on Windows/Git Bash.
+Copilot imported `.claude/settings.json` as repository settings and attempted its command-only hooks in PowerShell; the wildcard pre-tool hook produced a parser error and denied a file read.
+The same read succeeded with only the Claude configuration absent, while Copilot's native hooks remained loaded.
+The coexistence guard now loads both tracked configurations, requires successful `skill` and `view` calls, verifies that no Claude operational script runs under Copilot, and then confirms a native Copilot pre-tool policy can still deny the read.
+Hook bodies are recorders in a temporary project, not fleet operations.
+
+```sh
+FM_COPILOT_HOOKS_LIVE_E2E=1 FM_TEST_ONLY=test_claude_settings_coexist_with_copilot \
+  bin/fm-test-run.sh tests/fm-copilot-hooks-live-e2e.test.sh
+FM_CLAUDE_SESSION_LOCK_LIVE_E2E=1 \
+  bin/fm-test-run.sh tests/fm-claude-session-lock-live-e2e.test.sh
+```
+
+Relevant output:
+
+```text
+ok - GitHub Copilot CLI 1.0.84-3.: skill and file reads work with Claude settings enabled; native Copilot hooks still run and enforce denial
+ok - Claude 2.1.269 (Claude Code): SessionStart, Bash pre-tool hooks, and both Stop hooks verify one live session owner
+```
+
+The complete Copilot live suite also passed its discovery/order and asynchronous notification cases on this version.
+[Turn-end guard integrations](../turnend-guard.md#harness-integrations) owns the shared-settings dispatch contract.
+
 ## tmux
 
 Foreground-process behavior was verified on 2026-07-07 with tmux 3.6a on macOS.
