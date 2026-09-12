@@ -51,6 +51,14 @@ fm_herdr_lab_tripwire_path() { # <session>
 fm_herdr_lab_raw() { # <session> <herdr arguments...>
   local name=$1
   shift
+  # Literal terminal input must survive the same MSYS boundary as production
+  # sends; keep normal path conversion for commands carrying --cwd and files.
+  case "${1:-} ${2:-}" in
+    'pane send-text'|'pane run'|'agent prompt')
+      local MSYS_NO_PATHCONV=1
+      export MSYS_NO_PATHCONV
+      ;;
+  esac
   HERDR_SESSION="$name" herdr "$@" --session "$name"
 }
 
@@ -195,7 +203,12 @@ fm_herdr_lab_provision() { # <session>
   else
     fm_herdr_lab_prepare "$name" || return 1
   fi
-  fm_herdr_lab_raw "$name" server >/dev/null 2>&1 &
+  # Own the server process itself, not a function shell whose child can survive
+  # cancellation on POSIX. The validated lab name still scopes every call.
+  (
+    export HERDR_SESSION="$name"
+    exec herdr server --session "$name"
+  ) >/dev/null 2>&1 &
   server_pid=$!
   attempt=0
   max_attempts=300

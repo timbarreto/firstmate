@@ -7,10 +7,13 @@ When this session owns supervision and away mode is not active:
    On macOS and Linux, run `bin/fm-watch-arm.sh`.
    On Windows, run `./bin/fm-watch-arm.ps1`.
    Never append a shell ampersand, use `nohup`, add a pipeline, or bundle another command into the same tool call.
-3. The asynchronous tool call must return immediately.
-   End the response after launch when there is nothing else to tell the captain, so captain prompts remain available while the watcher runs.
-4. Copilot emits a `shell_completed` or `shell_detached_completed` notification when the watcher task ends.
-   The tracked `notification` hook injects a typed handling turn only when supervision still needs attention and no healthy watcher remains.
+3. The asynchronous tool call must return immediately with its tracked task identifier.
+   Use the native task-output reader (`read_powershell` on Windows) to confirm the arm wrapper's `started` or `attached` result, or handle its explicit failure, before reporting monitoring restored.
+   This is a bounded startup confirmation, not a wait for the watcher to finish.
+   End the response after confirmation when there is nothing else to tell the captain, so captain prompts remain available while the watcher runs.
+4. Copilot emits a native shell-completion notice and a `shell_completed` or `shell_detached_completed` hook event when the watcher task ends.
+   The tracked `notification` hook adds typed handling context only when supervision still needs attention and no healthy watcher remains.
+   The native notice can arrive before that context; read the completed task's output and follow step 5 rather than waiting for a second notice.
 5. On a watcher notification, read the completed shell task output when it is not already included, run `bin/fm-wake-drain.sh` first, handle the event, acknowledge it, and start the next asynchronous watcher task if supervision is still needed.
 6. The `agentStop` hook is a short backstop only.
    It never runs or waits for the watcher.

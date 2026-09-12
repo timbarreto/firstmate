@@ -394,6 +394,14 @@ fm_backend_herdr_workspace_label() {
 fm_backend_herdr_cli() {  # <session> <herdr-subcommand-and-args...>
   local session=$1 rc=0 err failed_bin selected_bin client_bin=herdr
   shift
+  # These arguments are terminal data, not host paths. MSYS otherwise rewrites
+  # /exit (and slash skills) before native herdr.exe ever receives them.
+  case "${1:-} ${2:-}" in
+    'pane send-text'|'pane run'|'agent prompt')
+      local MSYS_NO_PATHCONV=1
+      export MSYS_NO_PATHCONV
+      ;;
+  esac
   if [ "${FM_BACKEND_HERDR_CLIENT_SESSION:-}" = "$session" ]; then
     client_bin=$(fm_backend_herdr_bin)
   fi

@@ -43,7 +43,18 @@ case "$1 ${2:-}" in
     fi
     ;;
   "server --session")
-    if [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" != 0 ]; then
+    if [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" = until-release ]; then
+      : > "$state/$session.launch-started"
+      printf '%s\n' "$$" > "$state/$session.launch-pid"
+      deadline=$((SECONDS + ${FM_TEST_STUB_MAX_BLOCK_SECONDS:-120}))
+      while [ ! -e "$state/$session.release-launch" ]; do
+        if [ "$SECONDS" -ge "$deadline" ]; then
+          : > "$state/$session.launch-expired"
+          exit 1
+        fi
+        "$FM_FAKE_HERDR_REAL_SLEEP" 0.1
+      done
+    elif [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" != 0 ]; then
       "$FM_FAKE_HERDR_REAL_SLEEP" "$FM_FAKE_HERDR_SERVER_DELAY"
     fi
     printf '%s\n' running > "$state/$session"
@@ -210,6 +221,12 @@ test_failed_delete_retains_tripwire() {
 
 test_timed_out_provision_cancels_late_launch() {
   local name="fm-lab-late-launch-$$" status=0
+  local cancelled_pid="$FAKE_STATE/cancelled-pid"
+  # shellcheck disable=SC2329 # Called indirectly by fm_herdr_lab_cancel_provision.
+  kill() {
+    [ "${1:-}" != -TERM ] || printf '%s\n' "$2" > "$cancelled_pid"
+    builtin kill "$@"
+  }
   cat > "$FAKEBIN/sleep" <<'SH'
 #!/usr/bin/env bash
 if [ "${FM_FAKE_HERDR_FAST_POLL:-}" = 1 ]; then
@@ -219,14 +236,22 @@ exec "$FM_FAKE_HERDR_REAL_SLEEP" "$@"
 SH
   chmod +x "$FAKEBIN/sleep"
   : > "$FAKE_LOG"
-  FM_FAKE_HERDR_FAST_POLL=1 FM_FAKE_HERDR_SERVER_DELAY=30 \
+  # Hold publication until this test releases it: 300 fast polls still take
+  # longer than a fixed 30-second sleep on Git Bash, so time is not the signal.
+  FM_FAKE_HERDR_FAST_POLL=1 FM_FAKE_HERDR_SERVER_DELAY=until-release \
     run_with_fake fm_herdr_lab_provision "$name" >/dev/null 2>&1 || status=$?
+  unset -f kill
   expect_code 1 "$status" "timed-out provision must fail"
+  assert_present "$FAKE_STATE/$name.launch-started" "the fake server never started"
+  [ "$(cat "$cancelled_pid")" = "$(cat "$FAKE_STATE/$name.launch-pid")" ] \
+    || fail "provision timeout targeted a wrapper PID instead of the owned server process"
+  assert_absent "$FAKE_STATE/$name.launch-expired" "fixture lifetime expired before the production timeout"
   assert_present "$TRIPWIRES/$name.fleet-state.json" \
     "timed-out provision must retain its tripwire until teardown"
   run_with_fake fm_herdr_lab_teardown "$name" || fail "teardown after timed-out provision failed"
   assert_absent "$TRIPWIRES/$name.fleet-state.json" \
     "teardown after timed-out provision did not remove its tripwire"
+  : > "$FAKE_STATE/$name.release-launch"
   "$REAL_SLEEP" 1.1
   if [ -f "$FAKE_STATE/$name" ] && [ "$(cat "$FAKE_STATE/$name")" = running ]; then
     fail "timed-out provision left a late-starting lab session after teardown"
@@ -234,10 +259,11 @@ SH
   pass "fm-herdr-lab: timed-out provisioning cancels the launch before teardown"
 }
 
-test_refuses_unsafe_names
-test_provision_run_and_guarded_teardown
-test_missing_tripwire_blocks_destruction
-test_changed_default_trips_after_teardown
-test_stopped_owned_lab_can_reprovision
-test_failed_delete_retains_tripwire
-test_timed_out_provision_cancels_late_launch
+fm_test_run_cases \
+  test_refuses_unsafe_names \
+  test_provision_run_and_guarded_teardown \
+  test_missing_tripwire_blocks_destruction \
+  test_changed_default_trips_after_teardown \
+  test_stopped_owned_lab_can_reprovision \
+  test_failed_delete_retains_tripwire \
+  test_timed_out_provision_cancels_late_launch

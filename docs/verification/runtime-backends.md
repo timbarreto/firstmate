@@ -55,6 +55,36 @@ ok - Claude 2.1.269 (Claude Code): SessionStart, Bash pre-tool hooks, and both S
 The complete Copilot live suite also passed its discovery/order and asynchronous notification cases on this version.
 [Turn-end guard integrations](../turnend-guard.md#harness-integrations) owns the shared-settings dispatch contract.
 
+### Native Copilot supervision and command transport
+
+Verified on 2026-09-12 UTC with Copilot CLI 1.0.84-3 and 1.0.84-5, Herdr 0.8.2, and Git for Windows.
+A native hook carried a valid `sessionId` and loader PID while omitting `COPILOT_AGENT_SESSION_ID`; without transport binding, a later Stop could fail ownership after startup had acquired the same session's lock.
+The portable regression refused to emit the required repair before the fix and emitted it after binding the per-event identity, while malformed identifiers and unverified native PIDs remained refused.
+A native argument recorder separately observed `/exit` becoming `C:/Program Files/Git/exit` before the Herdr transport fix; the fixed transport preserved slash input and retained filesystem-path conversion.
+
+```sh
+FM_COPILOT_PRIMARY_LIVE_E2E=1 \
+  bin/fm-test-run.sh tests/fm-copilot-primary-live-e2e.test.sh
+```
+
+The native guard runs an interactive Copilot in a guarded non-default Herdr lab with a local deterministic provider and an isolated trusted profile.
+`FM_COPILOT_BIN` selects another installed Copilot executable for the version comparison.
+Only startup digest, watcher body, and wake-drain fixture ports are substituted; session ownership, the tracked registrations, PowerShell/Git Bash transports, arm confirmation, Stop policy, and completion notification handling remain real.
+The guard verifies a missing-watcher repair, confirmed native asynchronous startup, a responsive user prompt while monitoring runs, completion output retrieval, handling before rearming, exactly two watcher starts, and literal `/exit` without closing the pane.
+It spends no model tokens and does not use the live fleet's state or authentication.
+
+Relevant output for each tested version:
+
+```text
+harness: Copilot 1.0.84-3
+ok - native Copilot repairs a missing watcher, stays responsive, handles its completion, rearms exactly once, and accepts literal /exit
+harness: Copilot 1.0.84-5
+ok - native Copilot repairs a missing watcher, stays responsive, handles its completion, rearms exactly once, and accepts literal /exit
+```
+
+The native shell-completion notice arrived before Firstmate's supplemental hook context in this run, so handling must not wait for that context to precede the native notice.
+[Copilot supervision](../supervision-protocols/copilot.md) owns that procedure, and [Herdr](../herdr-backend.md) owns literal command transport.
+
 ## tmux
 
 Foreground-process behavior was verified on 2026-07-07 with tmux 3.6a on macOS.

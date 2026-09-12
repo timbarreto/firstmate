@@ -1,23 +1,44 @@
 #!/usr/bin/env bash
 # GitHub Copilot CLI hook transport for primary and worker sessions.
+# Native hook processes can omit COPILOT_AGENT_SESSION_ID even though their
+# payload carries sessionId. Bind that per-event identity before downstream
+# ownership checks; the shared harness adapter still verifies the loader PID.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ "${COPILOT_CLI:-}" = 1 ] || exit 0
 
 case "${1:-}" in
-  session-start)
+  session-start|primary-stop|notification|pretool)
     PAYLOAD=$(cat 2>/dev/null || true)
+    if command -v jq >/dev/null 2>&1; then
+      HOOK_SESSION_ID=$(printf '%s' "$PAYLOAD" | jq -er '
+        if type != "object" then empty
+        elif (.sessionId | type) == "string" then .sessionId
+        elif (.session_id | type) == "string" then .session_id
+        else empty
+        end
+        | select(test("\\A[A-Za-z0-9._-]+\\z"))
+      ' 2>/dev/null) || HOOK_SESSION_ID=
+      case "$HOOK_SESSION_ID" in
+        ''|*[!A-Za-z0-9._-]*) ;;
+        *) export COPILOT_AGENT_SESSION_ID="$HOOK_SESSION_ID" ;;
+      esac
+    fi
+    ;;
+esac
+
+case "${1:-}" in
+  session-start)
     DIGEST=$(printf '%s' "$PAYLOAD" | "$SCRIPT_DIR/fm-sessionstart-run.sh" 2>/dev/null || true)
     [ -n "$DIGEST" ] || exit 0
     command -v jq >/dev/null 2>&1 || exit 0
     jq -n --arg c "$DIGEST" '{additionalContext:$c}' 2>/dev/null || true
     ;;
   primary-stop)
-    exec "$SCRIPT_DIR/fm-copilot-stop.sh"
+    exec "$SCRIPT_DIR/fm-copilot-stop.sh" <<< "$PAYLOAD"
     ;;
   notification)
-    PAYLOAD=$(cat 2>/dev/null || true)
     [ -n "$PAYLOAD" ] || exit 0
     command -v jq >/dev/null 2>&1 || exit 0
     TYPE=$(printf '%s' "$PAYLOAD" | jq -r '
@@ -61,9 +82,9 @@ case "${1:-}" in
     ;;
   pretool)
     case "${2:-}" in
-      arm) exec "$SCRIPT_DIR/fm-arm-pretool-check.sh" --copilot ;;
-      cd) exec "$SCRIPT_DIR/fm-cd-pretool-check.sh" --copilot ;;
-      subagent) exec "$SCRIPT_DIR/fm-subagent-pretool-check.sh" --copilot ;;
+      arm) exec "$SCRIPT_DIR/fm-arm-pretool-check.sh" --copilot <<< "$PAYLOAD" ;;
+      cd) exec "$SCRIPT_DIR/fm-cd-pretool-check.sh" --copilot <<< "$PAYLOAD" ;;
+      subagent) exec "$SCRIPT_DIR/fm-subagent-pretool-check.sh" --copilot <<< "$PAYLOAD" ;;
       *) exit 0 ;;
     esac
     ;;

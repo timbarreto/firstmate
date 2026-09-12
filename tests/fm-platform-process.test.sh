@@ -297,7 +297,50 @@ JSON
   pass "native process facts use one bounded snapshot, sanitize rows, reject reused parents, and distinguish missing PIDs from query errors"
 }
 
+# A native argv recorder models the exact MSYS -> herdr.exe boundary. A Bash
+# fake alone cannot expose rewriting of /exit and other slash-prefixed input.
+test_herdr_windows_preserves_literal_agent_input() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) return 0 ;;
+  esac
+  local dir="$TMP_ROOT/native-herdr-input" recorder log native_dir
+  mkdir -p "$dir"
+  recorder=$(cygpath -w "$dir/record.cjs")
+  log=$(cygpath -w "$dir/argv.jsonl")
+  native_dir=$(cygpath -w "$dir")
+  cat > "$dir/record.cjs" <<'JS'
+if (process.argv[2] === "status") {
+  console.log(JSON.stringify({ server: { running: true } }));
+} else {
+  require("node:fs").appendFileSync(process.env.FM_NATIVE_ARGV_LOG, JSON.stringify(process.argv.slice(2)) + "\n");
+}
+JS
+  # shellcheck disable=SC2016 # Expansion belongs to the fixture's Bash process.
+  env -u MSYS_NO_PATHCONV -u MSYS2_ARG_CONV_EXCL FM_NATIVE_RECORDER="$recorder" \
+    FM_NATIVE_ARGV_LOG="$log" bash -c '
+    . "$1/bin/backends/herdr.sh" || exit 1
+    herdr() { node "$FM_NATIVE_RECORDER" "$@"; }
+    fm_backend_herdr_send_literal "fixture:w1:p1" /exit || exit 1
+    fm_backend_herdr_send_text_line "fixture:w1:p1" /bearings || exit 1
+    fm_backend_herdr_cli fixture agent prompt w1:p1 /skill || exit 1
+    fm_backend_herdr_cli fixture workspace create --cwd "$2" --no-focus || exit 1
+  ' _ "$ROOT" "$dir" || fail "native Herdr argument transport failed"
+  FM_NATIVE_ARGV_LOG="$log" FM_NATIVE_EXPECTED_DIR="$native_dir" node <<'JS' \
+    || fail "MSYS rewrote agent input or lost normal cwd conversion"
+const assert = require("node:assert/strict");
+const rows = require("node:fs").readFileSync(process.env.FM_NATIVE_ARGV_LOG, "utf8").trim().split(/\r?\n/).map(JSON.parse);
+assert.deepEqual(rows[0], ["pane", "send-text", "w1:p1", "/exit", "--session", "fixture"]);
+assert.deepEqual(rows[1], ["pane", "run", "w1:p1", "/bearings", "--session", "fixture"]);
+assert.deepEqual(rows[2], ["agent", "prompt", "w1:p1", "/skill", "--session", "fixture"]);
+const cwd = rows[3][rows[3].indexOf("--cwd") + 1];
+assert.equal(cwd.replaceAll("\\", "/").toLowerCase(), process.env.FM_NATIVE_EXPECTED_DIR.replaceAll("\\", "/").toLowerCase());
+JS
+  pass "Herdr Windows transport preserves slash commands while retaining cwd path conversion"
+}
+
 fm_test_run_cases \
+  test_herdr_windows_preserves_literal_agent_input \
   test_native_process_facts_validate_ancestry_and_queries \
   test_process_compatibility_contracts \
   test_process_facts_preserve_proc_and_ps \

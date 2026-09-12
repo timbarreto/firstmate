@@ -21,8 +21,9 @@ Cross-harness provider and credential identity is owned by `references/common/mo
 ## Windows identity
 
 Git for Windows process ancestry can terminate at `PPID=1` before reaching native `copilot.exe`.
-`../../../bin/fm-session-lock-lib.sh` accepts the loader bridge only when all three Copilot markers are valid and `ps -W` proves that the recorded native PID is a live `copilot.exe`.
-MSYS `kill -0` cannot establish liveness for that native PID, so the validated Windows process table is the fallback for lock ownership and competing-owner checks.
+`../../../bin/fm-session-lock-lib.sh` accepts the loader bridge only when all three Copilot markers are valid and the platform image lookup verifies the recorded native PID as a live `copilot.exe`.
+Native hook processes can omit the session environment marker; `../../../bin/fm-ghcp-hook.sh` owns binding the hook payload's session identity before that unchanged loader verification.
+MSYS `kill -0` cannot establish liveness for a native PID outside its process table, so native process verification remains necessary for lock ownership and competing-owner checks.
 Copilot marker checks run before inherited Claude, Pi, Grok, and Cursor markers.
 `../../../bin/fm-spawn.sh` clears foreign markers on Copilot launches and clears Copilot markers on non-Copilot launches.
 

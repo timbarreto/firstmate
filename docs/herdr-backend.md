@@ -83,6 +83,8 @@ An older secondmate workspace using `firstmate-<id>` is not migrated automatical
 Recovery and list-live still scan the first workspace matching the home label, because they address panes they already recorded rather than choosing where new work goes.
 
 Existing task operations use recorded endpoint ids and do not move a live task when labels change.
+Terminal text and slash commands remain literal across the Git Bash/native Herdr boundary, while filesystem options such as `--cwd` retain normal path conversion.
+This prevents lifecycle input such as `/exit` from becoming a Git-for-Windows installation path instead of reaching the agent.
 The per-home workspace is reused while it has task tabs.
 Closing its last tab can remove the workspace, and the next spawn recreates it.
 
