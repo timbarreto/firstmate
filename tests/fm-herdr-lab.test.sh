@@ -43,7 +43,17 @@ case "$1 ${2:-}" in
     fi
     ;;
   "server --session")
-    if [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" != 0 ]; then
+    if [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" = until-release ]; then
+      : > "$state/$session.launch-started"
+      deadline=$((SECONDS + ${FM_TEST_STUB_MAX_BLOCK_SECONDS:-120}))
+      while [ ! -e "$state/$session.release-launch" ]; do
+        if [ "$SECONDS" -ge "$deadline" ]; then
+          : > "$state/$session.launch-expired"
+          exit 1
+        fi
+        "$FM_FAKE_HERDR_REAL_SLEEP" 0.1
+      done
+    elif [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" != 0 ]; then
       "$FM_FAKE_HERDR_REAL_SLEEP" "$FM_FAKE_HERDR_SERVER_DELAY"
     fi
     printf '%s\n' running > "$state/$session"
@@ -219,14 +229,19 @@ exec "$FM_FAKE_HERDR_REAL_SLEEP" "$@"
 SH
   chmod +x "$FAKEBIN/sleep"
   : > "$FAKE_LOG"
-  FM_FAKE_HERDR_FAST_POLL=1 FM_FAKE_HERDR_SERVER_DELAY=30 \
+  # Hold publication until this test releases it: 300 fast polls still take
+  # longer than a fixed 30-second sleep on Git Bash, so time is not the signal.
+  FM_FAKE_HERDR_FAST_POLL=1 FM_FAKE_HERDR_SERVER_DELAY=until-release \
     run_with_fake fm_herdr_lab_provision "$name" >/dev/null 2>&1 || status=$?
   expect_code 1 "$status" "timed-out provision must fail"
+  assert_present "$FAKE_STATE/$name.launch-started" "the fake server never started"
+  assert_absent "$FAKE_STATE/$name.launch-expired" "fixture lifetime expired before the production timeout"
   assert_present "$TRIPWIRES/$name.fleet-state.json" \
     "timed-out provision must retain its tripwire until teardown"
   run_with_fake fm_herdr_lab_teardown "$name" || fail "teardown after timed-out provision failed"
   assert_absent "$TRIPWIRES/$name.fleet-state.json" \
     "teardown after timed-out provision did not remove its tripwire"
+  : > "$FAKE_STATE/$name.release-launch"
   "$REAL_SLEEP" 1.1
   if [ -f "$FAKE_STATE/$name" ] && [ "$(cat "$FAKE_STATE/$name")" = running ]; then
     fail "timed-out provision left a late-starting lab session after teardown"

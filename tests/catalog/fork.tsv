@@ -15,6 +15,8 @@ test	tests/fm-copilot-harness.test.sh	pure-contract-unit
 test	tests/fm-reconcile-validation.test.sh	pure-contract-unit
 test	tests/fm-update-windows.test.sh	session-bootstrap
 test	tests/fm-copilot-hooks-live-e2e.test.sh	live-harness-optin
+test	tests/fm-copilot-primary-live-e2e.test.sh	live-harness-optin
+map	route-copilot-hook-transport	45	bin/fm-ghcp-hook.sh|bin/fm-ghcp-hook.ps1|tests/fm-copilot-primary-live-e2e.mjs	pure-contract-unit,live-harness-optin
 test	tests/fm-claude-session-lock-live-e2e.test.sh	live-harness-optin
 duration	tests/fm-copilot-hooks-live-e2e.test.sh	20
 duration	tests/fm-reconcile-validation.test.sh	15825

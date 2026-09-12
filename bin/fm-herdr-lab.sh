@@ -51,6 +51,14 @@ fm_herdr_lab_tripwire_path() { # <session>
 fm_herdr_lab_raw() { # <session> <herdr arguments...>
   local name=$1
   shift
+  # Literal terminal input must survive the same MSYS boundary as production
+  # sends; keep normal path conversion for commands carrying --cwd and files.
+  case "${1:-} ${2:-}" in
+    'pane send-text'|'pane run'|'agent prompt')
+      local MSYS_NO_PATHCONV=1
+      export MSYS_NO_PATHCONV
+      ;;
+  esac
   HERDR_SESSION="$name" herdr "$@" --session "$name"
 }
 

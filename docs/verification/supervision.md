@@ -258,6 +258,8 @@ The blocking and bounded-follow-up mechanisms were validated across eight harnes
 | Grok | 0.2.112 native and 0.2.73 pre-native | Running-payload adaptive `Stop` | Native false-to-true continuation stayed in one process with two model turns and zero resume launches; the field-absent pre-native process launched exactly one guarded resume. |
 | Cursor | 2026.08.11-e8db854 | Awaited `stop` hook park returning one `followup_message` | Exit 2 ended the turn normally, proving it cannot block; a returned follow-up ran a genuine second turn; a sleeping hook held the boundary open and the wake landed after it; `loop_limit` stopped the hook being invoked at its ceiling. |
 
+The Windows full-primary refresh for Copilot 1.0.84-3 and 1.0.84-5, including native hook identity, confirmed asynchronous startup, rearming, and literal agent exit, is recorded in [runtime backend verification](runtime-backends.md#native-copilot-supervision-and-command-transport).
+
 ### Copilot asynchronous supervision, 2026-09-01
 
 GitHub Copilot CLI 1.0.83-0 was run in two throwaway repositories with:

@@ -209,6 +209,74 @@ test_loader_marker_rejects_foreign_live_process() {
   pass "session identity: Copilot loader markers cannot claim a foreign live process"
 }
 
+test_hook_payload_supplies_missing_session_marker() {
+  local dir="$TMP_ROOT/payload-session" fakebin out payload
+  fakebin=$(make_fakebin "$dir")
+  install_primary_fixture "$dir"
+  : > "$dir/state/task.meta"
+  payload='{"sessionId":"payload-session","stop_hook_active":false}'
+  out=$(printf '%s' "$payload" | env -u COPILOT_AGENT_SESSION_ID \
+    COPILOT_CLI=1 COPILOT_LOADER_PID=876543 FM_HOME="$dir" \
+    FM_PROC_ROOT_OVERRIDE="$dir/no-proc" PATH="$fakebin:$PATH" \
+    "$dir/bin/fm-ghcp-hook.sh" primary-stop)
+  [ "$(printf '%s' "$out" | jq -r '.decision // empty')" = block ] \
+    || fail "a native hook payload must establish this Copilot session when its environment session marker is absent"
+  payload='{"sessionId":"payload-session","notification_type":"shell_completed"}'
+  out=$(printf '%s' "$payload" | env -u COPILOT_AGENT_SESSION_ID \
+    COPILOT_CLI=1 COPILOT_LOADER_PID=876543 FM_HOME="$dir" \
+    FM_PROC_ROOT_OVERRIDE="$dir/no-proc" PATH="$fakebin:$PATH" \
+    "$dir/bin/fm-ghcp-hook.sh" notification)
+  [ -n "$(printf '%s' "$out" | jq -r '.additionalContext // empty')" ] \
+    || fail "a completed watcher notification lost ownership without the optional environment session marker"
+  pass "Copilot hook payload session identity survives missing environment markers for Stop and notifications"
+}
+
+test_hook_payload_identity_keeps_native_pid_validation() {
+  local dir="$TMP_ROOT/payload-identity-refusal" fakebin out payload
+  fakebin=$(make_fakebin "$dir")
+  install_primary_fixture "$dir"
+  : > "$dir/state/task.meta"
+  for payload in \
+    '{"sessionId":123,"stop_hook_active":false}' \
+    '{"sessionId":"bad session; exit","stop_hook_active":false}' \
+    '{"sessionId":"bad\u0000session","stop_hook_active":false}' \
+    '{"sessionId":"bad\n","stop_hook_active":false}' \
+    '{"stop_hook_active":false}'; do
+    out=$(printf '%s' "$payload" | env -u COPILOT_AGENT_SESSION_ID \
+      COPILOT_CLI=1 COPILOT_LOADER_PID=876543 FM_HOME="$dir" \
+      FM_PROC_ROOT_OVERRIDE="$dir/no-proc" PATH="$fakebin:$PATH" \
+      "$dir/bin/fm-ghcp-hook.sh" primary-stop)
+    [ -z "$out" ] || fail "invalid or missing payload identity must not authorize a Stop"
+  done
+  out=$(printf '%s' '{"sessionId":"payload-session","stop_hook_active":false}' \
+    | env -u COPILOT_AGENT_SESSION_ID COPILOT_CLI=1 COPILOT_LOADER_PID=876544 \
+      FM_HOME="$dir" FM_PROC_ROOT_OVERRIDE="$dir/no-proc" PATH="$fakebin:$PATH" \
+      "$dir/bin/fm-ghcp-hook.sh" primary-stop)
+  [ -z "$out" ] || fail "a payload session ID must not replace verification of the native Copilot process"
+  pass "Copilot hook session binding preserves malformed-input and foreign-PID refusal"
+}
+
+test_pretool_binds_payload_session_and_preserves_input() {
+  local dir="$TMP_ROOT/pretool-session-input" fakebin payload out
+  fakebin=$(make_fakebin "$dir")
+  install_primary_fixture "$dir"
+  cat > "$dir/bin/fm-cd-pretool-check.sh" <<'SH'
+#!/usr/bin/env bash
+payload=$(cat)
+jq -cn --arg session "$COPILOT_AGENT_SESSION_ID" --argjson payload "$payload" '{session:$session,payload:$payload}'
+SH
+  chmod +x "$dir/bin/fm-cd-pretool-check.sh"
+  payload='{"session_id":"current-hook","tool_name":"Bash","tool_input":{"command":"printf \"two words\"\\n"}}'
+  out=$(printf '%s' "$payload" | COPILOT_CLI=1 COPILOT_LOADER_PID=876543 \
+    COPILOT_AGENT_SESSION_ID=stale-parent FM_HOME="$dir" PATH="$fakebin:$PATH" \
+    "$dir/bin/fm-ghcp-hook.sh" pretool cd)
+  [ "$(printf '%s' "$out" | jq -r .session)" = current-hook ] \
+    || fail "a per-event session must outrank the inherited session marker"
+  [ "$(printf '%s' "$out" | jq -cS .payload)" = "$(printf '%s' "$payload" | jq -cS .)" ] \
+    || fail "session binding consumed or changed the pre-tool payload"
+  pass "Copilot pre-tool transport binds the event session and preserves the original JSON payload"
+}
+
 test_primary_session_start_returns_additional_context() {
   local dir fakebin out
   dir="$TMP_ROOT/session"
@@ -504,6 +572,9 @@ fm_test_run_cases \
   test_marker_identity_outranks_inherited_harnesses \
   test_windows_loader_pid_owns_session_lock \
   test_loader_marker_rejects_foreign_live_process \
+  test_hook_payload_supplies_missing_session_marker \
+  test_hook_payload_identity_keeps_native_pid_validation \
+  test_pretool_binds_payload_session_and_preserves_input \
   test_primary_session_start_returns_additional_context \
   test_windows_powershell_pretool_transport \
   test_windows_bearings_transport_avoids_ambient_bash \
