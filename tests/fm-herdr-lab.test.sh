@@ -222,6 +222,7 @@ test_failed_delete_retains_tripwire() {
 test_timed_out_provision_cancels_late_launch() {
   local name="fm-lab-late-launch-$$" status=0
   local cancelled_pid="$FAKE_STATE/cancelled-pid"
+  # shellcheck disable=SC2329 # Called indirectly by fm_herdr_lab_cancel_provision.
   kill() {
     [ "${1:-}" != -TERM ] || printf '%s\n' "$2" > "$cancelled_pid"
     builtin kill "$@"
