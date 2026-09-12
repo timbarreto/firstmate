@@ -45,6 +45,7 @@ case "$1 ${2:-}" in
   "server --session")
     if [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" = until-release ]; then
       : > "$state/$session.launch-started"
+      printf '%s\n' "$$" > "$state/$session.launch-pid"
       deadline=$((SECONDS + ${FM_TEST_STUB_MAX_BLOCK_SECONDS:-120}))
       while [ ! -e "$state/$session.release-launch" ]; do
         if [ "$SECONDS" -ge "$deadline" ]; then
@@ -220,6 +221,11 @@ test_failed_delete_retains_tripwire() {
 
 test_timed_out_provision_cancels_late_launch() {
   local name="fm-lab-late-launch-$$" status=0
+  local cancelled_pid="$FAKE_STATE/cancelled-pid"
+  kill() {
+    [ "${1:-}" != -TERM ] || printf '%s\n' "$2" > "$cancelled_pid"
+    builtin kill "$@"
+  }
   cat > "$FAKEBIN/sleep" <<'SH'
 #!/usr/bin/env bash
 if [ "${FM_FAKE_HERDR_FAST_POLL:-}" = 1 ]; then
@@ -233,8 +239,11 @@ SH
   # longer than a fixed 30-second sleep on Git Bash, so time is not the signal.
   FM_FAKE_HERDR_FAST_POLL=1 FM_FAKE_HERDR_SERVER_DELAY=until-release \
     run_with_fake fm_herdr_lab_provision "$name" >/dev/null 2>&1 || status=$?
+  unset -f kill
   expect_code 1 "$status" "timed-out provision must fail"
   assert_present "$FAKE_STATE/$name.launch-started" "the fake server never started"
+  [ "$(cat "$cancelled_pid")" = "$(cat "$FAKE_STATE/$name.launch-pid")" ] \
+    || fail "provision timeout targeted a wrapper PID instead of the owned server process"
   assert_absent "$FAKE_STATE/$name.launch-expired" "fixture lifetime expired before the production timeout"
   assert_present "$TRIPWIRES/$name.fleet-state.json" \
     "timed-out provision must retain its tripwire until teardown"
@@ -249,10 +258,11 @@ SH
   pass "fm-herdr-lab: timed-out provisioning cancels the launch before teardown"
 }
 
-test_refuses_unsafe_names
-test_provision_run_and_guarded_teardown
-test_missing_tripwire_blocks_destruction
-test_changed_default_trips_after_teardown
-test_stopped_owned_lab_can_reprovision
-test_failed_delete_retains_tripwire
-test_timed_out_provision_cancels_late_launch
+fm_test_run_cases \
+  test_refuses_unsafe_names \
+  test_provision_run_and_guarded_teardown \
+  test_missing_tripwire_blocks_destruction \
+  test_changed_default_trips_after_teardown \
+  test_stopped_owned_lab_can_reprovision \
+  test_failed_delete_retains_tripwire \
+  test_timed_out_provision_cancels_late_launch

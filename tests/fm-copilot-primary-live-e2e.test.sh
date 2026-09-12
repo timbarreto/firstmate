@@ -10,6 +10,8 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+fm_live_gate default-on FM_COPILOT_PRIMARY_LIVE_E2E herdr copilot node jq cygpath
+
 case "$(uname -s 2>/dev/null)" in
   MINGW*|MSYS*|CYGWIN*) ;;
   *)
@@ -18,7 +20,6 @@ case "$(uname -s 2>/dev/null)" in
     exit 0
     ;;
 esac
-fm_live_gate default-on FM_COPILOT_PRIMARY_LIVE_E2E herdr copilot node jq cygpath
 if [ "${HERDR_ENV:-}" != 1 ]; then
   [ "${FM_COPILOT_PRIMARY_LIVE_E2E:-${FM_LIVE:-0}}" != 1 ] || fail "a running Herdr session is required for the lab tripwire"
   printf 'skip: live: Herdr caller context is required for the isolated primary guard\n'

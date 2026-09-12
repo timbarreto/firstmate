@@ -203,7 +203,12 @@ fm_herdr_lab_provision() { # <session>
   else
     fm_herdr_lab_prepare "$name" || return 1
   fi
-  fm_herdr_lab_raw "$name" server >/dev/null 2>&1 &
+  # Own the server process itself, not a function shell whose child can survive
+  # cancellation on POSIX. The validated lab name still scopes every call.
+  (
+    export HERDR_SESSION="$name"
+    exec herdr server --session "$name"
+  ) >/dev/null 2>&1 &
   server_pid=$!
   attempt=0
   max_attempts=300
