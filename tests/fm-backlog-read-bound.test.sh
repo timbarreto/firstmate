@@ -26,9 +26,18 @@ TMP_ROOT=$(fm_test_tmproot fm-backlog-read-bound-tests)
 trap fm_test_cleanup EXIT
 
 BOUND_SECS=2
-# Generous enough that a slow CI box never flakes, far below the unbounded hang
-# (300s per read) and below the session-start budget the defect consumed.
+# Leave headroom for fixture setup around the actual backend deadline while
+# keeping every elapsed-time assertion below the unbounded 300s stand-in.
 BOUND_CEILING=30
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    # Native Git/ACL and Bash launch overhead can outlast the short POSIX
+    # fixture windows even when a latched read never calls the backend.
+    # Keep the strict latched-read comparison and the Linux limits unchanged.
+    BOUND_SECS=10
+    BOUND_CEILING=120
+    ;;
+esac
 
 # A backend whose `show` never returns. Everything the compatibility gate and the
 # startup listing need still answers promptly, so the only thing under test is
@@ -91,6 +100,7 @@ elapsed_since() {  # <start-epoch>
 
 # --- half one: the per-item bound holds -------------------------------------
 
+test_per_item_read_bounds() {
 UNIT="$TMP_ROOT/unit"
 UNIT_FAKEBIN=$(fm_fakebin "$UNIT")
 mkdir -p "$UNIT/data"
@@ -360,34 +370,43 @@ case "$(cat "$VERIFY_MIG_OUT")" in
   *) fail "verify must name the entry it could not read and the bound it hit, got: $(cat "$VERIFY_MIG_OUT")" ;;
 esac
 pass "a bound hit in the migrated-prefix scan stops verify by name instead of resolving to nothing"
+}
 
 # --- half two: the digest still completes end to end ------------------------
 
+test_session_start_survives_wedged_backlog() {
 E2E="$TMP_ROOT/e2e"
 E2E_ROOT="$E2E/root"
 E2E_HOME="$E2E/home"
 E2E_FAKEBIN="$E2E/fakebin"
 mkdir -p "$E2E_HOME/state" "$E2E_HOME/data" "$E2E_HOME/config" "$E2E_FAKEBIN"
-git init -q -b main "$E2E_ROOT"
-git -C "$E2E_ROOT" commit -q --allow-empty -m init
+fm_git_init_commit "$E2E_ROOT" || fail "could not initialize the session-start fixture repository"
 
 make_hanging_tasks_axi "$E2E_FAKEBIN"
-# The reconcile sweep this half asserts on runs only under a verified fleet
-# lock, and fm-lock.sh finds its holder by walking the invoking process tree
-# through `ps`. A CI runner's ancestry carries no harness process, so the lock
-# would be refused there and the sweep silently skipped. Pin the lock evidence
-# the same way tests/fm-session-start.test.sh's make_fake_ps_harness does:
-# every queried pid reports a live `claude` harness, independent of whatever
-# process tree the test itself was launched from.
+# Pin one live fixture owner for every startup subprocess, as the session-start
+# suite does. The platform owner reads /proc before ps, so the invocation below
+# also selects an empty fixture proc root instead of leaking host ancestry.
+# Only process facts are substituted; acquisition and ownership stay real.
 cat > "$E2E_FAKEBIN/ps" <<'SH'
 #!/usr/bin/env bash
 set -u
+pid= previous=
+for argument in "$@"; do
+  [ "$previous" = -p ] && pid=$argument
+  previous=$argument
+done
 case "$*" in
-  *"comm="*) printf '%s\n' '/usr/local/bin/claude'; exit 0 ;;
-  *"args="*) printf '%s\n' 'claude'; exit 0 ;;
-  *"ppid="*) exit 1 ;;
+  *"comm="*)
+    if [ "$pid" = "$FM_FAKE_HARNESS_PID" ]; then printf '/usr/local/bin/claude\n'; else printf '/bin/bash\n'; fi
+    ;;
+  *"args="*)
+    if [ "$pid" = "$FM_FAKE_HARNESS_PID" ]; then printf 'claude\n'; else printf 'bash\n'; fi
+    ;;
+  *"ppid="*)
+    if [ "$pid" = "$FM_FAKE_HARNESS_PID" ]; then printf '1\n'; else printf '%s\n' "$FM_FAKE_HARNESS_PID"; fi
+    ;;
+  *) exit 1 ;;
 esac
-exit 1
 SH
 chmod +x "$E2E_FAKEBIN/ps"
 fm_fake_exit0 "$E2E_FAKEBIN" tmux node chrome-devtools-axi gh treehouse
@@ -409,10 +428,19 @@ fm_write_meta "$E2E_HOME/state/wedged-task.meta" \
 DIGEST="$E2E/digest.out"
 DIGEST_START=$(date +%s)
 env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+  -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
   FM_HOME="$E2E_HOME" FM_ROOT_OVERRIDE="$E2E_ROOT" PATH="$E2E_FAKEBIN:$BASE_PATH" \
-  FM_BACKLOG_ROW_TIMEOUT_SECS="$BOUND_SECS" \
-  "$ROOT/bin/fm-session-start.sh" > "$DIGEST" 2>&1 || true
+  FM_STATE_OVERRIDE="$E2E_HOME/state" FM_DATA_OVERRIDE="$E2E_HOME/data" \
+  FM_CONFIG_OVERRIDE="$E2E_HOME/config" FM_PROC_ROOT_OVERRIDE="$E2E_HOME/no-proc" \
+  FM_FAKE_HARNESS_PID="$$" FM_BACKLOG_ROW_TIMEOUT_SECS="$BOUND_SECS" \
+  "$ROOT/bin/fm-session-start.sh" > "$DIGEST" 2>&1 \
+  || fail "the session-start fixture command failed: $(cat "$DIGEST")"
 DIGEST_ELAPSED=$(elapsed_since "$DIGEST_START")
+
+grep -qxF "lock acquired: harness pid $$" "$DIGEST" \
+  || fail "the digest did not acquire its fixture owner's lock: $(cat "$DIGEST")"
+assert_no_grep 'READ-ONLY SESSION' "$DIGEST" \
+  "read-only output must not satisfy the wedged-backend startup regression"
 
 [ "$DIGEST_ELAPSED" -lt "$BOUND_CEILING" ] \
   || fail "session start took ${DIGEST_ELAPSED}s against a wedged backlog backend"
@@ -423,8 +451,16 @@ for SECTION in 'WAKE QUEUE' 'SUPERVISION OPERATING INSTRUCTIONS' 'FLEET STATE' '
 done
 pass "a wedged backlog backend still leaves a complete digest: wake queue, supervision instructions, fleet state, and context all print"
 
-grep -q '^BACKLOG_RECONCILE: wedged-task: ' "$DIGEST" \
+RECONCILE_DIAGNOSTIC=$(grep '^BACKLOG_RECONCILE: wedged-task: ' "$DIGEST") \
   || fail "the wedged item must be reported by name as a partial reconcile: $(cat "$DIGEST")"
+assert_contains "$RECONCILE_DIAGNOSTIC" \
+  "tasks-axi show wedged-task exceeded its ${BOUND_SECS}s backlog read bound" \
+  "the reconcile diagnostic must prove the bounded read actually ran"
 pass "an unreachable backlog backend degrades to a loud partial reconcile naming the item it could not read"
+}
 
-echo "# fm-backlog-read-bound.test.sh: all assertions passed"
+fm_test_run_cases \
+  test_per_item_read_bounds \
+  test_session_start_survives_wedged_backlog
+
+echo "# fm-backlog-read-bound.test.sh: selected assertions passed"
