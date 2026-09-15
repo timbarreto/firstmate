@@ -142,7 +142,9 @@ emit() {  # <state> <source> [detail]
 
 # Resolve literal fields in this shell. Four grep/tail/cut pipelines used to
 # consume much of a Windows snapshot's current-state deadline before any actual
-# worker observation could begin.
+# worker observation could begin. Initialize the destinations for source-aware
+# static analysis, which cannot infer printf -v assignments across the helper.
+WT='' KIND='' HARNESS='' REMOTE_HOST=''
 fm_meta_read "$META" worktree WT kind KIND harness HARNESS remote_host REMOTE_HOST
 [ -n "$KIND" ] || KIND=ship
 
