@@ -9,8 +9,9 @@ on:
 permissions:
   contents: read
 
+# Match shared CI's per-PR supersession without dropping pending main pushes.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

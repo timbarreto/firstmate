@@ -112,14 +112,49 @@ test_shared_backend_process_identity_keeps_pilot_boundaries() {
   local name
   # shellcheck source=bin/fm-agent-process-lib.sh
   . "$ROOT/bin/fm-agent-process-lib.sh" || fail "shared backend classifier dependencies"
-  for name in copilot copilot.exe pi pi-signed omp; do
+  for name in copilot copilot.exe pi pi-signed omp agy; do
     assert_equals agent "$(fm_agent_process_classify "$name" "$name" "$name")" "$name backend identity"
   done
-  for name in copilot-helper mycopilot comp; do
+  for name in copilot-helper mycopilot comp agy-helper; do
     assert_equals other "$(fm_agent_process_classify "$name" "$name" "$name")" "$name must not become an agent"
   done
   assert_equals shell "$(fm_agent_process_classify bash -bash -bash)" "bare shell remains agent-free"
   pass "shared backend identity preserves native Copilot, Pi, legacy names, and exact-match refusals"
+}
+
+test_detector_composes_pilot_identity_with_ancestry_precedence() {
+  local fakebin="$TMP_ROOT/detector/bin" comm args claude pi signed expected out
+  mkdir -p "$fakebin"
+  cat > "$fakebin/ps" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  *'ppid='*) printf '0\n' ;;
+  *'comm='*) printf '%s\n' "$FM_TEST_DETECT_COMM" ;;
+  *'args='*) printf '%s\n' "$FM_TEST_DETECT_ARGS" ;;
+  *) exit 1 ;;
+esac
+SH
+  chmod +x "$fakebin/ps"
+  while IFS='|' read -r comm args claude pi signed expected; do
+    out=$(env -u COPILOT_CLI -u COPILOT_LOADER_PID -u COPILOT_AGENT_SESSION_ID \
+      -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI -u GROK_AGENT \
+      -u ATLASSIAN_AGENT_TYPE -u ROVODEV_CLI -u FM_OMP_HARNESS \
+      PATH="$fakebin:$PATH" FM_TEST_DETECT_COMM="$comm" FM_TEST_DETECT_ARGS="$args" \
+      CLAUDECODE="$claude" PI_CODING_AGENT="$pi" FM_PI_HARNESS="$signed" \
+      bash "$ROOT/bin/fm-harness.sh") || fail "detector refused $comm"
+    assert_equals "$expected" "$out" "$comm combines marker and ancestry evidence"
+  done <<'EOF'
+copilot|copilot|1|||copilot
+copilot.exe|copilot.exe|1|||copilot
+copilot-helper|copilot-helper||||unknown
+node|/tools/copilot|1|||claude
+node|/tools/copilot||||copilot
+pi|pi||true|pi-signed|pi-signed
+codex|codex||true|pi-signed|codex
+bash|bash||true|pi|pi
+node|/tools/pi||true|pi-signed|pi-signed
+EOF
+  pass "pilot identity composes with structural precedence, weak interpreter evidence, and signed Pi markers"
 }
 
 test_preparation_keeps_executable_and_probe_contracts() {
@@ -314,6 +349,7 @@ fm_test_run_cases \
   test_recorded_names_and_owned_wiring \
   test_primary_supervision_and_override_contracts \
   test_closed_interface_and_identity_stages \
+  test_detector_composes_pilot_identity_with_ancestry_precedence \
   test_shared_backend_process_identity_keeps_pilot_boundaries \
   test_preparation_keeps_executable_and_probe_contracts \
   test_missing_or_broken_adapter_refuses \

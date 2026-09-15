@@ -27,7 +27,8 @@ Its header owns the four internal operations, prepared launch fields, and refusa
 They depend only on the interface's shared name facts and generic platform helpers, never on lifecycle scripts.
 Missing or incomplete registered adapters report an error rather than selecting a legacy implementation; loading a different root cannot borrow previously loaded implementation functions.
 
-Core callers retain detection-stage ordering, configuration structure and diagnostic ordering, recorded-name normalization, and the lifecycle transaction.
+`bin/fm-harness.sh` owns marker-versus-ancestry arbitration while the pilot adapters retain their staged identity mechanics.
+Core callers retain configuration structure and diagnostic ordering, recorded-name normalization, and the lifecycle transaction.
 Bootstrap verification, local control, and remote launch/relaunch support remain distinct operation-specific capabilities.
 The interface does not introduce a resume contract or broaden the existing remote Copilot relaunch restriction.
 Spawn retains role/profile resolution, generation allocation, exact-file publication, worktrees, endpoint delivery, and rollback.

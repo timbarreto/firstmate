@@ -197,6 +197,10 @@ fm_harness_ancestry_pids() {
       parent=$(fm_session_process_ppid "$pid")
       if [ -n "$parent" ] && [ "$parent" -gt 1 ] 2>/dev/null; then
         pid=$parent
+      elif [ "$parent" = 1 ] && ! fm_platform_windows_process_supported; then
+        # A POSIX namespace can put the harness at pid 1. Examine it before
+        # stopping; on Windows this edge instead needs the native bridge.
+        pid=1
       elif native_rows=$(fm_platform_windows_parent_processes "$pid"); then
         native_mode=1
       else
@@ -235,7 +239,9 @@ EOF
 # reclaiming a lock must not confuse a failed query with evidence of death.
 fm_harness_pid_alive() {
   local pid=$1 comm args row native_pid rc
-  case "$pid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+  case "$pid" in ''|*[!0-9]*|0) return 1 ;; esac
+  # Namespace pid 1 can be a POSIX harness, but never a native Windows owner.
+  [ "$pid" != 1 ] || ! fm_platform_windows_process_supported || return 1
   if kill -0 "$pid" 2>/dev/null; then
     comm=$(fm_session_process_comm "$pid") || comm=''
     args=$(fm_session_process_args "$pid")
