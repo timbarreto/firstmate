@@ -453,6 +453,7 @@ EOF
 
 test_azure_pr_completion_contract() {
   local dir url out value original input rc before
+  local BASE_PATH=$BASE_PATH
   dir=$(make_case azure-completion)
   fm_test_azure_pr "$dir"
   write_task_meta "$dir"
@@ -501,12 +502,29 @@ test_azure_pr_completion_contract() {
   [ "$(state_snapshot "$dir/home/state")" = "$before" ] || fail "failed Azure lookup changed state"
   assert_contains "$out" "Azure DevOps PR lookup failed" "registration surfaces the lookup failure"
   mv "$dir/fakebin/az" "$dir/az-disabled"
+  mkdir -p "$dir/hostbin"
+  cat > "$dir/hostbin/az" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$(dirname "$0")/calls"
+echo 'fixture host Azure CLI requires authentication' >&2
+exit 1
+SH
+  chmod +x "$dir/hostbin/az"
+  BASE_PATH="$dir/hostbin:$BASE_PATH"
+  [ "$(PATH="$dir/fakebin:$BASE_PATH" command -v az)" = "$dir/hostbin/az" ] \
+    || fail "the missing-CLI fixture did not expose its inherited Azure tool"
+  BASE_PATH=$(fm_test_base_path_sans "$BASE_PATH" az az.exe az.cmd az.bat) \
+    || fail "could not isolate the missing Azure CLI"
+  if PATH="$dir/fakebin:$BASE_PATH" command -v az >/dev/null 2>&1; then
+    fail "the missing-CLI fixture still resolves Azure"
+  fi
   [ -z "$(run_poll "$dir")" ] || fail "absent Azure CLI emitted a merge"
   out=$(run_check_entry "$dir" failed-read "$url" 2>&1)
   rc=$?
   [ "$rc" -ne 0 ] || fail "absent Azure CLI registered a poll"
   assert_contains "$out" "requires az" "registration names the missing Azure CLI"
   [ "$(state_snapshot "$dir/home/state")" = "$before" ] || fail "missing Azure CLI changed state"
+  [ ! -e "$dir/hostbin/calls" ] || fail "the missing-CLI fixture invoked an inherited Azure tool"
   pass "only a completed identity-matched Azure PR emits a merge; failures never publish success"
 }
 
