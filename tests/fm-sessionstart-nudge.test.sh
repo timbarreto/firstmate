@@ -133,6 +133,40 @@ test_owned_lock_is_silent() {
   pass "fm-sessionstart-nudge: a lock holder in process ancestry is already run"
 }
 
+# A firstmate running inside a PID namespace - a container, or `codex sandbox` -
+# holds its home lock from a harness that IS pid 1, so this hook must recognize
+# that owner. The old walk rejected a lock pid of 1 outright and stopped before
+# comparing pid 1, so the hook nudged a session that had already run.
+# A fake ps cannot reach this path: `kill -0` is a shell builtin gating the lock
+# pid, and on a host `kill -0 1` fails for an unprivileged user, so the case
+# needs a real namespace where pid 1 is this user's own process.
+test_namespace_pid1_lock_holder_is_silent() {
+  local root="$TMP_ROOT/namespace-pid1" out status=0
+  if ! command -v unshare >/dev/null 2>&1 \
+    || ! unshare -rpf --mount-proc true >/dev/null 2>&1; then
+    printf '# skip: unprivileged PID namespaces are unavailable here, so the namespace pid 1 lock owner is unverified\n'
+    return 0
+  fi
+  make_primary "$root"
+
+  # Non-vacuity: inside the same namespace, with no lock at all, the hook must
+  # still produce its nudge, so silence below means the owner was recognized.
+  out=$(unshare -rpf --mount-proc bash -c \
+    "FM_GATE_REFUSE_BYPASS=0 FM_ROOT_OVERRIDE='$root' FM_HOME='$root' '$NUDGE'; exit \$?") || status=$?
+  expect_code 0 "$status" "namespace nudge without a lock"
+  [ "$out" = "$NUDGE_LINE" ] \
+    || fail "the namespace fixture did not nudge without a lock, so its silence proves nothing: $out"
+
+  printf '1\n' > "$root/state/.lock"
+  status=0
+  out=$(unshare -rpf --mount-proc bash -c \
+    "FM_GATE_REFUSE_BYPASS=0 FM_ROOT_OVERRIDE='$root' FM_HOME='$root' '$NUDGE'; exit \$?") || status=$?
+  expect_code 0 "$status" "namespace pid 1 lock nudge"
+  [ -z "$out" ] \
+    || fail "a lock held by the harness at namespace pid 1 was not recognized, got: $out"
+  pass "fm-sessionstart-nudge: a lock holder that is pid 1 of its own namespace is already run"
+}
+
 test_opencode_plugin_delivers_exact_nudge_once() {
   local root="$TMP_ROOT/opencode-primary" out status=0
   make_primary "$root"
@@ -1121,4 +1155,5 @@ fm_test_run_cases \
   test_pi_startup_classifies_cli_continuations \
   test_pi_sessionstart_generation_prerequisite \
   test_pi_reload_releases_sessionstart_exit_listener \
-  test_pi_large_sessionstart_digest_is_delivered_loudly
+  test_pi_large_sessionstart_digest_is_delivered_loudly \
+  test_namespace_pid1_lock_holder_is_silent

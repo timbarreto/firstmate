@@ -12,6 +12,7 @@ fm_test_install_catalog() {
   local repo=$1 records proof admissions path
   local -a inventory=()
   mkdir -p "$repo/bin" "$repo/tests/catalog"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/git-config-helpers.sh"
   fm_test_install_private_paths "$repo" || fail "could not install private-path fixture dependencies"
   cp "$ROOT/bin/fm-test-catalog-lib.sh" "$repo/bin/fm-test-catalog-lib.sh"
   # shellcheck source=bin/fm-test-catalog-lib.sh

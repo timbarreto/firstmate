@@ -14,6 +14,7 @@ catalog_fixture() {
   mkdir -p "$repo/bin" "$repo/tests/catalog"
   fm_test_install_private_paths "$repo" || fail "could not install private-path fixture dependencies"
   cp "$ROOT/bin/fm-test-run.sh" "$ROOT/bin/fm-test-catalog-lib.sh" "$repo/bin/"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   for name in fm-brief fm-calm-pi-extension fm-new; do
     printf '#!/usr/bin/env bash\necho "ok - catalog fixture"\n' >"$repo/tests/$name.test.sh"
   done

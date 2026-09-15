@@ -94,6 +94,7 @@ init_changed_fixture_repo() {
   local repo=$1 script
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   chmod +x "$repo/bin/fm-test-run.sh"
   for script in \
     fm-brief.test.sh \
@@ -104,6 +105,7 @@ init_changed_fixture_repo() {
     fm-test-isolation-proof.test.sh \
     fm-test-run.test.sh \
     fm-update-windows.test.sh \
+    fm-test-fixtures.test.sh \
     fm-cd-pretool-check.test.sh \
     fm-daemon.test.sh \
     fm-harness-adapter-instructions-live-e2e.test.sh \
@@ -142,6 +144,17 @@ init_changed_fixture_repo() {
   : >"$repo/bin/fm-extension-launch-barrier.mjs"
   : >"$repo/bin/fm-ghcp-hook.ps1"
   : >"$repo/bin/unmapped-source.sh"
+  # A shared top-level test fixture read by two suites in different families,
+  # beside a tests/ file nothing reads at all.
+  : >"$repo/tests/shared-probe-fixture.sh"
+  : >"$repo/tests/unread-thing.sh"
+  printf '# shared-probe-fixture.sh\n' >>"$repo/tests/fm-pr-merge.test.sh"
+  printf '# shared-probe-fixture.sh\n' >>"$repo/tests/fm-secondmate-safety.test.sh"
+  # A nested fixture whose consuming suite names only the fixture directory,
+  # the shape the tests/fixtures/<dir>/ arm is keyed for.
+  mkdir -p "$repo/tests/fixtures/demo"
+  : >"$repo/tests/fixtures/demo/demo-fixture.sh"
+  printf '# tests/fixtures/demo\n' >>"$repo/tests/fm-backend-orca.test.sh"
   # A shared helper with no curated family of its own, named by exactly ONE
   # script of the expensive real-Herdr family and consumed by one curated
   # watcher script. This is the shape that made a one-line helper change select
@@ -195,6 +208,7 @@ init_primary_and_linked_worktree() {
   for tree in "$repo" "$linked"; do
     mkdir -p "$tree/bin" "$tree/tests"
     cp "$RUNNER" "$tree/bin/fm-test-run.sh"
+    cp "$ROOT/tests/git-config-helpers.sh" "$tree/tests/"
     chmod +x "$tree/bin/fm-test-run.sh"
     cat >"$tree/tests/probe.test.sh" <<PROBE
 #!/usr/bin/env bash
@@ -345,6 +359,12 @@ test_changed_runner_surfaces_select_their_family() {
   case "$listed" in
     *tests/fm-ask-user-authority.test.sh*) ;;
     *) fail "runner change did not select its pure-contract-unit family: $listed" ;;
+  esac
+  # The suite that proves the runner's per-suite fixture Git isolation lives in
+  # the standalone family, which pure-contract-unit never reaches.
+  case "$listed" in
+    *tests/fm-test-fixtures.test.sh*) ;;
+    *) fail "runner change did not select its fixture-isolation regression: $listed" ;;
   esac
   git -C "$repo" add bin/fm-test-run.sh
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm runner-change
@@ -576,6 +596,20 @@ test_changed_shared_fixtures_select_consumers() {
   pass "shared fixtures combine curated and consumer families and reject unmapped unreferenced additions"
 }
 
+test_herdr_viewer_selects_its_consumers() {
+  local tmp repo listed
+  tmp=$(fm_test_tmproot fm-test-viewer-routing)
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  printf '\n' >"$repo/bin/fm-herdr-lab-viewer.py"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+    || fail "native viewer implementation must select its owning Herdr contracts"
+  assert_contains "$listed" tests/fm-backend-herdr-smoke.test.sh "viewer selects real Herdr"
+  assert_contains "$listed" tests/fm-backend.test.sh "viewer selects backend contracts"
+  assert_not_contains "$listed" tests/fm-pr-merge.test.sh "viewer does not select unrelated forge tests"
+  pass "the Herdr viewer implementation selects its existing backend and lab owners"
+}
+
 test_changed_dependency_selection_and_unmapped_failure() {
   local tmp repo listed rc
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-changed.XXXXXX")
@@ -596,6 +630,14 @@ test_changed_dependency_selection_and_unmapped_failure() {
     "shared fixture helper selects referencing tests"
   git -C "$repo" add tests/fixtures.sh
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm fixture-helper-change
+
+  printf '\n' >>"$repo/tests/git-config-helpers.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-pr-merge.test.sh" "git-config helper selects lib.sh dependents"
+  assert_contains "$listed" "tests/fm-secondmate-safety.test.sh" "git-config helper selects secondmate dependents"
+  assert_contains "$listed" "tests/fm-bearings-snapshot.test.sh" "git-config helper selects snapshot dependents"
+  git -C "$repo" add tests/git-config-helpers.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm git-config-helper-change
 
   printf '\n' >>"$repo/tests/fm-backend-herdr-eventwait.test.py"
   listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
@@ -824,6 +866,7 @@ PY
   timeout_log="$tmp/automatic-timeouts.log"
   mkdir -p "$timeout_repo/bin" "$timeout_repo/tests"
   cp "$RUNNER" "$timeout_repo/bin/fm-test-run.sh"
+  cp "$ROOT/tests/git-config-helpers.sh" "$timeout_repo/tests/"
   cat >"$timeout_repo/bin/fm-timeout-lib.sh" <<'SH'
 fm_run_timed() {
   local timeout=$1 script= arg expected=900
@@ -1074,6 +1117,7 @@ test_family_proofs_run_in_separate_concurrent_phases() {
   repo="$tmp/repo"
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   cp "$ROOT/bin/fm-timeout-lib.sh" "$repo/bin/fm-timeout-lib.sh"
   chmod +x "$repo/bin/fm-test-run.sh"
   for script in \
@@ -1750,6 +1794,7 @@ test_unmapped_new_test_never_inherits_family_concurrency() {
   repo="$tmp/repo"
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   chmod +x "$repo/bin/fm-test-run.sh"
   # Two members of the proven residual family, plus a test basename the family
   # map has never seen - the shape of any test added tomorrow.
@@ -1795,6 +1840,46 @@ test_unmapped_new_test_never_inherits_family_concurrency() {
   pass "an unclassified new test stays serial while the proven residual family runs concurrently"
 }
 
+test_changed_shared_fixture_selects_its_readers() {
+  local tmp repo listed rc
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-fixture.XXXXXX")
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+
+  printf '\n' >>"$repo/tests/shared-probe-fixture.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-pr-merge.test.sh" \
+    "shared test fixture selects its pr-forge reader"
+  assert_contains "$listed" "tests/fm-secondmate-safety.test.sh" \
+    "shared test fixture selects its secondmate reader"
+  case "$listed" in
+    *fm-backend-orca.test.sh*)
+      fail "shared test fixture selection widened past its readers: $listed" ;;
+  esac
+  git -C "$repo" add tests/shared-probe-fixture.sh
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm fixture-change
+
+  printf '\n' >>"$repo/tests/unread-thing.sh"
+  set +e
+  (cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"
+  rc=$?
+  set -e
+  [ "$rc" -eq 2 ] || fail "an unread tests/ path must still fail with exit 2, got $rc"
+  grep -Fq 'no changed-test mapping for source path: tests/unread-thing.sh' "$tmp/err" \
+    || fail "the refusal did not name the unread tests/ path: $(cat "$tmp/err")"
+  git -C "$repo" checkout -q -- tests/unread-thing.sh
+
+  # A nested tests/fixtures/<dir>/<name>-fixture.sh still reaches the
+  # directory-scan arm rather than the top-level fixture arm's basename scan.
+  printf '\n' >>"$repo/tests/fixtures/demo/demo-fixture.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD)
+  assert_contains "$listed" "tests/fm-backend-orca.test.sh" \
+    "a nested fixture selects the suite that reads its directory"
+
+  rm -rf "$tmp"
+  pass "a changed shared test fixture selects its readers while an unread tests/ path still refuses"
+}
+
 # Workers are handed scripts in order, so the slowest script must start first or
 # it runs alone at the tail and throws away most of the concurrency.
 test_concurrent_runs_are_ordered_longest_first() {
@@ -1828,6 +1913,7 @@ test_per_script_timeout_bounds_a_hang() {
   hang=tests/fm-hang-fixture.test.sh
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$runner"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   cp "$ROOT/bin/fm-timeout-lib.sh" "$repo/bin/fm-timeout-lib.sh"
   grandchild_pid="$tmp/grandchild.pid"
   cat >"$repo/$hang" <<'SH'
@@ -1892,6 +1978,7 @@ test_max_wall_ms_is_a_result_not_advice() {
   fast=tests/fm-budget-fixture.test.sh
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$runner"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   cat >"$repo/$fast" <<'SH'
 #!/usr/bin/env bash
 sleep 1
@@ -1957,6 +2044,7 @@ test_jobs_parallel_scheduler_and_failure_propagation() {
   d=tests/fm-supervision-instructions.test.sh
   mkdir -p "$repo/bin" "$repo/tests" "$evidence" "$fake_bin"
   cp "$RUNNER" "$runner"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   cat >"$fake_bin/stat" <<'SH'
 #!/usr/bin/env bash
 if [ "$1" = "-c" ] && [ "$2" = "%a" ]; then
@@ -2191,6 +2279,7 @@ fm_test_run_cases \
   test_shell_line_ending_policy_selects_runner_contract \
   test_mail_sources_select_mail_coverage \
   test_changed_shared_fixtures_select_consumers \
+  test_herdr_viewer_selects_its_consumers \
   test_changed_dependency_selection_and_unmapped_failure \
   test_changed_bin_reference_selects_per_script_not_per_family \
   test_changed_uses_bounded_automatic_concurrency \
@@ -2222,4 +2311,5 @@ fm_test_run_cases \
   test_max_wall_ms_is_a_result_not_advice \
   test_jobs_parallel_scheduler_and_failure_propagation \
   test_herdr_ci_family_run_has_a_step_timeout \
-  test_aggregate_json
+  test_aggregate_json \
+  test_changed_shared_fixture_selects_its_readers

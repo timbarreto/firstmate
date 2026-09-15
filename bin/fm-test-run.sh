@@ -116,6 +116,10 @@
 # live-capability (a live-harness guard governed by fm_live_gate, which records
 # unavailable tools and explicit policy skips; see tests/lib.sh), or none.
 #
+# Every selected script runs isolated from the host's global and system Git
+# configuration, including one that sources no test helper of its own;
+# tests/git-config-helpers.sh owns that contract and its limits.
+#
 # Family labels, duration hints, gates and ordered changed-path registrations
 # live in tests/catalog/{core,fork}.tsv, validated by fm-test-catalog-lib.sh.
 # Scheduling, reference expansion and production portable-shard composition
@@ -139,6 +143,10 @@
 # that names it is selected as that SCRIPT, because the reference is per-script
 # evidence. Consumer bin/ scripts still resolve through the curated map, so
 # recorded family-level coupling still expands to the whole family.
+# tests/lib.sh, tests/fixtures.sh, tests/*-helpers.sh and tests/*-fixture.sh are
+# shared files that map to the suites naming them; a fixture under
+# tests/fixtures/<dir>/ is mapped by that directory instead. Curated family arms
+# above those also name individual tests/ files explicitly.
 set -eu
 
 now_ms() {
@@ -994,14 +1002,17 @@ prepare_changed_reference_index() {
     [ -n "$path" ] || continue
     printf '%s\n' "$path" >>"$patterns"
     case "$path" in
-      .opencode/plugins/*|.pi/extensions/*|\
-      tests/lib.sh|tests/*-helpers.sh|tests/*-fixture.sh|tests/fixtures.sh|tests/assets/*)
-        printf '%s\n' "${path##*/}" >>"$patterns"
+      tests/git-config-helpers.sh)
+        printf '%s\n' git-config-helpers.sh lib.sh herdr-test-safety.sh >>"$patterns"
         ;;
       tests/fixtures/*/*)
         fixture_ref=${path#tests/fixtures/}
         fixture_ref=${fixture_ref%%/*}
         printf 'fixtures/%s\n' "$fixture_ref" >>"$patterns"
+        ;;
+      .opencode/plugins/*|.pi/extensions/*|\
+      tests/lib.sh|tests/*-helpers.sh|tests/*-fixture.sh|tests/fixtures.sh|tests/assets/*)
+        printf '%s\n' "${path##*/}" >>"$patterns"
         ;;
     esac
   done <"$changed_paths"
@@ -1135,28 +1146,27 @@ test_files_referencing() {
   grep -F -l -- "$needle" "${test_files[@]}" 2>/dev/null
 }
 
-families_for_test_reference() {
-  local needle=$1 s
-  local found=0
-  if [ "$CHANGED_REFERENCE_LOOKUP" -eq 1 ]; then
-    changed_reference_lookup "$needle"
-    for s in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
-      case "$s" in
-        tests/*.test.sh)
-          family_for_basename "${s##*/}"
-          found=1
-          ;;
-      esac
-    done
-    [ "$found" -eq 1 ]
-    return
-  fi
-
-  while IFS= read -r s; do
-    [ -n "$s" ] || continue
-    family_for_basename "${s##*/}"
-    found=1
-  done < <(test_files_referencing "$needle")
+families_for_test_reference() {  # <needle>...
+  local needle s found=0
+  for needle in "$@"; do
+    if [ "$CHANGED_REFERENCE_LOOKUP" -eq 1 ]; then
+      changed_reference_lookup "$needle"
+      for s in "${CHANGED_REFERENCE_RESULTS[@]+"${CHANGED_REFERENCE_RESULTS[@]}"}"; do
+        case "$s" in
+          tests/*.test.sh)
+            family_for_basename "${s##*/}"
+            found=1
+            ;;
+        esac
+      done
+    else
+      while IFS= read -r s; do
+        [ -n "$s" ] || continue
+        family_for_basename "${s##*/}"
+        found=1
+      done < <(test_files_referencing "$needle")
+    fi
+  done
   [ "$found" -eq 1 ]
 }
 
@@ -1314,8 +1324,10 @@ families_for_changed_path() {
       families_for_test_reference "${path##*/}" \
         || emit_unmapped_changed_path "$path"
       ;;
-    tests/lib.sh|tests/*-helpers.sh|tests/*-fixture.sh|tests/fixtures.sh|tests/assets/*)
-      families_for_test_reference "${path##*/}" \
+    tests/git-config-helpers.sh)
+      # Most suites inherit Git isolation through these shared helpers; the
+      # batched reference index contains all three needles for this path.
+      families_for_test_reference git-config-helpers.sh lib.sh herdr-test-safety.sh \
         || emit_unmapped_changed_path "$path"
       ;;
     tests/fixtures/*/*)
@@ -1329,6 +1341,15 @@ families_for_changed_path() {
         families_for_test_reference "fixtures/$fixture_ref" \
           || emit_unmapped_changed_path "$path"
       fi
+      ;;
+    tests/lib.sh|tests/*-helpers.sh|tests/fixtures.sh|tests/*-fixture.sh|tests/assets/*)
+      # Shared top-level test files, selected by the suites that name them.
+      # Must stay below the tests/fixtures/*/* arm: a case glob's * spans /, so
+      # tests/*-fixture.sh would otherwise swallow a nested
+      # tests/fixtures/<dir>/<name>-fixture.sh and scan for its basename
+      # instead of the fixture directory its readers actually name.
+      families_for_test_reference "$(basename "$path")" \
+        || printf '%s\n' "__unmapped__:$path"
       ;;
     bin/*)
       # A deleted script has no consuming suite left to select, the same rule
@@ -2113,6 +2134,12 @@ record_script_result() {
 # because an unbounded suite is what silently outruns its caller's budget.
 run_script_bounded() {  # <script> <out> <stream> <id>
   local script=$1 out=$2 stream=$3 id=$4
+  # Declaring the variables local first keeps the helper's export scoped to this
+  # call and its child script, so the runner's own environment is left as the
+  # caller had it.
+  local GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
+  # shellcheck source=tests/git-config-helpers.sh
+  . "$ROOT/tests/git-config-helpers.sh" || return
   local rc timeout_secs=$PER_SCRIPT_TIMEOUT_SECS
   if [ "$CHANGED_TIMEOUT_AUTOMATIC" -eq 1 ]; then
     timeout_secs=$(automatic_changed_timeout_secs_for "$script")
