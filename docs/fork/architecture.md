@@ -9,9 +9,10 @@ The [implementation plan](upstream-plan.md) records the approved design and acce
 | Concern | Implementation owner | Boundary retained by callers |
 | --- | --- | --- |
 | Copilot/Pi policy | `bin/fm-harness-lib.sh`, `bin/harnesses/copilot.sh`, `bin/harnesses/pi.sh` | Detection order, profile selection, lifecycle transactions, and every nonpilot path |
-| Process identity and native transport | `bin/platform/process.mjs`, its `.d.mts` declarations, `bin/fm-platform-process-lib.sh`, `bin/platform/windows-process.ps1` | Ownership, generation checks, escalation, and backend leases |
+| Process/directory identity and native transport | `bin/platform/process.mjs`, its `.d.mts` declarations, `bin/fm-platform-process-lib.sh`, `bin/platform/windows-process.ps1` | Ownership, generation checks, escalation, and backend leases |
 | Backend harness-process classification | `bin/fm-agent-process-lib.sh` | tmux and Herdr retain recovery, busy-state, and close-authority decisions |
 | Native private paths | `bin/fm-private-path-lib.sh`, `bin/platform/windows-private-path.ps1` | Caller-specific POSIX policy, transaction ordering, publication, and rollback |
+| Azure PR identity and observation | `bin/fm-pr-poll.sh`, consumed through `bin/fm-pr-lib.sh` | Canonical private registration, notification, merge authority, and landed-work proof |
 | Test metadata | `bin/fm-test-catalog-lib.sh`, `tests/catalog/core.tsv`, `tests/catalog/fork.tsv` | Runner execution and reference expansion; independent proof admission |
 | Fork CI | `.github/workflows/fork-ci.yml` | Shared-CI regression and artifact dependencies; manual-only Windows Herdr experiment |
 
@@ -96,12 +97,24 @@ Graceful cleanup still finds the owned MSYS root and sends TERM through Bash bef
 Forced cleanup preserves the existing direct-PID TERM fallback after a native operation fails; this is not authority to terminate an arbitrary process, and callers must retain their owned-child and generation checks.
 A missing tracked native helper throws explicitly before any native operation or direct-PID fallback.
 
-`bin/fm-platform-process-lib.sh` owns generic Bash process facts, single-PID image queries, and literal PowerShell command rendering without a Node dependency.
+`bin/fm-platform-process-lib.sh` owns generic Bash process facts, directory identity, single-PID image queries, and literal PowerShell command rendering without a Node dependency.
+Its directory predicate compares existing filesystem objects rather than raw Git/Git Bash path spellings or unconditional case folding.
+`bin/fm-fleet-sync.sh` uses that predicate for the clone-root assertion and managed-project name resolution, so path aliases cannot lose a registered local-only posture.
+Dirty, diverged, and nested-directory safeguards remain in the refresh owner; branch pruning uses Git's merged-branch guard rather than treating upstream deletion as proof of landing.
 `bin/fm-session-lock-lib.sh` retains ownership and ancestry orchestration, delegating Copilot marker verification and PID-result caching through the harness interface.
 Its Windows ancestry bridge and verified Claude session-PID handoff use the shared native process facts without adding a Node dependency to Bash callers; the library header owns their precedence and numeric-PID ambiguity rules.
 Native lookup failures remain distinct from verified process absence, so `bin/fm-lock.sh` refuses rather than reclaiming an unverified owner.
 `bin/backends/herdr.sh` retains leases, worktree acquisition, presentation, and rollback; its public transport functions and spawn's quoting function delegate to the shared module.
 Git Bash callers retain their inexpensive PATH/cygpath lookup, while existing PowerShell entrypoints continue using `bin/fm-windows-git-bash.ps1`.
+
+## PR identity and observation seam
+
+`bin/fm-pr-poll.sh` owns Azure URL and response validation as well as the explicit-organization native read.
+Keeping that codec in the static program preserves the self-contained copied-check contract without duplicating URL rules or adding state-local executable dependencies.
+`bin/fm-pr-lib.sh` exposes the shared reader and requires persisted identities to already be canonical; registration may resolve input aliases before publication.
+Private artifact binding, notification-before-marker ordering, replay, and source retirement retain their existing owners.
+Teardown and review consume the validated Azure source head without manufacturing GitHub pull refs, and `bin/fm-backlog-transition-lib.sh` preserves unsupported Azure row links at its tasks-axi representation boundary, including retention, answer-time artifacts, and interrupted cleanup replay.
+[Configuration](../configuration.md#azure-devops-pr-completion) owns prerequisites and supported limits; observation does not grant merge or cleanup authority.
 
 ## Tracked layout and fixture boundaries
 

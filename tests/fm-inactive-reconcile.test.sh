@@ -60,7 +60,7 @@ case "${1:-}" in
 esac
 SH
   local tool
-  for tool in gh gh-axi curl; do
+  for tool in gh gh-axi glab az curl; do
     cat > "$fake/$tool" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$(basename "$0")" >> "${FM_FORGE_LOG:?}"
@@ -308,6 +308,32 @@ test_pr_field_requires_recorded_pr_or_ready_signal_line() {
     "$MAIN/state/mate.status" \
     || fail "a scout's ready-looking line carried a PR claim: $(cat "$MAIN/state/mate.status")"
   pass "pr= requires the recorded PR or a ready-signal terminal line, and never a scout"
+}
+
+test_azure_ready_identity_survives_reconciliation() {
+  local id url key
+  make_world azure-ready; bind_secondmate local
+  while IFS='|' read -r id url; do
+    write_child "$MATE" "$id" "done: PR $url checks green"
+    awk '$0 !~ /^pr=/' "$MATE/state/$id.meta" > "$MATE/state/$id.meta.tmp"
+    mv "$MATE/state/$id.meta.tmp" "$MATE/state/$id.meta"
+  done <<'EOF'
+azure|https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+azure-api|https://example-org.visualstudio.com/Example%20Project/_apis/git/repositories/example-repo/pullRequests/42?api-version=7.1
+gitlab|https://gitlab.example/group/repo/-/merge_requests/42
+EOF
+  FM_FAKE_CREW_STATE=unknown run_reconcile "$MATE"
+  while IFS='|' read -r id url; do
+    key=$(reported_outcome_key "$MATE" "$id" 'done') || fail "missing non-GitHub outcome"
+    grep -Fxq "done [key=$key]: child $id done: PR $url checks green pr=$url mode=no-mistakes yolo=off" \
+      "$MAIN/state/mate.status" || fail "reconciliation lost or rewrote the delivered PR identity"
+  done <<'EOF'
+azure|https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+azure-api|https://example-org.visualstudio.com/Example%20Project/_apis/git/repositories/example-repo/pullRequests/42?api-version=7.1
+gitlab|https://gitlab.example/group/repo/-/merge_requests/42
+EOF
+  [ ! -s "$WORLD/forge.log" ] || fail "ready-line reconciliation performed a forge read"
+  pass "reconciliation preserves Azure browser/API and GitLab delivered links without a network read"
 }
 
 # If a terminal ledger line lands while the authoritative state read is in
@@ -858,34 +884,36 @@ test_reconciliation_never_calls_forge() {
   pass "reconciliation makes zero forge or PR API calls"
 }
 
-test_main_direct_terminal_presentation_receipt
-test_local_secondmate_delivers_terminal_ledger_line
-test_busy_child_does_not_starve_later_ledger_outcomes
-test_secondmate_ledger_delivery_carries_report_and_failure
-test_pr_field_requires_recorded_pr_or_ready_signal_line
-test_terminal_line_during_state_read_yields_to_ledger_delivery
-test_terminal_line_after_inactive_delivery_is_not_reported_twice
-test_progress_after_inactive_delivery_starts_a_new_event
-test_long_terminal_lines_have_distinct_receipts
-test_secondmate_partial_ledger_line_waits_for_newline
-test_secondmate_remote_route_ledger_delivery
-test_report_subcommand_delivers_and_refuses
-test_report_avoids_scan_meta_lock_inversion
-test_local_secondmate_rejects_relative_parent_home
-test_invalid_secondmate_marker_blocks_routing
-test_remote_parent_reply_is_idempotent
-test_reused_task_id_reports_each_incarnation
-test_legacy_metadata_rewrite_keeps_receipt_identity
-test_relaunch_cannot_replace_metadata_during_state_snapshot
-test_heartbeat_cap_does_not_delay_reconciliation
-test_scan_marker_replaces_symlink_safely
-test_nonterminal_and_captain_held_states_do_not_report
-test_watcher_hook_and_idle_secondmate_exemption
-test_watcher_poll_delivers_child_ledger_line_to_parent
-test_stalled_state_read_is_bounded_and_scan_progresses
-test_full_scan_budget_includes_wake_lock_wait
-test_notice_recovery_does_not_duplicate_wake
-test_missing_parent_binding_names_itself
-test_reconciliation_never_calls_forge
+fm_test_run_cases \
+  test_main_direct_terminal_presentation_receipt \
+  test_local_secondmate_delivers_terminal_ledger_line \
+  test_busy_child_does_not_starve_later_ledger_outcomes \
+  test_secondmate_ledger_delivery_carries_report_and_failure \
+  test_pr_field_requires_recorded_pr_or_ready_signal_line \
+  test_azure_ready_identity_survives_reconciliation \
+  test_terminal_line_during_state_read_yields_to_ledger_delivery \
+  test_terminal_line_after_inactive_delivery_is_not_reported_twice \
+  test_progress_after_inactive_delivery_starts_a_new_event \
+  test_long_terminal_lines_have_distinct_receipts \
+  test_secondmate_partial_ledger_line_waits_for_newline \
+  test_secondmate_remote_route_ledger_delivery \
+  test_report_subcommand_delivers_and_refuses \
+  test_report_avoids_scan_meta_lock_inversion \
+  test_local_secondmate_rejects_relative_parent_home \
+  test_invalid_secondmate_marker_blocks_routing \
+  test_remote_parent_reply_is_idempotent \
+  test_reused_task_id_reports_each_incarnation \
+  test_legacy_metadata_rewrite_keeps_receipt_identity \
+  test_relaunch_cannot_replace_metadata_during_state_snapshot \
+  test_heartbeat_cap_does_not_delay_reconciliation \
+  test_scan_marker_replaces_symlink_safely \
+  test_nonterminal_and_captain_held_states_do_not_report \
+  test_watcher_hook_and_idle_secondmate_exemption \
+  test_watcher_poll_delivers_child_ledger_line_to_parent \
+  test_stalled_state_read_is_bounded_and_scan_progresses \
+  test_full_scan_budget_includes_wake_lock_wait \
+  test_notice_recovery_does_not_duplicate_wake \
+  test_missing_parent_binding_names_itself \
+  test_reconciliation_never_calls_forge
 
 echo "all inactive reconciliation tests passed"

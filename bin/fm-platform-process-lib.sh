@@ -20,7 +20,14 @@
 # fm_platform_windows_bash_script_command <posix-script> [<native-bash-path>]
 #   Render literal PowerShell commands, without executing them. Native Bash lookup
 #   uses the calling Git Bash's PATH and cygpath, not an extra PowerShell process.
+# fm_platform_same_directory <left> <right>
+#   Compare existing directory identities through the platform's stat interface,
+#   including native Windows/Git Bash aliases, without guessing path case rules.
 # Missing native tools and invalid environment names return nonzero.
+
+fm_platform_same_directory() {
+  [ "$#" -eq 2 ] && [ -d "$1" ] && [ -d "$2" ] && [ "$1" -ef "$2" ]
+}
 
 fm_platform_shell_quote() {
   printf "'"

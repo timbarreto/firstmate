@@ -3,13 +3,13 @@
 ## CI ownership
 
 [Fork CI](../../.github/workflows/fork-ci.yml) owns the Windows updater, focused Windows reconciliation, and pinned package-compatibility jobs.
-Their expanded check names remain `Windows self-update entry point`, `Windows reconciliation (core)`, `Windows reconciliation (copilot-launch)`, `Windows reconciliation (legacy-rollback)`, and `Harness package compatibility`.
+Their expanded check names are `Windows self-update entry point`, `Windows reconciliation (core)`, `Windows reconciliation (copilot-launch)`, `Windows reconciliation (legacy-rollback)`, `Windows reconciliation (pr-completion)`, and `Harness package compatibility`.
 The workflow owns exact subjects, named-case selectors, package pins, timeouts, and live-test gates.
 The non-credentialed package job detects package API drift and missing runner CLIs without vendor credentials.
 
 [Shared CI](../../.github/workflows/ci.yml) retains lint, coverage, portable parallel and serial shards, real Herdr, timing aggregation, stock macOS Bash, and repository invariants.
 The real-Herdr job also installs the pinned Pi prerequisite for the non-credentialed agent exit-to-shell regression; an absent Pi is a job failure, not accepted missing coverage.
-The two workflows together produce 18 automatic checks, with one producer for each check name.
+The two workflows together produce 19 automatic checks, with one producer for each check name.
 Both use the same main-branch push and pull-request triggers and read-only permissions, with workflow-qualified concurrency groups so neither cancels the other.
 The [Windows Herdr experiment](../../.github/workflows/windows-herdr-spike.yml) remains manual.
 These owners apply to every compatibility section below; focused local cases never replace the complete exact-head CI results.
@@ -38,6 +38,16 @@ The same suites retain exact-parent handoff, quiet deferral, unknown attachment,
 The presentation E2E suite performs real isolated Herdr mutations; its handoff and deferral fixtures explicitly inject a live-viewer response and are not proof of an actual attached client.
 Default detached-client and agent exit-to-shell coverage remains owned by the real-Herdr CI job.
 The exit-to-shell fixture waits for Pi's `session_start` readiness marker as well as Herdr's idle registration before submitting `/quit`.
+
+## Project refresh and Azure completion
+
+`tests/fm-fleet-sync.test.sh` exercises real clone refresh, including native Git/Git Bash root aliases, local-only argument aliases, wrong-root refusal, dirty/diverged work, and preservation of unique branches after upstream deletion.
+The Windows core job selects the clone-root identity, local-only argument-alias, and deleted-upstream safety cases; a native run must actually observe different Git and Bash path strings, rather than passing a vacuous alias fixture.
+`tests/fm-pr-check-security.test.sh` covers Azure registration, response validation, actual notification, replay, interrupted publication, source/identity binding, and poll-only retirement alongside GitHub/GitLab controls.
+`tests/azure-pr-helpers.sh` supplies only synthetic identities and a strict read-only CLI fixture; those cases require no Azure credential or live PR mutation.
+The Windows PR-completion job selects the notification/replay case, real tasks-axi cleanup-link preservation, and native review-head resolution.
+Teardown retains the unlanded-work refusal matrix; inactive reconciliation and fleet-view suites verify that actual non-GitHub URLs survive downstream presentation without new forge calls.
+Portable CI owns the full subjects, and exact-head native results remain distinct from controlled Azure responses or a read-only live retrieval.
 
 ## Catalog compatibility
 
@@ -158,6 +168,6 @@ For documentation changes, run `bin/fm-doc-audience-check.sh` and `bin/fm-test-r
 Neither the structural checker nor a smaller line count proves semantic preservation.
 
 Before closing the implementation series, account for every acceptance criterion in the [approved plan](upstream-plan.md#completion-criteria-and-rollback).
-Verify all 18 automatic check names and their single producers against the exact final head, and preserve the manual-only experiment, live-test gates, and package pins.
+Verify all 19 automatic check names and their single producers against the exact final head, and preserve the manual-only experiment, live-test gates, and package pins.
 Separate deterministic fixtures, actual native execution, installed-package checks, and live vendor/backend proof.
 A gated skip, an unavailable optional package, or historical vendor evidence is not a new live pass; retain any unresolved requirement explicitly instead of declaring the series complete by inference.

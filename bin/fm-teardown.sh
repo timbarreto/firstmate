@@ -1268,6 +1268,14 @@ pr_number_from_target() {
 ensure_commit_object() {
   local target=$1 commit=$2 n
   git -C "$WT" cat-file -e "$commit^{commit}" 2>/dev/null && return 0
+  case "$target" in
+    https://dev.azure.com/*|https://*.visualstudio.com/*)
+      fm_pr_head_valid "$commit" || return 1
+      git -C "$WT" fetch --quiet origin "$commit" >/dev/null 2>&1 || return 1
+      git -C "$WT" cat-file -e "$commit^{commit}" 2>/dev/null
+      return "$?"
+      ;;
+  esac
   n=$(pr_number_from_target "$target") || return 1
   git -C "$WT" remote get-url origin >/dev/null 2>&1 || return 1
   git -C "$WT" fetch --quiet origin "refs/pull/$n/head" >/dev/null 2>&1 || return 1
@@ -1307,10 +1315,10 @@ EOF
 }
 
 # Is the worktree's PR merged for local work contained in that PR? Resolves the
-# PR from the recorded pr= URL first, then from the branch name, and asks GitHub
-# for both the PR state and head. Returns non-zero when the PR is not merged, the
-# current work is not contained in the PR head, no PR is found, or any gh error
-# occurs - the caller then falls back to the content check.
+# PR from the recorded pr= URL first, then from the branch name. GitHub supplies
+# state/head through gh; Azure uses the shared identity-checked native read.
+# An unreadable or non-completed PR never supplies landed-work evidence; the
+# caller can still independently prove content in the default branch.
 pr_is_merged() {
   local branch=$1 target view state remainder head resolved_url current landed=0
   if [ -n "$PR_URL" ]; then
@@ -1319,16 +1327,26 @@ pr_is_merged() {
     target=$(pr_number_from_branch "$branch") || return 1
   fi
   [ -n "$target" ] || return 1
-  view=$(cd "$WT" && gh pr view "$target" --json state,headRefOid,url -q '.state + "\t" + .headRefOid + "\t" + .url' 2>/dev/null) || return 1
-  state=${view%%$'\t'*}
-  remainder=${view#*$'\t'}
-  [ "$state" != "$view" ] || return 1
-  head=${remainder%%$'\t'*}
-  resolved_url=${remainder#*$'\t'}
-  [ "$head" != "$remainder" ] || return 1
-  case "$state" in
-    MERGED|merged) ;;
-    *) return 1 ;;
+  case "$target" in
+    https://dev.azure.com/*|https://*.visualstudio.com/*)
+      fm_pr_azure_record_read --azure-read "$target" 2>/dev/null || return 1
+      [ "$FM_PR_AZURE_STATE" = completed ] || return 1
+      head=$FM_PR_AZURE_HEAD
+      resolved_url=$FM_PR_URL
+      ;;
+    *)
+      view=$(cd "$WT" && gh pr view "$target" --json state,headRefOid,url -q '.state + "\t" + .headRefOid + "\t" + .url' 2>/dev/null) || return 1
+      state=${view%%$'\t'*}
+      remainder=${view#*$'\t'}
+      [ "$state" != "$view" ] || return 1
+      head=${remainder%%$'\t'*}
+      resolved_url=${remainder#*$'\t'}
+      [ "$head" != "$remainder" ] || return 1
+      case "$state" in
+        MERGED|merged) ;;
+        *) return 1 ;;
+      esac
+      ;;
   esac
   [ -n "$head" ] || return 1
   ensure_commit_object "$target" "$head" || return 1

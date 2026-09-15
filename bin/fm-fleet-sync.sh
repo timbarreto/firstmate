@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Refresh project clones: fast-forward the checked-out local default branch to
-# origin/<default> when safe, and prune local branches whose upstream tracking
-# branch is gone (the remote branch was deleted, i.e. its PR merged) and that no
-# worktree still needs.
+# origin/<default> when safe, and prune fully merged local branches whose
+# upstream tracking branch is gone and that no worktree still needs.
 # Self-heals the one unambiguously safe drift: a clean, detached HEAD that holds
 # no unique commits (it is an ancestor of origin/<default>) and whose <default>
 # branch is free to check out is re-attached and then fast-forwarded ("recovered:").
@@ -18,8 +17,10 @@
 # repository (the firstmate checkout) and be synced under that directory's label.
 # Anything else is reported as "skipped: not a clone root" naming the repository
 # that would have been touched.
-# Pruning never deletes the checked-out branch or a branch that still has a
-# worktree, so it cannot discard unlanded work; set FM_FLEET_PRUNE=0 to disable it.
+# Pruning uses Git's merged-branch guard and never deletes the checked-out branch
+# or a branch that still has a worktree; set FM_FLEET_PRUNE=0 to disable it.
+# It runs before fast-forwarding, so a branch merged by this refresh may remain
+# until the next pass can prove it merged.
 # When the fetch fails on an orphaned .git/packed-refs.lock (left by a ref rewrite
 # killed mid-write - e.g. a timed-out bootstrap sync or a teardown process kill),
 # it is retried with a bounded wait and removed only when provably stale; see
@@ -40,6 +41,8 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
 # shellcheck source=bin/fm-lock-lib.sh
 . "$SCRIPT_DIR/fm-lock-lib.sh"
+# shellcheck source=bin/fm-platform-process-lib.sh
+. "$SCRIPT_DIR/fm-platform-process-lib.sh"
 # Inert unless FM_TIMING_LOG names a file; only the deferred network stage sets it.
 # shellcheck source=bin/fm-timing-lib.sh
 . "$SCRIPT_DIR/fm-timing-lib.sh"
@@ -73,11 +76,25 @@ fi
 [ $# -le 1 ] || { usage; exit 1; }
 
 project_label() {
+  local candidate matched=''
   case "$PROJ" in
-    "$PROJECTS"/*) basename "$PROJ" ;;
-    projects/*) basename "$PROJ" ;;
-    *) printf '%s\n' "$PROJ" ;;
+    "$PROJECTS"/*)
+      candidate="$PROJECTS/$(basename "$PROJ")"
+      if [ "$PROJ" = "$candidate" ] || [ "$PROJ" = "$candidate/" ]; then
+        basename "$PROJ"
+        return 0
+      fi
+      ;;
+    projects/*) basename "$PROJ"; return 0 ;;
   esac
+  # Recover the registered name for a physical/native alias without guessing
+  # drive letters or case rules. An ambiguous alias must not select a posture.
+  for candidate in "$PROJECTS"/* "$PROJECTS"/.[!.]* "$PROJECTS"/..?*; do
+    fm_platform_same_directory "$PROJ" "$candidate" || continue
+    [ -z "$matched" ] || return 1
+    matched=$(basename "$candidate")
+  done
+  printf '%s\n' "${matched:-$PROJ}"
 }
 
 # resolve_project_arg <arg>: accept a path (used as-is when it already exists)
@@ -219,6 +236,7 @@ fetch_with_packed_refs_lock_guard() {
 }
 
 prune_gone_branches() {
+  local prune_output
   # Delete local branches whose upstream tracking branch is gone - the remote
   # branch was deleted, which in this fleet means its PR merged - as long as
   # nothing still needs them. Never the checked-out branch, and never a branch
@@ -245,8 +263,10 @@ prune_gone_branches() {
     if printf '%s\n' "$worktree_branches" | grep -Fxq -- "$branch"; then
       continue
     fi
-    if git -C "$PROJ" branch -D -- "$branch" >/dev/null 2>&1; then
+    if prune_output=$(git -C "$PROJ" branch -d -- "$branch" 2>&1); then
       echo "$label: pruned $branch"
+    else
+      echo "$label: kept $branch: $(first_line "$prune_output")"
     fi
   done < <(git -C "$PROJ" for-each-ref \
     --format='%(refname:short) %(upstream:track)' refs/heads 2>/dev/null)
@@ -299,7 +319,10 @@ report_stuck() {
 
 sync_project() {
   PROJ=$1
-  label=$(project_label)
+  if ! label=$(project_label); then
+    echo "$PROJ: skipped: ambiguous project directory; use its registered name"
+    return 0
+  fi
 
   if [ ! -d "$PROJ" ]; then
     echo "$label: skipped: not a directory"
@@ -317,10 +340,10 @@ sync_project() {
     echo "$label: skipped: not a git repo"
     return 0
   fi
-  # Both sides are physical paths (git resolves --show-toplevel through symlinks),
-  # so a symlinked clone dir still compares equal to its own root.
+  # Git for Windows and Bash spell the same physical root differently.
+  # Compare directory identity, not strings or guessed case-folded paths.
   proj_abs=$(cd "$PROJ" && pwd -P) || proj_abs=""
-  if [ "$proj_top" != "$proj_abs" ]; then
+  if ! fm_platform_same_directory "$proj_top" "$proj_abs"; then
     echo "$label: skipped: not a clone root (git would act on $proj_top)"
     return 0
   fi

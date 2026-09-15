@@ -351,9 +351,12 @@ status_event_json() {  # <observed-status-log> [<contract-path>]
     '{path:$path,present:$present,kind:"event_history",last_event:{state:$verb,note:$note,raw:$raw}}'
 }
 
+# Observational link discovery only; registration owns forge identity validation.
+PR_DISPLAY_URL_PATTERN='https?://[^[:space:])"<>]+/(pull|pullrequest|pullRequests|pullrequests|merge_requests)/[1-9][0-9]*(\?api-version=[0-9]+\.[0-9]+(-preview(\.[0-9]+)?)?)?'
+
 first_pr_url_in_file() {  # <file>
   [ -f "$1" ] || return 1
-  grep -Eo 'https?://[^[:space:])"]+/pull/[0-9]+' "$1" 2>/dev/null | head -1
+  grep -Eo "$PR_DISPLAY_URL_PATTERN" "$1" 2>/dev/null | head -1
 }
 
 backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
@@ -365,7 +368,7 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
 
   # shellcheck disable=SC2094
   jq -Rn --arg path "$backlog" --arg today "$SNAPSHOT_TODAY" --arg now "$SNAPSHOT_NOW" \
-    --argjson age_days "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" '
+    --argjson age_days "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" --arg pr_pattern "$PR_DISPLAY_URL_PATTERN" '
     def trim: gsub("^[[:space:]]+|[[:space:]]+$"; "");
     def timestamp_epoch($d):
       if ($d | type) != "string" then null
@@ -408,6 +411,12 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
     def url_pattern: "https?://[^[:space:])\"<>]+";
     def wrapped_url_pattern: "<?" + url_pattern + ">?";
     def links($rest): [$rest | scan(url_pattern)];
+    def pr_link($rest): ((links($rest) | map(select(test($pr_pattern + "$"))) | .[0]) // null);
+    def body_pr_link($lines):
+      (([$lines[]
+          | select(startswith("Deliverable of the finished work: "))
+          | pr_link(.) | select(. != null)] | .[-1])
+        // pr_link($lines | join(" ")));
     def strip_trailing_metadata:
       reduce range(0; 20) as $_ (.;
         sub("[[:space:]]*\\([[:space:]]*(?:(?:repo|kind|priority|hold|hold-kind|hold-until):[[:space:]]*[^)]*|(?:since|merged|reported|done)[[:space:]]+[^)]*)[[:space:]]*\\)[[:space:]]*$"; ""));
@@ -481,7 +490,7 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
              done:metadata_word($rest; "done"),
              completion:completion($rest),
              links:links($rest),
-             pr_url:((links($rest) | map(select(test("/pull/[0-9]+"))) | .[0]) // null),
+             pr_url:pr_link($rest),
              report_path:cap($rest; ".*(?<v>data/[^[:space:])]+/report\\.md).*"),
              local_note:local_note($rest),
              raw:$line,
@@ -507,7 +516,8 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
        end)
     | .records |= map(
         if (.body_lines | length) > 0 then
-          .hold_set = cap(.body_lines[0]; "^Captain hold set:[[:space:]]*(?<v>[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)?)$")
+          .pr_url = (.pr_url // body_pr_link(.body_lines))
+          | .hold_set = cap(.body_lines[0]; "^Captain hold set:[[:space:]]*(?<v>[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)?)$")
           | .local_note = (.local_note
               // (if any(.body_lines[];
                     test("^Resolution recorded by fm-(captain|decision)-hold\\.$"))
