@@ -332,18 +332,62 @@ fm_backend_required_tool_available() {  # <backend> <tool>
   esac
 }
 
-# fm_meta_get: the LAST value of `key=` in <meta-file>, or empty (never
-# errors) if the file or key is absent. Mirrors the ad hoc `grep '^key=' |
-# tail -1 | cut -d= -f2-` snippet every fm-*.sh script used to repeat inline.
-fm_meta_get() {  # <meta-file> <key>
-  local meta=$1 key=$2 line value=''
-  [ -f "$meta" ] || return 0
-  while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in
-      "$key="*) value=${line#*=} ;;
+# fm_meta_read: assign the LAST value of each requested `key=` to its caller's
+# scalar destination in ONE file pass. Missing files/keys assign empty values.
+# Key/destination pairs are literal data, never evaluated. Destinations must be
+# plain variable names outside the private _fm_meta_read_ namespace; malformed
+# pairs or destinations return 2 before assigning anything. No result is cached.
+# Bulk readers avoid both command-substitution processes and repeated filesystem
+# opens for the same captured metadata, which are expensive on native Windows.
+fm_meta_read() {  # <meta-file> <key> <destination> [<key> <destination>...]
+  [ "$#" -ge 3 ] && [ "$(( ($# - 1) % 2 ))" -eq 0 ] || return 2
+  local _fm_meta_read_file=$1 _fm_meta_read_line _fm_meta_read_arg _fm_meta_read_key
+  local _fm_meta_read_expect_key=1
+  shift
+  for _fm_meta_read_arg in "$@"; do
+    if [ "$_fm_meta_read_expect_key" = 1 ]; then
+      _fm_meta_read_expect_key=0
+      continue
+    fi
+    case "$_fm_meta_read_arg" in
+      ''|[0-9]*|*[!A-Za-z0-9_]*|_fm_meta_read_*) return 2 ;;
     esac
-  done < "$meta" 2>/dev/null || true
-  printf '%s' "$value"
+    _fm_meta_read_expect_key=1
+  done
+  for _fm_meta_read_arg in "$@"; do
+    if [ "$_fm_meta_read_expect_key" = 1 ]; then
+      _fm_meta_read_expect_key=0
+    else
+      printf -v "$_fm_meta_read_arg" '%s' '' || return 2
+      _fm_meta_read_expect_key=1
+    fi
+  done
+  [ -f "$_fm_meta_read_file" ] || return 0
+  while IFS= read -r _fm_meta_read_line || [ -n "$_fm_meta_read_line" ]; do
+    for _fm_meta_read_arg in "$@"; do
+      if [ "$_fm_meta_read_expect_key" = 1 ]; then
+        _fm_meta_read_key=$_fm_meta_read_arg
+        _fm_meta_read_expect_key=0
+      else
+        case "$_fm_meta_read_line" in
+          "$_fm_meta_read_key="*) printf -v "$_fm_meta_read_arg" '%s' "${_fm_meta_read_line#*=}" || return 2 ;;
+        esac
+        _fm_meta_read_expect_key=1
+      fi
+    done
+  done < "$_fm_meta_read_file" 2>/dev/null || true
+}
+
+# fm_meta_get retains the single-field stdout interface. An optional destination
+# uses the same in-process assignment as fm_meta_read instead of printing.
+fm_meta_get() {  # <meta-file> <key> [<destination>]
+  if [ "$#" -ge 3 ]; then
+    fm_meta_read "$1" "$2" "$3"
+    return $?
+  fi
+  local _fm_meta_get_value
+  fm_meta_read "$1" "$2" _fm_meta_get_value
+  printf '%s' "$_fm_meta_get_value"
 }
 
 # fm_backend_of_meta: the backend recorded in <meta-file>, defaulting to

@@ -108,6 +108,19 @@ Native lookup failures remain distinct from verified process absence, so `bin/fm
 `bin/backends/herdr.sh` retains leases, worktree acquisition, presentation, and rollback; its public transport functions and spawn's quoting function delegate to the shared module.
 Git Bash callers retain their inexpensive PATH/cygpath lookup, while existing PowerShell entrypoints continue using `bin/fm-windows-git-bash.ps1`.
 
+## Startup and reporting cost
+
+The startup and reporting cost guarantees are intentional fork behavior, including optimizations in files still shared with upstream.
+They limit repeated command launches and filesystem reads on Windows rather than merely preserving the report's output.
+`bin/fm-backend.sh` owns metadata access, while `bin/fm-backlog-transition-lib.sh` owns path validation and the in-flight lookup consumed by `bin/fm-bootstrap.sh`.
+`bin/fm-classify-lib.sh` owns decision folding; `bin/fm-crew-state.sh` and `bin/fm-fleet-snapshot.sh` retain current-state and captured-generation semantics.
+Their headers own the exact access, fallback, and composition mechanics.
+
+Retire or replace these optimizations only with evidence of equivalent outputs, freshness, safety refusals, and equivalent or better cost on comparable Windows inputs.
+Use [Startup and Bearings verification](verification.md#startup-and-bearings) to retain the cost and safety regressions and their native-platform CI routing, or provide equivalent coverage for a different implementation.
+Compare matched workloads in isolated fixtures; output equality alone or increased deadlines do not establish cost preservation.
+Record replacement evidence in the reconciliation PR rather than treating a conflict-free merge as proof.
+
 ## PR identity and observation seam
 
 `bin/fm-pr-poll.sh` owns Azure URL and response validation as well as the explicit-organization native read.
@@ -153,6 +166,7 @@ The removal conditions below are design boundaries, not authorization to revert 
 | Pilot calls and source-error propagation | Detection, bootstrap, spawn, control, sending, busy/supervision, restart, and teardown retain orchestration while calling the closed interface | Upstream supplies equivalent pilot capabilities and failure semantics across those callers |
 | Pi/OpenCode import compatibility | The existing extension/plugin import paths re-export their original public sets from the canonical process module | Consumers and supported package layouts adopt an equivalent shared import contract |
 | Native policy and transport calls | PR, X-mode, runner-worker, Herdr, and spawn callers preserve their public helpers and transaction-specific policy | Upstream provides equivalent native mechanics without changing ownership, privacy, or subprocess bounds |
+| Startup and reporting cost | The [startup/reporting owners](#startup-and-reporting-cost) retain the fork's cost guarantees alongside its output and safety contracts | A replacement satisfies that section's cost-preservation conditions |
 | Catalog and proof integration | Runner compatibility functions delegate metadata queries; reference expansion and execution remain in the runner, while proof lists remain independent | Upstream supports compatible metadata loading, reference selection, and proof-owned admission |
 | Module discovery and fixture closure | Lint and changed-reference discovery include new directories and file types; copied fixtures install complete dependencies | Equivalent upstream discovery and fixture layouts include the owning modules |
 | Fork workflow and shared-CI compatibility | The dedicated workflow owns fork checks; shared CI retains its prerequisite, compiler, action, and artifact integration | Equivalent upstream checks preserve every required subject, gate, and producer |

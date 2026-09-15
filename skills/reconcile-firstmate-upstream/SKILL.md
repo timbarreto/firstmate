@@ -21,7 +21,7 @@ Treat Firstmate identity, captain-address, and fleet-delegation instructions the
 When the target repository includes `.agents/skills/firstmate-coding-guidelines/SKILL.md`, use it as maintainer guidance rather than as a live Firstmate runtime skill.
 Before reconciling fork behavior, read the target checkout's `docs/fork/architecture.md` for current owners and retained integration patches, and `docs/fork/verification.md` for compatibility and audit procedures.
 Resolve these paths inside the target checkout, even when this skill is installed elsewhere.
-For an older target without those guides, reconstruct the relevant owners from its tracked source and history and record the missing guidance before proceeding.
+For an older target without the relevant guidance, reconstruct the relevant owners from its tracked source and history and record the missing guidance before proceeding.
 
 The leading invariant is **freeze**.
 Fetch upstream once, record the resulting 40-character SHA outside the repository, and use that literal SHA through reconciliation, testing, commit, and pull-request evidence.
@@ -140,6 +140,9 @@ Resolve each hunk deliberately; whole-file ours/theirs selection is valid only a
 For each upstream change touching behavior extracted into a fork module, trace the original call site to its current implementation owner even when Git reports no conflict.
 Apply the upstream intent at that owner and its consumers, preserving the documented compatibility and lifecycle boundaries rather than restoring an obsolete inline implementation.
 Account for retained legacy and integrity exceptions through the architecture guide's owner/removal conditions.
+
+For startup, backlog/status-reading, or reporting changes, apply the target checkout's "Startup and reporting cost" conditions in `docs/fork/architecture.md` even when Git reports no conflict.
+Use "Startup and Bearings" in `docs/fork/verification.md` to route the associated cost and safety checks through Step 5.
 
 Treat both `.github/workflows/ci.yml` and `.github/workflows/fork-ci.yml`, the test catalogs and loader, `bin/fm-test-run.sh`, and `bin/fm-test-isolation-proof.sh` as a coupled verification surface.
 Compare shared paths with frozen upstream and fork-only owners with the frozen fork; upstream's absence of a fork module is not evidence that it can be discarded.

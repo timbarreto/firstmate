@@ -3,6 +3,10 @@ version	1
 test	tests/fm-test-catalog.test.sh	pure-contract-unit
 test	tests/fm-remote-job-wait.test.sh	pure-contract-unit
 test	tests/fm-private-path.test.sh	pure-contract-unit
+test	tests/fm-startup-performance.test.sh	pure-contract-unit
+override-map	route-bin-fm-backend-sh	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh	backend-dispatch,real-herdr-gated	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh	backend-dispatch,real-herdr-gated,__script__:fm-startup-performance.test.sh
+map	route-startup-status-fold	1080	bin/fm-classify-lib.sh	watcher-wake-lock,__script__:fm-startup-performance.test.sh
+override-map	route-bin-fm-bearings-snapshot-sh	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-home-summary-refresh.sh	snapshot-bearings	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-home-summary-refresh.sh	snapshot-bearings,__script__:fm-startup-performance.test.sh
 test	tests/fm-platform-process.test.sh	pure-contract-unit
 test	tests/fm-harness-contract.test.sh	pure-contract-unit
 test	tests/fm-procevent-stop-proof.test.sh	standalone

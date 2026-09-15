@@ -140,14 +140,12 @@ emit() {  # <state> <source> [detail]
 
 [ -f "$META" ] || emit unknown none "no metadata for $ID"
 
-meta_value() {  # <key>
-  grep "^$1=" "$META" 2>/dev/null | tail -1 | cut -d= -f2- || true
-}
-
-WT=$(meta_value worktree)
-KIND=$(meta_value kind)
-HARNESS=$(meta_value harness)
-REMOTE_HOST=$(meta_value remote_host)
+# Resolve literal fields in this shell. Four grep/tail/cut pipelines used to
+# consume much of a Windows snapshot's current-state deadline before any actual
+# worker observation could begin. Initialize the destinations for source-aware
+# static analysis, which cannot infer printf -v assignments across the helper.
+WT='' KIND='' HARNESS='' REMOTE_HOST=''
+fm_meta_read "$META" worktree WT kind KIND harness HARNESS remote_host REMOTE_HOST
 [ -n "$KIND" ] || KIND=ship
 
 # A torn-down (or never-created) worktree has no current state to read. A

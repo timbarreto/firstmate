@@ -1171,7 +1171,89 @@ ROWS
   pass "bootstrap validates crew-dispatch.json and reports malformed or unverified configs"
 }
 
+run_backlog_batch_case() {  # <good|failed|unrecognized|truncated>
+  local mode=$1 case_dir home fakebin log out id
+  case_dir="$TMP_ROOT/backlog-batch-$mode"
+  home="$case_dir/home"
+  mkdir -p "$home/data" "$home/state" "$home/config" "$home/projects"
+  printf 'backend = "markdown"\n' > "$home/.tasks.toml"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  printf 'tmux\n' > "$home/config/backend"
+  fakebin=$(make_fake_toolchain "$case_dir")
+  add_real_jq "$fakebin"
+  log="$case_dir/queries"
+  : > "$log"
+  for id in active-a active-b queued-c; do
+    fm_write_meta "$home/state/$id.meta" 'kind=ship' "spawn_gen=gen-$id"
+  done
+  cat > "$fakebin/tasks-axi" <<'SH'
+#!/usr/bin/env bash
+printf '%s %s\n' "${1:-}" "${2:-}" >> "$FM_FAKE_BATCH_LOG"
+case "${1:-}" in
+  list)
+    case "$FM_FAKE_BATCH_MODE" in
+      failed) exit 1 ;;
+      unrecognized) printf 'unrecognized table\n'; exit 0 ;;
+      truncated)
+        printf '%s\n' 'tasks[2]{id,state,kind,repo,title}:' '  active-a,in_flight,ship,example,First task'
+        exit 0
+        ;;
+    esac
+    printf '%s\n' 'count: 2' 'tasks[2]{id,state,kind,repo,title}:' \
+      '  active-a,in_flight,ship,example,First task' \
+      '  active-b,in_flight,ship,example,Second task'
+    ;;
+  show)
+    case "${2:-}" in
+      active-a|active-b) state=in_flight ;;
+      queued-c) state=queued ;;
+      *) exit 2 ;;
+    esac
+    printf 'task:\n  state: %s\n  held: no\n  blocked: no\n' "$state"
+    ;;
+  start)
+    [ "${2:-}" = queued-c ] || exit 2
+    printf 'started queued-c\n'
+    ;;
+  *) exit 2 ;;
+esac
+SH
+  chmod +x "$fakebin/tasks-axi"
+  out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_CONFIG_OVERRIDE="$home/config" FM_PROJECTS_OVERRIDE="$home/projects" \
+    FM_BOOTSTRAP_NETWORK=skip FM_TASKS_AXI_COMPATIBLE=1 \
+    FM_FAKE_BATCH_LOG="$log" FM_FAKE_BATCH_MODE="$mode" FM_FAKE_TREEHOUSE_LEASE_HELP=1 \
+    "$ROOT/bin/fm-bootstrap.sh") || fail "backlog batch bootstrap failed: $out"
+  assert_contains "$out" 'marked queued-c in flight' "queued work was not reconciled"
+  [ "$(grep -c '^list ' "$log")" -eq 1 ] || fail "bootstrap did not collect one in-flight listing"
+  if [ "$mode" = good ]; then
+    [ "$(grep -c '^show ' "$log")" -eq 1 ] || fail "healthy workers still paid per-item row queries"
+  else
+    [ "$(grep -c '^show ' "$log")" -eq 3 ] || fail "unusable batch did not retain the per-record checks"
+  fi
+  grep -Fx 'show queued-c' "$log" >/dev/null || fail "queued transition skipped its fresh row read"
+  [ "$(grep -c '^start ' "$log")" -eq 1 ] || fail "bootstrap changed an already in-flight task"
+  for id in active-a active-b queued-c; do
+    assert_present "$home/state/$id.meta" "bootstrap removed a worker record"
+  done
+}
+
+test_bootstrap_batches_already_in_flight_rows() {
+  run_backlog_batch_case good
+  pass "bootstrap batches healthy rows but freshly checks each actual reconciliation"
+}
+
+test_bootstrap_unusable_batch_preserves_per_record_checks() {
+  run_backlog_batch_case failed
+  run_backlog_batch_case unrecognized
+  run_backlog_batch_case truncated
+  pass "failed, unrecognized, or truncated batches preserve per-record reconciliation"
+}
+
 fm_test_run_cases \
+  test_bootstrap_batches_already_in_flight_rows \
+  test_bootstrap_unusable_batch_preserves_per_record_checks \
   test_bootstrap_reporting \
   test_no_mistakes_min_version \
   test_gh_axi_min_version \

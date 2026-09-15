@@ -465,6 +465,19 @@ _fm_is_pending_reply_escalation() {  # <key> <note>
   esac
 }
 
+# Cheap negative filter for bulk scans. Only a possible transition prefix pays
+# for the full fold's command substitutions; ordinary progress events cannot
+# alter the open set. Prefix matches are deliberately conservative: exact verb,
+# correlation, key, and reserved-namespace semantics still belong to the fold.
+_fm_decision_line_may_transition() {  # <status-line> <resolve-verb> <held-verb>
+  local line=$1
+  line=${line#"${line%%[![:space:]]*}"}
+  case "$line" in
+    needs-decision*|blocked*|"$2"*|"$3"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 _fm_decision_fold_line() {  # <open-set> <status-line> <resolve-verb> <held-verb>
   local open=$1 line=$2 resolve=$3 held=$4 verb key note
   # Blank-line guard. A `case` glob answers "does this line hold any non-space
@@ -513,6 +526,7 @@ status_open_decisions() {  # <status-file>
   resolve=${FM_CLASSIFY_RESOLVE_VERB:-$FM_CLASSIFY_RESOLVE_VERB_DEFAULT}
   held=${FM_CLASSIFY_CAPTAIN_HELD_VERB:-$FM_CLASSIFY_CAPTAIN_HELD_VERB_DEFAULT}
   while IFS= read -r line || [ -n "$line" ]; do
+    _fm_decision_line_may_transition "$line" "$resolve" "$held" || continue
     open=$(_fm_decision_fold_line "$open" "$line" "$resolve" "$held")
   done < "$f"
   printf '%s' "$open"
@@ -847,6 +861,7 @@ status_open_decisions_incremental() {  # <status-file> [<captured-end-offset>]
     resolve=${FM_CLASSIFY_RESOLVE_VERB:-$FM_CLASSIFY_RESOLVE_VERB_DEFAULT}
     held=${FM_CLASSIFY_CAPTAIN_HELD_VERB:-$FM_CLASSIFY_CAPTAIN_HELD_VERB_DEFAULT}
     while IFS= read -r line || [ -n "$line" ]; do
+      _fm_decision_line_may_transition "$line" "$resolve" "$held" || continue
       open=$(_fm_decision_fold_line "$open" "$line" "$resolve" "$held")
     done < "$chunk_file"
     rm -f "$chunk_file"
