@@ -95,7 +95,11 @@
 #          retention an interrupted cleanup recorded, and marks In flight any
 #          item this home already owns a worker for. The worker-record sweep
 #          never starts a captain-held or closed item, and reconciliation never
-#          reads or writes another home; the fleet snapshot's classifier and
+#          reads or writes another home. One bounded in-flight listing avoids
+#          per-record locks and queries for already-settled rows; every other
+#          record retains its locked fresh probe, including after an unusable
+#          listing (bin/fm-backlog-transition-lib.sh owns that shortcut).
+#          The fleet snapshot's classifier and
 #          bin/fm-secondmate-reconcile.sh's nudge stay as backstops. Replayed
 #          transitions and restored In-flight rows print BOOTSTRAP_INFO facts.
 #          The `code-root <file>` variant is a detect-only local check that runs
@@ -1221,7 +1225,7 @@ crew_dispatch_validate() {
 # snapshot's classifier and bin/fm-secondmate-reconcile.sh's nudge stay as
 # backstops for what this cannot see. Never reads or writes another home.
 backlog_record_reconcile() {
-  local marker meta control_lock meta_lock id row label has_record=0 gate_status
+  local marker meta control_lock meta_lock id row label has_record=0 gate_status in_flight_ids
   # A fresh home with no state directory has no physical task records to pair.
   # Keep bootstrap diagnostics working without creating state just for a no-op.
   [ -e "$STATE" ] || [ -L "$STATE" ] || return 0
@@ -1297,6 +1301,7 @@ backlog_record_reconcile() {
     break
   done
   [ "$has_record" = 1 ] || return 0
+  in_flight_ids=$(fm_backlog_in_flight_ids "$DATA" 2>/dev/null) || in_flight_ids=
   for meta in "$STATE"/*.meta; do
     [ -e "$meta" ] || [ -L "$meta" ] || continue
     if ! fm_backlog_record_present "$meta" "task record" "$STATE"; then
@@ -1304,6 +1309,11 @@ backlog_record_reconcile() {
       return 2
     fi
     id=$(basename "$meta" .meta)
+    # This only avoids a no-op. Nothing that can start or close a row may rely
+    # on the earlier listing; those paths still lock and re-read below.
+    case $'\n'"$in_flight_ids"$'\n' in
+      *$'\n'"$id"$'\n'*) continue ;;
+    esac
     meta_lock=$(fm_meta_lock_path "$meta") || continue
     fm_lock_try_acquire "$meta_lock" || continue
     if [ -e "$STATE/$id.backlog-close" ] || [ -L "$STATE/$id.backlog-close" ]; then

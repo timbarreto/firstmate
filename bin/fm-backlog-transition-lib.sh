@@ -469,6 +469,43 @@ fm_backlog_row_list() {  # <resolved-data-dir> [flag...]
   fi
 }
 
+# A bounded, invocation-local negative filter for startup reconciliation. The
+# trusted tasks-axi list owns row state; only its simple, unquoted in-flight IDs
+# are retained. Unknown/truncated formats yield no shortcut. These IDs authorize
+# NO mutation: every row needing repair still takes its lock and fresh row probe.
+# A failed list also falls back to that existing per-record path at the caller.
+fm_backlog_in_flight_ids() {  # <data-dir>
+  local data authorized_data=$1 out secs=${FM_BACKLOG_ROW_TIMEOUT_SECS:-10}
+  data=$(fm_backlog_data_absolute "$1") || return 1
+  fm_backlog_source_present "$data" "$authorized_data" || return 1
+  fm_backlog_tasks_axi_addressing "$data" || return 1
+  case "$secs" in ''|*[!0-9]*) secs=10 ;; esac
+  [ "$secs" -gt 0 ] 2>/dev/null || secs=10
+  set -- list --state in_flight
+  [ -z "$FM_BACKLOG_AXI_FILE" ] || set -- "$@" --file "$FM_BACKLOG_AXI_FILE"
+  # shellcheck disable=SC2016 # The bounded child owns expansion and addressing.
+  out=$(fm_run_timed "$secs" bash -c 'cd "$1" 2>/dev/null || exit 1; shift; exec tasks-axi "$@"' \
+    _ "$FM_BACKLOG_AXI_ROOT" "$@" 2>/dev/null) || return 1
+  printf '%s\n' "$out" | LC_ALL=C awk '
+    /^tasks\[[0-9]+\]\{id,state[,}]/ {
+      headers++; rows=1
+      expected=$0; sub(/^tasks\[/, "", expected); sub(/\].*/, "", expected)
+      next
+    }
+    /^[^[:space:]]/ { rows=0; next }
+    rows && /^  / {
+      count++
+      if ($0 ~ /^  [A-Za-z0-9][A-Za-z0-9._-]*,in_flight,/) {
+        id=$0; sub(/^  /, "", id); sub(/,.*/, "", id); ids[++found]=id
+      }
+    }
+    END {
+      if (headers == 1 && count == expected + 0)
+        for (i=1; i<=found; i++) print ids[i]
+    }
+  '
+}
+
 fm_backlog_row_probe() {  # <data-dir> <id>
   local data authorized_data=$1 id=$2 out state held blocked hold_kind command_status source_status
   if ! data=$(fm_backlog_data_absolute "$1"); then
@@ -705,7 +742,16 @@ fm_backlog_apply_retained_artifact() {  # <data-dir> <id> [flag...]
   fm_backlog_mutate "$data" update "$id" "$@"
 }
 
+# Prefer the native existing-path resolver when available. MSYS Perl's Cwd
+# walks path components in Perl, multiplying startup cost for every fresh
+# record check. Keep the portable path for hosts without GNU realpath flags;
+# neither path caches a filesystem identity or weakens the checks below.
 fm_backlog_canonical_existing() {
+  local resolved
+  if resolved=$(LC_ALL=C realpath -e -- "$1" 2>/dev/null); then
+    printf '%s' "$resolved"
+    return 0
+  fi
   LC_ALL=C perl -MCwd=realpath -e '
     my $resolved = realpath($ARGV[0]);
     exit 1 unless defined $resolved;

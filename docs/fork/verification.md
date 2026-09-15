@@ -39,6 +39,17 @@ The presentation E2E suite performs real isolated Herdr mutations; its handoff a
 Default detached-client and agent exit-to-shell coverage remains owned by the real-Herdr CI job.
 The exit-to-shell fixture waits for Pi's `session_start` readiness marker as well as Herdr's idle registration before submitting `/quit`.
 
+## Startup and Bearings
+
+Run `bin/fm-test-run.sh tests/fm-startup-performance.test.sh` for in-process metadata reads, fresh native and portable path validation, bounded routine-status scans, and snapshot JSON invocation counts with field-preservation assertions.
+These checks run in the Windows reconciliation core job as well as portable CI.
+`FM_TEST_ONLY=test_bootstrap_batches_already_in_flight_rows bin/fm-test-run.sh tests/fm-bootstrap.test.sh` verifies that already in-flight records share a single list query while an actual repair still requires its locked, fresh row read.
+The full bootstrap suite also covers failed, unrecognized, and truncated batch responses falling back to per-record checks.
+
+The backlog atomicity, Bearings snapshot, crew-state, and decision-fold suites retain their confinement, generation/replacement, lifecycle, and status-vocabulary coverage.
+The optimizations do not cache filesystem grants, authorize mutations from a prior list, weaken worker-state deadlines, or change the snapshot schema.
+Operation counts and controlled read bounds are regression signals, not an end-to-end startup SLA; keep real-fleet timing comparisons and their load conditions in PR evidence.
+
 ## Project refresh and Azure completion
 
 `tests/fm-fleet-sync.test.sh` exercises real clone refresh, including native Git/Git Bash root aliases, local-only argument aliases, wrong-root refusal, dirty/diverged work, and preservation of unique branches after upstream deletion.

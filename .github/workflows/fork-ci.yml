@@ -72,7 +72,11 @@ jobs:
             tests/fm-backend-herdr-treehouse.test.sh \
             tests/fm-pi-windows-shell-invocation.test.sh \
             tests/fm-platform-process.test.sh \
-            tests/fm-private-path.test.sh
+            tests/fm-private-path.test.sh \
+            tests/fm-startup-performance.test.sh
+          FM_TEST_ONLY=test_bootstrap_batches_already_in_flight_rows \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+              tests/fm-bootstrap.test.sh
           FM_TEST_ONLY=test_windows_pr_publication_removes_broad_inheritance \
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
               tests/fm-pr-check-security.test.sh
