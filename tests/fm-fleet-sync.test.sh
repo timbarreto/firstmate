@@ -35,15 +35,14 @@ set -u
 fm_git_identity fmtest fmtest@example.invalid
 
 TMP_ROOT=$(fm_test_tmproot fm-fleet-sync-tests)
-HOME_N=0
 
 # --- fixtures ---------------------------------------------------------------
 
 # new_home: fresh isolated FM_HOME with an empty projects/ dir. Each test gets its
 # own so the whole-fleet form never sees another test's clones.
 new_home() {
-  HOME_N=$((HOME_N + 1))
-  local h="$TMP_ROOT/home-$HOME_N"
+  local h
+  h=$(mktemp -d "$TMP_ROOT/home.XXXXXX") || return 1
   mkdir -p "$h/projects"
   printf '%s\n' "$h"
 }
@@ -665,12 +664,122 @@ test_symlinked_clone_still_syncs() {
   # A symlinked clone dir is a real clone root; the guard compares resolved paths,
   # so it must not be mistaken for a directory nested in someone else's repo.
   mv "$clone" "$home/real-sigma"
-  ln -s "$home/real-sigma" "$clone"
+  fm_test_make_symlink "$home/real-sigma" "$clone"
 
   out=$(run_sync "$home")
 
   assert_contains "$out" "sigma: synced" "a symlinked clone must still fast-forward"
   pass "the clone-root guard accepts a symlinked clone directory"
+}
+
+test_clone_root_identity_forms() {
+  local home clone other before other_before out form real_git native index=0
+  local -a forms
+  home=$(new_home)
+  clone=$(build_pair "$home" identity)
+  other=$(build_pair "$home" other-identity)
+  real_git=$(command -v git)
+  forms=("$clone" "$clone/" "$clone/./")
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      native=$(git -C "$clone" rev-parse --show-toplevel)
+      [ "$native" != "$(cd "$clone" && pwd -P)" ] \
+        || fail "native fixture did not expose Git/Bash path spelling divergence"
+      forms+=("$(cygpath -m "$clone")" "$(cygpath -w "$clone")")
+      forms+=("$(cygpath -m "$clone" | tr '[:upper:]' '[:lower:]')")
+      forms+=("$(cygpath -w "$clone" | tr '[:lower:]' '[:upper:]')")
+      ;;
+  esac
+  mkdir -p "$home/identity-bin"
+  cat > "$home/identity-bin/git" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  *' rev-parse --show-toplevel')
+    printf '%s\n' "$FM_TEST_GIT_TOP"
+    ;;
+  *) exec "$FM_TEST_REAL_GIT" "$@" ;;
+esac
+SH
+  chmod +x "$home/identity-bin/git"
+  for form in "${forms[@]}"; do
+    index=$((index + 1))
+    advance_origin "$home" identity "identity-$index"
+    out=$(FM_TEST_GIT_TOP="$form" FM_TEST_REAL_GIT="$real_git" \
+      PATH="$home/identity-bin:$PATH" run_sync "$home" "$clone")
+    assert_contains "$out" "identity: synced" "equivalent directory spelling must refresh"
+    [ "$(head_sha "$clone")" = "$(head_sha "$home/work-identity")" ] \
+      || fail "equivalent path did not reach the remote head"
+  done
+  advance_origin "$home" identity mismatch
+  before=$(head_sha "$clone")
+  other_before=$(head_sha "$other")
+  out=$(FM_TEST_GIT_TOP="$other" FM_TEST_REAL_GIT="$real_git" \
+    PATH="$home/identity-bin:$PATH" run_sync "$home" "$clone")
+  assert_contains "$out" "skipped: not a clone root" "different repository must still be refused"
+  [ "$(head_sha "$clone")" = "$before" ] && [ "$(head_sha "$other")" = "$other_before" ] \
+    || fail "mismatched root changed a repository"
+  pass "clone-root identity accepts native path aliases and refuses a different repository"
+}
+
+test_directory_aliases_preserve_local_only() {
+  local home clone form before out
+  local -a forms
+  home=$(new_home)
+  clone=$(build_pair "$home" local-alias)
+  advance_origin "$home" local-alias C1
+  mkdir -p "$home/data"
+  printf '%s\n' '- local-alias [local-only] - fixture' > "$home/data/projects.md"
+  before=$(head_sha "$clone")
+  forms=("$clone" "$clone/" "$clone/./")
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      forms+=("$(cygpath -m "$clone")" "$(cygpath -w "$clone")")
+      forms+=("$(cygpath -w "$clone" | tr '[:lower:]' '[:upper:]')")
+      ;;
+  esac
+  for form in "${forms[@]}"; do
+    out=$(run_sync "$home" "$form")
+    assert_contains "$out" 'local-alias: skipped: local-only project' \
+      "an equivalent directory argument must retain the registered local-only posture"
+    [ "$(head_sha "$clone")" = "$before" ] || fail "a directory alias advanced a local-only project"
+  done
+  fm_test_make_symlink "$clone" "$home/projects/a-remote-alias"
+  out=$(run_sync "$home" "$clone/./")
+  assert_contains "$out" 'skipped: ambiguous project directory' \
+    "an alias naming multiple managed entries must not choose the first policy"
+  [ "$(head_sha "$clone")" = "$before" ] || fail "an ambiguous alias advanced a local-only project"
+  out=$(run_sync "$home" local-alias)
+  assert_contains "$out" 'local-alias: skipped: local-only project' \
+    "an explicit managed name must remain unambiguous"
+  pass "physical and native argument aliases preserve the managed project's local-only posture"
+}
+
+test_pruning_preserves_unlanded_gone_branches() {
+  local home clone before out
+  home=$(new_home)
+  clone=$(build_pair "$home" unlanded-branch)
+  git -C "$home/work-unlanded-branch" push -q origin main:refs/heads/landed
+  git -C "$home/work-unlanded-branch" checkout -qb gone
+  commit_file "$home/work-unlanded-branch" unlanded.txt unique "unlanded change"
+  git -C "$home/work-unlanded-branch" push -qu origin gone
+  git -C "$clone" fetch -q origin
+  git -C "$clone" branch -q --track gone origin/gone
+  git -C "$clone" branch -q --track landed origin/landed
+  before=$(git -C "$clone" rev-parse gone)
+  git -C "$home/work-unlanded-branch" checkout -q main
+  git -C "$home/work-unlanded-branch" push -q origin --delete gone landed
+  advance_origin "$home" unlanded-branch C1
+  out=$(run_sync "$home" unlanded-branch)
+  [ "$(git -C "$clone" rev-parse --verify refs/heads/gone 2>/dev/null)" = "$before" ] \
+    || fail "refresh discarded an unlanded branch merely because its upstream was deleted: $out"
+  assert_contains "$out" 'kept gone:' "retaining an unmerged branch must be reported"
+  if git -C "$clone" show-ref --verify --quiet refs/heads/landed; then
+    fail "refresh stopped pruning a fully merged branch whose upstream was deleted"
+  fi
+  assert_contains "$out" 'pruned landed' "safe branch pruning must still be reported"
+  [ "$(head_sha "$clone")" = "$(head_sha "$home/work-unlanded-branch")" ] \
+    || fail "preserving an unlanded branch prevented the safe default-branch refresh"
+  pass "a deleted upstream is not landing evidence for a unique local branch"
 }
 
 test_non_signature_fetch_failure_is_not_retried() {
@@ -694,28 +803,32 @@ test_non_signature_fetch_failure_is_not_retried() {
   pass "a non-packed-refs.lock fetch failure keeps today's behavior (no retry)"
 }
 
-test_detached_clean_ancestor_recovers
-test_detached_unique_commit_is_stuck_untouched
-test_detached_clean_ancestor_with_diverged_local_default_is_stuck_untouched
-test_dirty_is_stuck_untouched
-test_non_default_branch_is_stuck_untouched
-test_diverged_is_stuck_untouched
-test_on_default_clean_behind_fast_forwards
-test_already_current_unchanged
-test_no_origin_skipped
-test_local_only_skipped
-test_single_project_by_bare_name_resolves
-test_single_project_by_bare_name_ignores_cwd_shadow
-test_single_project_by_projects_relative_name_resolves
-test_single_project_by_projects_relative_name_ignores_cwd_shadow
-test_single_project_unresolvable_name_still_skips
-test_whole_fleet_form
-test_bootstrap_relays_recovered_and_stuck
-test_orphaned_stale_packed_refs_lock_recovers
-test_live_packed_refs_lock_is_never_removed
-test_live_git_cwd_in_clone_dir_blocks_removal
-test_transient_packed_refs_lock_self_clears
-test_non_signature_fetch_failure_is_not_retried
-test_non_clone_dir_never_syncs_the_enclosing_repo
-test_non_clone_dir_named_directly_never_syncs_the_enclosing_repo
-test_symlinked_clone_still_syncs
+fm_test_run_cases \
+  test_detached_clean_ancestor_recovers \
+  test_detached_unique_commit_is_stuck_untouched \
+  test_detached_clean_ancestor_with_diverged_local_default_is_stuck_untouched \
+  test_dirty_is_stuck_untouched \
+  test_non_default_branch_is_stuck_untouched \
+  test_diverged_is_stuck_untouched \
+  test_on_default_clean_behind_fast_forwards \
+  test_already_current_unchanged \
+  test_no_origin_skipped \
+  test_local_only_skipped \
+  test_single_project_by_bare_name_resolves \
+  test_single_project_by_bare_name_ignores_cwd_shadow \
+  test_single_project_by_projects_relative_name_resolves \
+  test_single_project_by_projects_relative_name_ignores_cwd_shadow \
+  test_single_project_unresolvable_name_still_skips \
+  test_whole_fleet_form \
+  test_bootstrap_relays_recovered_and_stuck \
+  test_orphaned_stale_packed_refs_lock_recovers \
+  test_live_packed_refs_lock_is_never_removed \
+  test_live_git_cwd_in_clone_dir_blocks_removal \
+  test_transient_packed_refs_lock_self_clears \
+  test_non_signature_fetch_failure_is_not_retried \
+  test_non_clone_dir_never_syncs_the_enclosing_repo \
+  test_non_clone_dir_named_directly_never_syncs_the_enclosing_repo \
+  test_symlinked_clone_still_syncs \
+  test_clone_root_identity_forms \
+  test_directory_aliases_preserve_local_only \
+  test_pruning_preserves_unlanded_gone_branches

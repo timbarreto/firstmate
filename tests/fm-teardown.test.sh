@@ -57,6 +57,8 @@ set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/azure-pr-helpers.sh
+. "$ROOT/tests/azure-pr-helpers.sh"
 fm_git_identity fmtest fmtest@example.invalid
 
 TEARDOWN="$ROOT/bin/fm-teardown.sh"
@@ -847,6 +849,71 @@ test_squash_merged_branch_deleted_allows() {
   expect_code 0 "$rc" "squash-merged: teardown should succeed when the PR is merged"
   ! grep -q REFUSED "$case_dir/stderr" || fail "squash-merged: teardown printed a REFUSED line"
   pass "squash-merged + deleted-branch worktree (PR merged) is torn down (the fix)"
+}
+
+test_azure_completed_pr_preserves_backlog_link() {
+  local case_dir head url out rc
+  case_dir=$(make_case azure-completed)
+  write_meta "$case_dir" direct-PR ship
+  wt_commit_file "$case_dir" feature.txt shipped "Azure source change"
+  head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  fm_test_azure_pr "$case_dir" "$head"
+  jq '.status = "completed"' "$case_dir/azure.json" > "$case_dir/completed.json"
+  mv "$case_dir/completed.json" "$case_dir/azure.json"
+  url=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+  printf 'pr=%s\n' "$url" >> "$case_dir/state/task-x1.meta"
+  seed_backlog_in_flight "$case_dir"
+  out=$(run_teardown "$case_dir" 2>&1)
+  rc=$?
+  expect_code 0 "$rc" "completed Azure PR with contained local work permits guarded cleanup: $out"
+  [ "$(backlog_row_state "$case_dir")" = 'done' ] || fail "Azure completion did not close its backlog row"
+  assert_grep "$url" "$case_dir/data/backlog.md" "Azure completion lost its real deliverable URL"
+  [ ! -f "$case_dir/state/task-x1.meta" ] || fail "completed Azure task retained metadata"
+  pass "completed Azure source head permits guarded cleanup and preserves the real backlog link"
+}
+
+test_azure_unlanded_work_is_preserved() {
+  local case_dir scenario head url out rc
+  url=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+  for scenario in active abandoned later-local dirty foreign-response lookup-failed missing-head unavailable-head; do
+    case_dir=$(make_case "azure-$scenario")
+    write_meta "$case_dir" direct-PR ship
+    wt_commit_file "$case_dir" feature.txt unlanded "Azure source change"
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    fm_test_azure_pr "$case_dir" "$head"
+    case "$scenario" in
+      active|abandoned) jq --arg state "$scenario" '.status = $state' "$case_dir/azure.json" ;;
+      foreign-response) jq '.status = "completed" | .repository.name = "another-repo"' "$case_dir/azure.json" ;;
+      missing-head) jq '.status = "completed" | del(.lastMergeSourceCommit)' "$case_dir/azure.json" ;;
+      unavailable-head)
+        jq '.status = "completed" | .lastMergeSourceCommit.commitId = "0000000000000000000000000000000000000001"' \
+          "$case_dir/azure.json"
+        ;;
+      *) jq '.status = "completed"' "$case_dir/azure.json" ;;
+    esac > "$case_dir/changed.json"
+    mv "$case_dir/changed.json" "$case_dir/azure.json"
+    printf 'pr=%s\n' "$url" >> "$case_dir/state/task-x1.meta"
+    case "$scenario" in
+      later-local) wt_commit_file "$case_dir" local.txt unlanded "later local change" ;;
+      dirty) printf 'uncommitted\n' >> "$case_dir/wt/feature.txt" ;;
+    esac
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    set +e
+    if [ "$scenario" = lookup-failed ]; then
+      out=$(FM_TEST_AZ_FAIL=1 run_teardown "$case_dir" 2>&1)
+    else
+      out=$(run_teardown "$case_dir" 2>&1)
+    fi
+    rc=$?
+    set -e
+    [ "$rc" -ne 0 ] || fail "Azure $scenario allowed cleanup of unlanded work"
+    [ -f "$case_dir/state/task-x1.meta" ] && [ -d "$case_dir/wt" ] \
+      || fail "Azure $scenario removed the task before refusing"
+    [ "$(git -C "$case_dir/wt" rev-parse HEAD)" = "$head" ] \
+      || fail "Azure $scenario changed the local branch"
+    assert_contains "$out" REFUSED "Azure $scenario reports a safety refusal"
+  done
+  pass "Azure active, abandoned, foreign, failed, dirty, later-local and unproved-head cases retain unlanded work"
 }
 
 test_squash_merged_pr_allows_when_head_ancestor_of_pr_head() {
@@ -3990,6 +4057,8 @@ EOF
 }
 
 fm_test_run_cases \
+  test_azure_completed_pr_preserves_backlog_link \
+  test_azure_unlanded_work_is_preserved \
   test_local_only_fork_remote_allows \
   test_teardown_closes_the_backlog_item_itself \
   test_teardown_manual_backend_leaves_the_backlog_to_the_operator \

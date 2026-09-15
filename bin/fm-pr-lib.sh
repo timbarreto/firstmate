@@ -11,6 +11,9 @@
 # instances, so the host is part of that identity rather than a constant. Every
 # consumer re-derives the identity from the stored URL and refuses any record
 # whose parts do not reconstruct that exact URL.
+# Azure path includes the organization and repository route through the PR
+# endpoint (without its number); bin/fm-pr-poll.sh owns its shared codec and
+# native response validation, including browser/REST and legacy-host aliases.
 #
 # A validated exact merged result is retired through a private receipt only
 # after its durable wake is appended.
@@ -28,6 +31,8 @@ FM_PR_PATH=
 FM_PR_OWNER=
 FM_PR_REPO=
 FM_PR_NUMBER=
+FM_PR_AZURE_STATE=
+FM_PR_AZURE_HEAD=
 FM_PR_DATA_PROVIDER=
 FM_PR_DATA_URL=
 FM_PR_DATA_HOST=
@@ -179,6 +184,12 @@ fm_pr_url_parse() {
   FM_PR_OWNER=
   FM_PR_REPO=
   FM_PR_NUMBER=
+  case "$raw" in
+    https://dev.azure.com/*|https://*.visualstudio.com/*)
+      fm_pr_azure_record_read --azure-identity "$raw"
+      return "$?"
+      ;;
+  esac
   pattern='^https://github\.com/([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]{0,37}[A-Za-z0-9])/([A-Za-z0-9._-]{1,100})/pull/([1-9][0-9]*)$'
   if [[ "$raw" =~ $pattern ]]; then
     [[ "${BASH_REMATCH[1]}" != *--* ]] || return 1
@@ -209,6 +220,26 @@ fm_pr_url_parse() {
   FM_PR_HOST=$host
   FM_PR_PATH=$path
   FM_PR_NUMBER=${BASH_REMATCH[3]}
+}
+
+fm_pr_azure_record_read() {  # --azure-identity|--azure-read <url>
+  local record _extra
+  FM_PR_AZURE_STATE=
+  FM_PR_AZURE_HEAD=
+  # shellcheck disable=SC2034 # Azure has no GitHub owner/repository tuple.
+  FM_PR_OWNER='' FM_PR_REPO=''
+  record=$(bash "$_FM_PR_LIB_DIR/fm-pr-poll.sh" "$1" "$2") || return 1
+  {
+    IFS= read -r FM_PR_PROVIDER && IFS= read -r FM_PR_URL \
+      && IFS= read -r FM_PR_HOST && IFS= read -r FM_PR_PATH \
+      && IFS= read -r FM_PR_NUMBER || return 1
+    if [ "$1" = --azure-read ]; then
+      # shellcheck disable=SC2034 # Public result consumed by lifecycle callers.
+      IFS= read -r FM_PR_AZURE_STATE && IFS= read -r FM_PR_AZURE_HEAD || return 1
+      [ "$FM_PR_AZURE_HEAD" != - ] || FM_PR_AZURE_HEAD=
+    fi
+    ! IFS= read -r _extra
+  } <<< "$record"
 }
 
 fm_pr_head_valid() {
@@ -351,7 +382,7 @@ fm_pr_metadata_identity_parse() {
         pr_count=$((pr_count + 1))
         [ "$pr_count" -eq 1 ] || continue
         value=${line#pr=}
-        if fm_pr_url_parse "$value"; then
+        if fm_pr_url_parse "$value" && [ "$value" = "$FM_PR_URL" ]; then
           FM_PR_META_PROVIDER=$FM_PR_PROVIDER
           FM_PR_META_URL=$FM_PR_URL
           FM_PR_META_HOST=$FM_PR_HOST
@@ -402,6 +433,7 @@ fm_pr_poll_data_parse() {
   fi
   exec 8<&-
   fm_pr_url_parse "$url" || return 1
+  [ "$url" = "$FM_PR_URL" ] || return 1
   [ "$provider" = "$FM_PR_PROVIDER" ] || return 1
   [ "$host" = "$FM_PR_HOST" ] || return 1
   [ "$path" = "$FM_PR_PATH" ] || return 1
@@ -450,6 +482,7 @@ fm_pr_poll_registration_parse() {
   [ "$version" = fm-pr-poll-registration-v2 ] || return 1
   fm_pr_task_id_valid "$id" || return 1
   fm_pr_url_parse "$url" || return 1
+  [ "$url" = "$FM_PR_URL" ] || return 1
   [ "$provider" = "$FM_PR_PROVIDER" ] || return 1
   [ "$host" = "$FM_PR_HOST" ] || return 1
   [ "$path" = "$FM_PR_PATH" ] || return 1
@@ -502,6 +535,7 @@ fm_pr_poll_prepare() {
   local state=$1 id=$2 provider=$3 url=$4 host=$5 path=$6 number=$7 template=$8
   fm_pr_task_id_valid "$id" || return 1
   fm_pr_url_parse "$url" || return 1
+  [ "$url" = "$FM_PR_URL" ] || return 1
   [ "$provider" = "$FM_PR_PROVIDER" ] || return 1
   [ "$host" = "$FM_PR_HOST" ] || return 1
   [ "$path" = "$FM_PR_PATH" ] || return 1
@@ -748,6 +782,7 @@ fm_pr_poll_retirement_parse() {
   [ "$version" = fm-pr-poll-retirement-v1 ] || return 1
   fm_pr_task_id_valid "$id" || return 1
   fm_pr_url_parse "$url" || return 1
+  [ "$url" = "$FM_PR_URL" ] || return 1
   [ "$provider" = "$FM_PR_PROVIDER" ] || return 1
   [ "$host" = "$FM_PR_HOST" ] || return 1
   [ "$path" = "$FM_PR_PATH" ] || return 1

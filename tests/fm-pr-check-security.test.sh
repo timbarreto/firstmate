@@ -9,6 +9,8 @@ set -u
 . "$ROOT/bin/fm-pr-lib.sh"
 # shellcheck source=/dev/null
 . "$ROOT/bin/fm-check-lib.sh"
+# shellcheck source=tests/azure-pr-helpers.sh
+. "$ROOT/tests/azure-pr-helpers.sh"
 
 PR_CHECK="$ROOT/bin/fm-pr-check.sh"
 PR_MERGE="$ROOT/bin/fm-pr-merge.sh"
@@ -418,6 +420,291 @@ UNSAFE_LIFECYCLE_IDS=(
   'task$a'
 )
 
+test_azure_pr_registration() {
+  local dir url out input index=0 state
+  dir=$(make_case azure-registration)
+  fm_test_azure_pr "$dir"
+  state="$dir/home/state"
+  url=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+  while IFS= read -r input; do
+    index=$((index + 1))
+    write_task_meta "$dir" "azure-$index"
+    out=$(run_check_entry "$dir" "azure-$index" "$input" 2>&1) \
+      || fail "Azure PR registration failed: $out"
+    fm_pr_poll_artifacts_valid "$state" "azure-$index" "$POLL" \
+      || fail "Azure registration did not publish a bound private completion poll"
+    [ "$(grep '^pr=' "$state/azure-$index.meta")" = "pr=$url" ] \
+      || fail "Azure registration did not converge on the real browser identity"
+    [ "$(grep '^pr_head=' "$state/azure-$index.meta")" = \
+      pr_head=0123456789abcdef0123456789abcdef01234567 ] \
+      || fail "Azure registration did not record the validated source head"
+  done <<'EOF'
+https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+https://example-org.visualstudio.com/Example%20Project/_git/example-repo/pullrequest/42
+https://example-org.visualstudio.com/DefaultCollection/Example%20Project/_git/example-repo/pullrequest/42
+https://dev.azure.com/example-org/22222222-2222-2222-2222-222222222222/_apis/git/repositories/11111111-1111-1111-1111-111111111111/pullRequests/42
+https://dev.azure.com/example-org/Example%20Project/_apis/git/repositories/example-repo/pullrequests/42?api-version=7.1
+https://example-org.visualstudio.com/_apis/git/repositories/11111111-1111-1111-1111-111111111111/pullRequests/42?api-version=7.1
+EOF
+  [ ! -s "$dir/gh.log" ] && [ ! -s "$dir/glab.log" ] \
+    || fail "Azure registration queried the wrong forge"
+  pass "Azure browser, REST, GUID and legacy aliases register one canonical private identity"
+}
+
+test_azure_pr_completion_contract() {
+  local dir url out value original input rc before
+  dir=$(make_case azure-completion)
+  fm_test_azure_pr "$dir"
+  write_task_meta "$dir"
+  url=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+  run_check_entry "$dir" task-a "$url" >/dev/null || fail "could not arm Azure poll"
+  original=$(cat "$dir/azure.json")
+  for value in active abandoned completed; do
+    # shellcheck disable=SC2016 # jq evaluates the --arg binding.
+    printf '%s' "$original" | "$REAL_JQ" --arg state "$value" '.status = $state' \
+      > "$dir/azure.json"
+    out=$(run_poll "$dir")
+    if [ "$value" = completed ]; then
+      [ "$out" = merged ] || fail "completed Azure PR did not emit exactly one merge"
+    else
+      [ -z "$out" ] || fail "Azure $value PR with a successful merge preview emitted completion"
+    fi
+  done
+  for input in \
+    '.status = "MERGED"' \
+    '.status = null' \
+    '.pullRequestId = 43' \
+    '.pullRequestId = "42"' \
+    '.url |= sub("example-org"; "other-org")' \
+    '.url |= sub("pullRequests/42"; "pullRequests/43")' \
+    '.repository.project.name = "other-project"' \
+    '.repository.name = "other-repo"' \
+    '.repository.id = "33333333-3333-3333-3333-333333333333"' \
+    '.repository.project.id = "33333333-3333-3333-3333-333333333333"' \
+    '.lastMergeSourceCommit.commitId = "not-a-commit"' \
+    'del(.repository)' \
+    '[.]'; do
+    printf '%s' "$original" | "$REAL_JQ" ".status = \"completed\" | $input" \
+      > "$dir/azure.json"
+    out=$(run_poll "$dir")
+    [ -z "$out" ] || fail "malformed or foreign Azure response emitted a merge: $input"
+  done
+  printf 'not-json\n' > "$dir/azure.json"
+  [ -z "$(run_poll "$dir")" ] || fail "malformed JSON emitted a merge"
+  printf '%s' "$original" | "$REAL_JQ" '.status = "completed"' > "$dir/azure.json"
+  [ -z "$(FM_TEST_AZ_FAIL=1 run_poll "$dir")" ] || fail "failed Azure read emitted a merge"
+  write_task_meta "$dir" failed-read
+  before=$(state_snapshot "$dir/home/state")
+  out=$(FM_TEST_AZ_FAIL=1 run_check_entry "$dir" failed-read "$url" 2>&1)
+  rc=$?
+  [ "$rc" -ne 0 ] || fail "failed Azure lookup registered a poll"
+  [ "$(state_snapshot "$dir/home/state")" = "$before" ] || fail "failed Azure lookup changed state"
+  assert_contains "$out" "Azure DevOps PR lookup failed" "registration surfaces the lookup failure"
+  mv "$dir/fakebin/az" "$dir/az-disabled"
+  [ -z "$(run_poll "$dir")" ] || fail "absent Azure CLI emitted a merge"
+  out=$(run_check_entry "$dir" failed-read "$url" 2>&1)
+  rc=$?
+  [ "$rc" -ne 0 ] || fail "absent Azure CLI registered a poll"
+  assert_contains "$out" "requires az" "registration names the missing Azure CLI"
+  [ "$(state_snapshot "$dir/home/state")" = "$before" ] || fail "missing Azure CLI changed state"
+  pass "only a completed identity-matched Azure PR emits a merge; failures never publish success"
+}
+
+test_azure_identity_byte_contract() {
+  local dir url original value before
+  dir=$(make_case azure-identity-bytes)
+  fm_test_azure_pr "$dir"
+  write_task_meta "$dir"
+  before=$(state_snapshot "$dir/home/state")
+  for url in \
+    'http://dev.azure.com/example-org/Project/_git/repo/pullrequest/42' \
+    'https://dev.azure.com:443/example-org/Project/_git/repo/pullrequest/42' \
+    'https://dev.azure.com/example-org/Project/_git/repo/pullrequest/042' \
+    'https://dev.azure.com/example-org/Project/_git/repo/pullrequest/2147483648' \
+    'https://dev.azure.com/example-org/Project/_git/repo/pullrequest/42/' \
+    'https://dev.azure.com/example-org/Project/_git/repo/pullrequest/42#comments' \
+    'https://dev.azure.com/example-org/Project/_git/repo/pullrequest/42?other=value' \
+    'https://dev.azure.com/example-org/%2e%2e/_git/repo/pullrequest/42' \
+    'https://dev.azure.com/example-org/Project%2Freplaced/_git/repo/pullrequest/42' \
+    'https://dev.azure.com/example-org/Project%5Creplaced/_git/repo/pullrequest/42' \
+    'https://dev.azure.com/example-org/Project%2520Name/_git/repo/pullrequest/42' \
+    'https://dev.azure.com/example-org/Project%0AName/_git/repo/pullrequest/42' \
+    'https://dev.azure.com/example-org/Project%FF/_git/repo/pullrequest/42' \
+    'https://dev.azure.com/example-org/_apis/git/repositories/repo/pullRequests/42?api-version=7.1&other=value'; do
+    if run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err"; then
+      fail "Azure registration accepted an unsafe identity form"
+    fi
+    assert_contains "$(cat "$dir/err")" "invalid PR check request" "unsafe identity is refused before reading Azure"
+  done
+  [ "$(state_snapshot "$dir/home/state")" = "$before" ] || fail "unsafe Azure identity changed artifacts"
+  [ ! -s "$dir/azure.log" ] || fail "unsafe Azure identity reached the native CLI"
+  original=$(cat "$dir/azure.json")
+  printf '%s' "$original" | "$REAL_JQ" \
+    '.repository.project.name = "\u00c9quipe" | .repository.name = "example repo"' > "$dir/azure.json"
+  value=$("$POLL" --azure-identity \
+    'https://example-org.visualstudio.com/DefaultCollection/%c3%89quipe/_git/example%20repo/pullrequest/42') \
+    || fail "UTF-8 identity alias was rejected"
+  assert_contains "$value" \
+    'https://dev.azure.com/example-org/%C3%89quipe/_git/example%20repo/pullrequest/42' \
+    "UTF-8 percent encoding has a canonical representation"
+  run_check_entry "$dir" task-a \
+    'https://dev.azure.com/example-org/_apis/git/repositories/11111111-1111-1111-1111-111111111111/pullRequests/42?api-version=7.1-preview.1' \
+    >/dev/null || fail "project-optional Azure REST identity could not resolve Unicode names"
+  assert_grep 'pr=https://dev.azure.com/example-org/%C3%89quipe/_git/example%20repo/pullrequest/42' \
+    "$dir/home/state/task-a.meta" "native response retains canonical Unicode project and repository names"
+  pass "Azure identity validation rejects unsafe bytes and preserves canonical UTF-8 names"
+}
+
+test_azure_merge_is_explicitly_unsupported() {
+  local dir before out rc=0
+  dir=$(make_case azure-merge-refusal)
+  fm_test_azure_pr "$dir"
+  write_task_meta "$dir"
+  before=$(state_snapshot "$dir/home/state")
+  out=$(run_merge_entry "$dir" task-a \
+    https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42 \
+    -- --auto --squash 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] || fail "Azure merge was not explicitly refused"
+  assert_contains "$out" 'completion monitoring is read-only' "unsupported Azure mutation is explained"
+  [ "$(state_snapshot "$dir/home/state")" = "$before" ] || fail "Azure merge refusal changed metadata or artifacts"
+  [ ! -s "$dir/azure.log" ] && [ ! -s "$dir/gh.log" ] && [ ! -s "$dir/gh-axi.log" ] \
+    && [ ! -s "$dir/glab.log" ] && [ ! -s "$dir/guard.log" ] \
+    || fail "unsupported Azure merge reached a forge or mutation"
+  pass "Azure completion support never authorizes a merge or changes task state"
+}
+
+test_azure_poll_notification_and_replay() {
+  local dir state url before record
+  dir=$(make_case azure-notification)
+  state="$dir/home/state"
+  url=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+  fm_test_azure_pr "$dir"
+  write_task_meta "$dir"
+  printf 'unlanded sentinel\n' > "$dir/wt/keep"
+  run_check_entry "$dir" task-a "$url" >/dev/null || fail "Azure notification registration failed"
+  before=$(shasum -a 256 "$state/task-a.meta")
+  add_stop_custom_check "$dir"
+  FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
+    > "$dir/active.out" 2> "$dir/active.err" || fail "active Azure watcher failed: $(cat "$dir/active.err")"
+  [ ! -e "$state/task-a.pr-poll-merge-notified" ] || fail "active Azure merge preview published completion"
+  fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "active Azure PR lost its completion check"
+  ack_watcher_cycle "$state" || fail "active cycle acknowledgement failed"
+  "$REAL_JQ" '.status = "completed"' "$dir/azure.json" > "$dir/completed.json"
+  mv "$dir/completed.json" "$dir/azure.json"
+  rm -f "$state/.last-check"
+  FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
+    > "$dir/merged.out" 2> "$dir/merged.err" || fail "completed Azure watcher failed: $(cat "$dir/merged.err")"
+  record=$(printf '\tcheck\tmerged-task-a-%s\t' "$url")
+  [ "$(grep -cF "$record" "$state/.wake-queue")" -eq 1 ] || fail "Azure completion did not durably publish its real identity exactly once"
+  assert_poll_absent "$state" task-a
+  [ "$(shasum -a 256 "$state/task-a.meta")" = "$before" ] && [ -f "$dir/wt/keep" ] \
+    || fail "completion notification changed the worker or unlanded work"
+  # A fresh process presents the unacknowledged outcome again, without needing
+  # a runnable poll or an Azure read.
+  FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$dir/root" "$ROOT/bin/fm-wake-drain.sh" \
+    > "$dir/restart.out" 2> "$dir/restart.err" || fail "Azure durable outcome did not replay"
+  assert_grep "$record" "$dir/restart.out" "restart retains the Azure outcome until acknowledgement"
+  ack_watcher_cycle "$state" || fail "Azure completion acknowledgement failed"
+  run_check_entry "$dir" task-a \
+    'https://example-org.visualstudio.com/_apis/git/repositories/11111111-1111-1111-1111-111111111111/pullRequests/42' \
+    >/dev/null || fail "Azure alias re-registration failed"
+  rm -f "$state/.last-check"
+  FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
+    > "$dir/duplicate.out" 2> "$dir/duplicate.err" || fail "Azure duplicate cycle failed"
+  assert_no_grep "$record" "$state/.wake-queue" "same Azure identity must not be reported twice"
+  assert_poll_absent "$state" task-a
+  pass "Azure registration reaches durable completion, restart replay and alias-aware duplicate suppression"
+}
+
+test_azure_poll_interrupted_publication() {
+  local dir state url replies merged rc=0
+  dir=$(make_case azure-publication-retry)
+  state="$dir/home/state"
+  url=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+  merged="done [key=merged-task-a]: merged task-a $url"
+  fm_test_azure_pr "$dir"
+  seed_secondmate_home "$dir"
+  replies="$state/parent-replies.status"
+  write_task_meta "$dir"
+  "$REAL_JQ" '.status = "completed"' "$dir/azure.json" > "$dir/completed.json"
+  mv "$dir/completed.json" "$dir/azure.json"
+  run_check_entry "$dir" task-a "$url" >/dev/null || fail "Azure retry registration failed"
+  add_stop_custom_check "$dir"
+  cat > "$dir/fakebin/mv" <<'SH'
+#!/usr/bin/env bash
+case " $* " in *pr-poll-merge-notified*) exit 1 ;; esac
+exec "$FM_TEST_REAL_MV" "$@"
+SH
+  chmod +x "$dir/fakebin/mv"
+  FM_TEST_REAL_MV="$REAL_MV" FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
+    > "$dir/first.out" 2> "$dir/first.err" || rc=$?
+  [ "$rc" -eq 1 ] || fail "failed Azure publication did not report failure: $(cat "$dir/first.err")"
+  [ ! -e "$state/task-a.pr-poll-merge-notified" ] || fail "failed Azure marker was committed"
+  [ -f "$state/task-a.check.sh" ] || fail "uncommitted Azure notification lost its retry"
+  assert_grep "$merged" "$replies" "Azure completion is delivered before deduplication is committed"
+  ack_watcher_cycle "$state" || fail "interrupted Azure cycle acknowledgement failed"
+  rm -f "$dir/fakebin/mv" "$state/.last-check"
+  FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
+    > "$dir/retry.out" 2> "$dir/retry.err" || fail "Azure publication restart could not retry"
+  if grep -Fq 'check: rearm-resurface' "$dir/retry.out"; then
+    ack_watcher_cycle "$state" || fail "Azure publication recovery acknowledgement failed"
+    FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
+      > "$dir/retry.out" 2> "$dir/retry.err" || fail "Azure publication could not resume after recovery"
+  fi
+  [ "$(grep -cF "$merged" "$replies")" -eq 1 ] || fail "Azure retry duplicated the parent's already-appended completion line"
+  assert_grep "$url" "$state/.wake-queue" "interrupted Azure publication retries its acknowledged local outcome"
+  fm_pr_poll_merge_already_notified "$state" task-a azure dev.azure.com \
+    example-org/Example%20Project/_git/example-repo/pullrequest 42 || fail "Azure retry did not commit its exact identity"
+  assert_poll_absent "$state" task-a
+  pass "Azure upward notification retries after an interrupted marker commit without losing the outcome"
+}
+
+test_azure_poll_binding_and_retirement_recovery() {
+  local dir state kind before
+  for kind in source metadata; do
+    dir=$(make_case "azure-binding-$kind")
+    state="$dir/home/state"
+    fm_test_azure_pr "$dir"
+    write_task_meta "$dir"
+    run_check_entry "$dir" task-a \
+      https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42 \
+      >/dev/null || fail "Azure binding registration failed"
+    before=$(wc -l < "$dir/azure.log")
+    case "$kind" in
+      source) printf '\nprintf compromised\n' >> "$state/task-a.check.sh" ;;
+      metadata)
+        sed 's#https://dev.azure.com/example-org/#https://example-org.visualstudio.com/#' \
+          "$state/task-a.meta" > "$dir/alias.meta"
+        cp "$dir/alias.meta" "$state/task-a.meta"
+        ;;
+    esac
+    add_stop_custom_check "$dir"
+    FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
+      > "$dir/refused.out" 2> "$dir/refused.err" || fail "Azure binding refusal did not yield safely"
+    [ "$(wc -l < "$dir/azure.log")" = "$before" ] || fail "changed Azure $kind reached the native CLI"
+    assert_no_grep compromised "$dir/refused.out" "changed source bytes must never execute"
+    [ ! -e "$state/task-a.pr-poll-merge-notified" ] || fail "changed Azure $kind emitted completion"
+  done
+  dir=$(make_case azure-retirement-restart)
+  state="$dir/home/state"
+  fm_test_azure_pr "$dir"
+  write_task_meta "$dir"
+  run_check_entry "$dir" task-a \
+    https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42 \
+    >/dev/null || fail "Azure retirement registration failed"
+  before=$(wc -l < "$dir/azure.log")
+  fm_pr_poll_snapshot_capture "$state" task-a "$POLL" || fail "Azure retirement snapshot failed"
+  fm_pr_poll_retirement_publish "$state" task-a "$POLL" merged || fail "Azure retirement receipt failed"
+  rm -f "$state/task-a.check.sh"
+  add_stop_custom_check "$dir"
+  FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
+    > "$dir/recovered.out" 2> "$dir/recovered.err" || fail "Azure partial retirement recovery failed"
+  assert_poll_absent "$state" task-a
+  [ "$(wc -l < "$dir/azure.log")" = "$before" ] || fail "retirement replay queried Azure again"
+  [ -f "$state/task-a.meta" ] && [ -d "$dir/wt" ] || fail "Azure retirement recovery removed worker state"
+  pass "Azure source and canonical metadata bindings refuse tampering; partial retirement resumes without deleting work"
+}
+
 test_parser_matrix() {
   local id row url owner repo number
   while IFS='|' read -r url owner repo number; do
@@ -707,7 +994,8 @@ run_watcher_bounded() {
   esac
   FM_TEST_WATCH_TIMEOUT=$watch_timeout \
     perl -e 'my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } local $SIG{ALRM}=sub { kill "TERM", $pid; waitpid $pid, 0; exit 124 }; alarm $ENV{FM_TEST_WATCH_TIMEOUT}; waitpid $pid, 0; alarm 0; exit($? >> 8)' \
-    env FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" FM_CHECK_TIMEOUT=1 \
+    env FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" \
+      FM_CHECK_TIMEOUT="${FM_TEST_CHECK_TIMEOUT:-1}" \
       FM_POLL=0.02 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 PATH="$fakebin:$BASE_PATH" "$WATCH" "$@"
 }
 
@@ -2301,6 +2589,13 @@ test_gitlab_merged_poll_retires() {
 }
 
 fm_test_run_cases \
+  test_azure_pr_registration \
+  test_azure_pr_completion_contract \
+  test_azure_identity_byte_contract \
+  test_azure_merge_is_explicitly_unsupported \
+  test_azure_poll_notification_and_replay \
+  test_azure_poll_interrupted_publication \
+  test_azure_poll_binding_and_retirement_recovery \
   test_parser_matrix \
   test_gitlab_merge_watch \
   test_merged_poll_retires_once \

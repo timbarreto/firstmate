@@ -15,6 +15,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/azure-pr-helpers.sh
+. "$ROOT/tests/azure-pr-helpers.sh"
 fm_git_identity fmtest fmtest@example.invalid
 
 REVIEW_DIFF="$ROOT/bin/fm-review-diff.sh"
@@ -26,7 +28,7 @@ make_case() {
   mkdir -p "$case_dir/state"
 
   git init -q --bare "$case_dir/origin.git"
-  git -C "$case_dir/origin.git" symbolic-ref HEAD refs/heads/main
+  git --git-dir="$case_dir/origin.git" symbolic-ref HEAD refs/heads/main
   git clone -q "$case_dir/origin.git" "$case_dir/_seed" 2>/dev/null
   printf 'base\n' > "$case_dir/_seed/feature.txt"
   git -C "$case_dir/_seed" add feature.txt
@@ -169,8 +171,32 @@ test_unreachable_pr_head_falls_back_with_warning() {
   pass "fm-review-diff falls back to local branch with a warning when PR head is unreachable"
 }
 
-test_pr_meta_uses_pr_head_not_stale_local
-test_pr_meta_fetches_pull_head_without_recorded_sha
-test_stale_recorded_pr_head_loses_to_fetched_pull_head
-test_no_pr_meta_uses_local_branch
-test_unreachable_pr_head_falls_back_with_warning
+test_azure_pr_uses_live_source_head() {
+  local case_dir out
+  case_dir=$(make_case azure-source-head)
+  stale_and_pr_commits "$case_dir"
+  fm_test_azure_pr "$case_dir" "$PR_SHA"
+  git -C "$case_dir/wt" push -q origin pr-head-tmp
+  write_task_meta "$case_dir" \
+    "pr=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42" \
+    "pr_head=$(git -C "$case_dir/wt" rev-parse HEAD)"
+  out=$(PATH="$case_dir/fakebin:$PATH" run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
+  assert_contains "$out" '+pr-fixed' "Azure review uses the native source head rather than stale metadata"
+  assert_not_contains "$out" 'stale-local' "Azure review must not silently use the stale recorded head"
+  jq '.repository.name = "foreign-repo"' "$case_dir/azure.json" > "$case_dir/foreign.json"
+  mv "$case_dir/foreign.json" "$case_dir/azure.json"
+  write_task_meta "$case_dir" \
+    "pr=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42"
+  out=$(PATH="$case_dir/fakebin:$PATH" run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
+  assert_contains "$out" '+stale-local' "foreign Azure response cannot supply the review head"
+  assert_contains "$(cat "$case_dir/stderr")" 'warning: PR head unavailable' "foreign Azure response is disclosed"
+  pass "Azure review resolves the validated native source head and rejects another repository"
+}
+
+fm_test_run_cases \
+  test_pr_meta_uses_pr_head_not_stale_local \
+  test_pr_meta_fetches_pull_head_without_recorded_sha \
+  test_stale_recorded_pr_head_loses_to_fetched_pull_head \
+  test_no_pr_meta_uses_local_branch \
+  test_unreachable_pr_head_falls_back_with_warning \
+  test_azure_pr_uses_live_source_head

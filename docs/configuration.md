@@ -483,6 +483,32 @@ The locked bootstrap inheritance pass uses the same placement-specific behavior;
 That live discovery starts from `state/*.meta` records with `kind=secondmate`; `data/secondmates.md` only backfills `home=` for older or incomplete meta records.
 Skipped items, such as a destination checkout that does not yet gitignore the item, are visible warnings but not hard failures.
 
+## Azure DevOps PR completion
+
+Azure DevOps Services completion monitoring accepts browser and repository-scoped REST PR URLs on `dev.azure.com` and `<organization>.visualstudio.com`, including the legacy `DefaultCollection` prefix.
+Project and repository selectors may be names or GUIDs; REST URLs may omit the project and carry an `api-version` query.
+Names use UTF-8 percent encoding, and registration resolves accepted aliases to one canonical `dev.azure.com` browser URL using the returned project and repository names.
+Self-hosted Azure DevOps Server URLs are not supported.
+
+This optional integration requires Azure CLI with the `azure-devops` extension and working authentication for the selected organization, plus Perl's core `JSON::PP` module.
+It uses [`az repos pr show`](https://learn.microsoft.com/en-us/cli/azure/repos/pr?view=azure-cli-latest#az-repos-pr-show) with an explicit organization and `--detect false`; monitoring never installs extensions, changes authentication, or uses a configured organization as a substitute.
+Registration reports missing tooling, failed authentication/read requests, and invalid or mismatched responses before publishing a check.
+Only the API's [`status=completed`](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-requests/get-pull-request?view=azure-devops-rest-7.1) proves completion; `mergeStatus=succeeded` or a merge-commit preview on an active PR does not.
+Active, abandoned, failed, and malformed reads never emit a successful completion.
+
+Completion notifications retain the real Azure identity through restart/replay and normal duplicate suppression, but do not remove a worker or its local changes.
+Guarded cleanup independently reads the completed PR's source head and applies the existing clean/landed-work checks; unavailable commit evidence cannot authorize discarding work.
+`bin/fm-review-diff.sh` uses the validated native source head when retrievable, with an explicit warning before falling back to recorded or local evidence.
+Azure's source-merge calculation can lag a push, so that head is not a claim that every latest push has already been evaluated.
+The current tasks-axi row-link field cannot represent Azure PR URLs, so completion stores the actual URL in a durable note or retained task body while recovery receipts preserve the original PR artifact; fleet views retain that link.
+Fleet views prefer the latest retained deliverable over incidental PR links in task context.
+An answer before interrupted cleanup replay also preserves that artifact without reopening the answered task or replacing its recorded decision.
+
+`bin/fm-pr-merge.sh` explicitly refuses Azure merges; merge approval, captain decisions, and cleanup authority are unchanged.
+CI, review/comment subscriptions, and live PR-list enrichment are not added by this integration.
+Registrations bind canonical names rather than immutable rename tracking; after a project or repository rename, re-register the PR using its current identity.
+[`bin/fm-pr-poll.sh`](../bin/fm-pr-poll.sh) owns the exact URL, response-validation, and native-read contract.
+
 ## Watched tool updates (config/watched-tools.json)
 
 `config/watched-tools.json` is an optional local, gitignored list of the tools this home depends on.

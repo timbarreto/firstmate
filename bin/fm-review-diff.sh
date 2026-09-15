@@ -5,8 +5,9 @@
 # helper compares remote-backed projects against origin/<default> after fetching
 # the default branch, and local-only projects against the local default branch.
 # When state/<id>.meta records pr= (URL or number) for an open PR, the compare
-# side is ALWAYS a freshly fetched refs/pull/<n>/head by default so review stays
-# current after no-mistakes fix rounds push to the PR. A recorded pr_head= is
+# side uses a freshly fetched refs/pull/<n>/head for GitHub, or Azure's
+# identity-verified lastMergeSourceCommit from its native PR read. Azure can
+# still be computing that source merge after a push. A recorded pr_head= is
 # only a fallback when fetch fails (stale recorded SHAs must never win over a
 # reachable remote PR head). If neither PR head can be resolved, fall back to
 # the local branch with a warning. Without pr=, compare the local branch.
@@ -18,6 +19,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+# shellcheck source=bin/fm-pr-lib.sh
+. "$SCRIPT_DIR/fm-pr-lib.sh"
 "$FM_ROOT/bin/fm-guard.sh" || true
 
 usage() {
@@ -105,6 +108,20 @@ fetch_pull_head() {
 
 resolve_pr_head() {
   local pr_url=$1 recorded_head=$2 n resolved
+  case "$pr_url" in
+    https://dev.azure.com/*|https://*.visualstudio.com/*)
+      if fm_pr_azure_record_read --azure-read "$pr_url" && [ -n "$FM_PR_AZURE_HEAD" ]; then
+        resolved=$FM_PR_AZURE_HEAD
+        if git -C "$WT" cat-file -e "$resolved^{commit}" 2>/dev/null \
+          || { git -C "$WT" fetch --quiet origin "$resolved" >/dev/null 2>&1 \
+            && git -C "$WT" cat-file -e "$resolved^{commit}" 2>/dev/null; }; then
+          printf '%s' "$resolved"
+          return 0
+        fi
+      fi
+      echo "warning: Azure PR source head unavailable; considering recorded offline evidence" >&2
+      ;;
+  esac
   n=$(pr_number_from_target "$pr_url") || true
   if [ -n "$n" ]; then
     if resolved=$(fetch_pull_head "$n"); then

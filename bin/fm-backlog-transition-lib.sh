@@ -508,29 +508,44 @@ fm_backlog_start() {  # <data-dir> <id>
   fm_backlog_mutate "$1" start "$2"
 }
 
+# The current tasks-axi PR field requires a /pull/<number> URL. Keep an Azure
+# deliverable as its real URL in the transition/receipt; translate only this
+# unsupported row field to a durable note, never a manufactured GitHub link.
+fm_backlog_pr_needs_note() {
+  case "$1" in
+    https://dev.azure.com/*|https://*.visualstudio.com/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 fm_backlog_done() {  # <data-dir> <id> [flag...]
   local data=$1 id=$2
+  local -a args=('done' "$id")
   shift 2
-  fm_backlog_mutate "$data" "done" "$id" "$@"
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = --pr ] && [ "$#" -ge 2 ] && fm_backlog_pr_needs_note "$2"; then
+      args+=(--note "PR $2")
+      shift 2
+    else
+      args+=("$1")
+      shift
+    fi
+  done
+  fm_backlog_mutate "$data" "${args[@]}"
 }
 
 fm_backlog_row_artifact_supported() {
   local id=$1 flag=${2:-} value=${3:-}
   case "$flag" in
-    --pr) return 0 ;;
+    --pr) ! fm_backlog_pr_needs_note "$value" ;;
     --report) [ "$value" = "data/$id/report.md" ] ;;
     *) return 1 ;;
   esac
 }
 
-# Keep a captain-held row open across the removal of the work record that
-# discovered it: record the finished work's deliverable as one line at the end
-# of the task body (a line already present is left alone), preserve supported
-# artifacts on the row, and return it to Queued, the conventional post-cleanup
-# shape for an open captain call.
-# bin/fm-fleet-snapshot.sh classifies that retained hold from its structured
-# fields; only bin/fm-captain-hold.sh answer resolves the call.
-fm_backlog_retain() {  # <data-dir> <id> [flag...]
+# Record the finished work's deliverable idempotently in the body and preserve
+# supported row artifacts, without changing an open or answered disposition.
+fm_backlog_record_deliverable() {  # <data-dir> <id> [flag...]; never closes or reopens
   local data authorized_data=$1 id=$2 out command_status previous_arg=''
   local arg deliverable='' line body new_body tmp
   local -a row_args=()
@@ -550,7 +565,9 @@ fm_backlog_retain() {  # <data-dir> <id> [flag...]
         ;;
       --pr)
         deliverable="${deliverable:+$deliverable; }PR $arg"
-        row_args=(--pr "$arg")
+        if fm_backlog_row_artifact_supported "$id" --pr "$arg"; then
+          row_args=(--pr "$arg")
+        fi
         ;;
       --note) deliverable="${deliverable:+$deliverable; }$arg" ;;
     esac
@@ -603,7 +620,34 @@ fm_backlog_retain() {  # <data-dir> <id> [flag...]
   if [ "${#row_args[@]}" -gt 0 ]; then
     fm_backlog_mutate "$authorized_data" update "$id" "${row_args[@]}" || return 1
   fi
-  fm_backlog_mutate "$authorized_data" reopen "$id"
+  return 0
+}
+
+fm_backlog_retain() {  # <data-dir> <id> [flag...]
+  # Return a finished worker's held task to Queued without resolving its call.
+  # fm-fleet-snapshot classifies the hold; only fm-captain-hold answer resolves it.
+  local data=$1 id=$2
+  fm_backlog_record_deliverable "$@" || return 1
+  fm_backlog_mutate "$data" reopen "$id"
+}
+
+# Apply an already-validated pending artifact without changing the row's
+# disposition, including when an answer precedes interrupted cleanup replay.
+fm_backlog_apply_retained_artifact() {  # <data-dir> <id> [flag...]
+  local data=$1 id=$2
+  shift 2
+  case "${1-}" in
+    --pr)
+      if fm_backlog_pr_needs_note "${2-}"; then
+        fm_backlog_record_deliverable "$data" "$id" "$@"
+        return "$?"
+      fi
+      ;;
+    --report) ;;
+    *) return 0 ;;
+  esac
+  fm_backlog_row_artifact_supported "$id" "$@" || return 0
+  fm_backlog_mutate "$data" update "$id" "$@"
 }
 
 fm_backlog_canonical_existing() {
@@ -1149,8 +1193,11 @@ fm_backlog_close_marker_replay() {  # <state-dir> <marker-path> <authorized-data
   case "$row_state" in
     done\ *)
       if [ "$mode" = retain ]; then
-        # The captain's answer closed the row before this replay; the retained
-        # transition owes it nothing more than retiring the record.
+        # Keep unsupported Azure row links in the body even if the row closed
+        # before its retention was applied. Never reopen an answered task.
+        if [ "${args[0]-}" = --pr ] && fm_backlog_pr_needs_note "${args[1]-}"; then
+          fm_backlog_apply_retained_artifact "$data" "$id" "${args[@]}" || return 1
+        fi
         fm_backlog_close_marker_remove "$marker" "$state" || return 1
         FM_BACKLOG_CLOSE_REPLAY_RESULT=answered
         return 0

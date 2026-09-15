@@ -5,6 +5,8 @@
 # live only in a private sidecar and are never interpolated into shell source.
 # A GitHub pull request URL and a GitLab merge request URL are both accepted,
 # including a merge request on a self-hosted GitLab instance.
+# Azure DevOps browser/REST aliases are resolved by a native read before any
+# publication; bin/fm-pr-poll.sh owns the supported identities and read contract.
 # Usage: fm-pr-check.sh <task-id> <pr-url>
 set -eu
 
@@ -43,6 +45,16 @@ if [ ! -f "$META" ] || [ -L "$META" ] || [ "$(fm_pr_file_link_count "$META")" !=
   exit 1
 fi
 
+AZURE_HEAD=
+if [ "$PROVIDER" = azure ]; then
+  fm_pr_azure_record_read --azure-read "$URL" || exit 1
+  URL=$FM_PR_URL
+  HOST=$FM_PR_HOST
+  PROJECT_PATH=$FM_PR_PATH
+  NUMBER=$FM_PR_NUMBER
+  AZURE_HEAD=$FM_PR_AZURE_HEAD
+fi
+
 # A prior exact merged result may have queued its durable wake immediately
 # before interruption.
 # Finish only its identity-bound receipt before publishing a replacement poll.
@@ -72,7 +84,7 @@ fi
 # bin/fm-pr-merge.sh reads a GitLab head live at merge time for the same reason,
 # and treats a recorded value that disagrees as stale rather than authoritative.
 WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
-PR_HEAD=
+PR_HEAD=$AZURE_HEAD
 if [ "$PROVIDER" = github ] && [ -n "$WT" ] && [ -d "$WT" ] && command -v gh >/dev/null 2>&1; then
   if REMOTE_HEAD=$(cd "$WT" && gh pr view "$URL" --json headRefOid -q .headRefOid 2>/dev/null) \
     && fm_pr_head_valid "$REMOTE_HEAD"; then

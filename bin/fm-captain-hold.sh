@@ -902,13 +902,8 @@ apply_pending_retained_artifact() {  # <task-id>
     || { report_retained_artifact_failure "$id" "$marker"; return 1; }
   [ "$FM_BACKLOG_CLOSE_VALIDATED_MODE" = retain ] || return 0
   args=("${FM_BACKLOG_CLOSE_VALIDATED_ARGS[@]+"${FM_BACKLOG_CLOSE_VALIDATED_ARGS[@]}"}")
-  case "${args[0]-}" in
-    --pr|--report)
-      fm_backlog_row_artifact_supported "$id" "${args[@]}" || return 0
-      fm_backlog_mutate "$DATA" update "$id" "${args[@]}" \
-        || { report_retained_artifact_failure "$id" "$marker"; return 1; }
-      ;;
-  esac
+  fm_backlog_apply_retained_artifact "$DATA" "$id" "${args[@]+"${args[@]}"}" \
+    || { report_retained_artifact_failure "$id" "$marker"; return 1; }
 }
 
 close_answered() {  # <task-id> <release-0-or-1>

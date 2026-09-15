@@ -379,6 +379,9 @@ test_fork_workflow_selects_its_contracts() {
     fm-pi-windows-shell-invocation.test.sh \
     fm-spawn-dispatch-profile.test.sh \
     fm-teardown.test.sh \
+    fm-fleet-sync.test.sh \
+    fm-pr-check-security.test.sh \
+    fm-review-diff.test.sh \
     fm-pi-primary-types.test.sh \
     fm-pi-branch-extension.test.sh; do
     printf '#!/usr/bin/env bash\n' >"$repo/tests/$script"
@@ -401,6 +404,9 @@ test_fork_workflow_selects_its_contracts() {
       fm-pi-windows-shell-invocation.test.sh \
       fm-spawn-dispatch-profile.test.sh \
       fm-teardown.test.sh \
+      fm-fleet-sync.test.sh \
+      fm-pr-check-security.test.sh \
+      fm-review-diff.test.sh \
       fm-pi-primary-types.test.sh \
       fm-pi-branch-extension.test.sh
   )

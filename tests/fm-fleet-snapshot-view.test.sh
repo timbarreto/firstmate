@@ -62,6 +62,13 @@ make_home() {  # <name>
   printf '%s\n' "$home"
 }
 
+local_view_path() {  # Local fixture paths only; URLs and remote paths stay literal.
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) cygpath -m "$1" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
 record_claude_idle() {  # <state-dir> <id>
   local state=$1 id=$2 gen
   gen=$("$ROOT/bin/fm-busy-event.sh" arm "$state" "$id")
@@ -498,7 +505,7 @@ EOF
 }
 
 test_backlog_tasks_axi_forms_and_overrides() {
-  local home data projects fakebin out view
+  local home data projects fakebin out view report
   home=$(make_home overrides)
   data=$TMP_ROOT/override-data
   projects=$TMP_ROOT/override-projects
@@ -627,8 +634,9 @@ EOF
       and .paths.report.path == ($data + "/bold-task/report.md")
       and .paths.report.present == true
   ' >/dev/null || fail "bold task did not join to override-backed backlog and report"
+  report=$(local_view_path "$data/bold-task/report.md") || fail "could not convert local report expectation"
   view=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_DATA_OVERRIDE="$data" FM_PROJECTS_OVERRIDE="$projects" "$VIEW")
-  assert_contains "$view" "| bold-task | done / status-log | scout | alpha | tmux | present | $data/bold-task/report.md" \
+  assert_contains "$view" "| bold-task | done / status-log | scout | alpha | tmux | present | $report" \
     "view should render bold in-flight row from snapshot"
   assert_contains "$view" "| blocked-reason | Blocked Reason | beta | ship | queued-comma - waits on queued-comma | - |" \
     "view should render blocked reason without title metadata"
@@ -732,9 +740,10 @@ EOF
 }
 
 test_view_renders_snapshot() {
-  local home fakebin view
+  local home fakebin view secondmate_home
   home=$(make_home view)
   write_fixture "$home"
+  secondmate_home=$(local_view_path "$home/secondmate-home") || fail "could not convert local home expectation"
   fakebin=$(make_fakebin "$home")
   view=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$VIEW")
   assert_contains "$view" "| ship-task | working / pane | ship | alpha | tmux | present | https://github.com/kunchenguid/firstmate/pull/9" \
@@ -745,7 +754,7 @@ test_view_renders_snapshot() {
     "view should render done backlog row"
   assert_contains "$view" "bin/fm-send.sh fm-secondmate-task" \
     "view should show secondmate send guidance"
-  assert_contains "$view" "| secondmate-task | working / status-log | secondmate | $home/secondmate-home | tmux | present / alive |" \
+  assert_contains "$view" "| secondmate-task | working / status-log | secondmate | $secondmate_home | tmux | present / alive |" \
     "view should show secondmate endpoint agent liveness"
   assert_not_contains "$view" "fm-peek.sh fm-secondmate-task" \
     "view must not tell firstmate to routinely peek secondmates"
@@ -753,8 +762,9 @@ test_view_renders_snapshot() {
 }
 
 test_view_renders_dead_secondmate_agent_status() {
-  local home fakebin view
+  local home fakebin view secondmate_home
   home=$(make_home dead-secondmate)
+  secondmate_home=$(local_view_path "$home/secondmate-home") || fail "could not convert missing local home expectation"
   fm_write_meta "$home/state/dead-secondmate.meta" \
     "window=firstmate:fm-dead-secondmate" \
     "project=$home/secondmate-home" \
@@ -766,9 +776,9 @@ test_view_renders_dead_secondmate_agent_status() {
   printf 'working: watching delegated scope\n' > "$home/state/dead-secondmate.status"
   fakebin=$(make_fakebin "$home")
   view=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$VIEW")
-  assert_contains "$view" "| dead-secondmate | unknown / none | secondmate | $home/secondmate-home | tmux | present / dead |" \
+  assert_contains "$view" "| dead-secondmate | unknown / none | secondmate | $secondmate_home | tmux | present / dead |" \
     "view should distinguish a present secondmate endpoint from a dead agent"
-  assert_contains "$view" "| dead-secondmate | unknown / none | secondmate | $home/secondmate-home | tmux | present / dead | - | $home/secondmate-home (absent) |" \
+  assert_contains "$view" "| dead-secondmate | unknown / none | secondmate | $secondmate_home | tmux | present / dead | - | $secondmate_home (absent) |" \
     "view should show a recorded missing secondmate home path"
   pass "fleet view renders secondmate agent liveness"
 }
@@ -1045,21 +1055,68 @@ EOF
   pass "home-summary excludes kind=secondmate from unowned_current and terminal_in_flight"
 }
 
-test_empty_fleet_json
-test_fixture_snapshot_json
-test_home_summary_excludes_secondmate_from_child_inventory
-test_undated_captain_hold_phrasing_and_aging
-test_hold_buckets_are_total_and_text_blind
-test_main_inventory_orphan_and_unstructured_disclosure
-test_normalized_roles_and_plural_blocker_readiness
-test_event_hints_follow_reconciled_current_state
-test_open_decision_survives_later_unrelated_event
-test_secondmate_open_decision_survives_live_endpoint
-test_open_decision_transfers_to_captain_hold
-test_open_decision_clears_on_keyed_resolution
-test_completed_scout_report_is_pointer_not_pending
-test_parked_scout_decision_stays_pending
-test_scout_reports_include_teardown_reports
-test_backlog_tasks_axi_forms_and_overrides
-test_view_renders_snapshot
-test_view_renders_dead_secondmate_agent_status
+test_azure_links_survive_status_and_backlog_notes() {
+  local home fakebin out view url
+  home=$(make_home azure-links)
+  fakebin=$(make_fakebin "$home")
+  url=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+  mkdir -p "$home/projects/azure"
+  fm_write_meta "$home/state/azure.meta" \
+    "window=firstmate:fm-azure" "backend=tmux" "worktree=$home/projects/azure" \
+    "project=example-repo" "harness=codex" "kind=ship" "mode=direct-PR"
+  printf 'done: PR %s\n' "$url" > "$home/state/azure.status"
+  cat > "$home/data/backlog.md" <<EOF
+## In flight
+- [ ] azure - Observe completion (repo: example-repo) (kind: ship)
+
+## Queued
+- [ ] azure-retained - Retained Azure deliverable (repo: example-repo) (kind: ship)
+  Context PR https://github.com/example-org/related/pull/9
+  Deliverable of the finished work: PR ${url%/*}/41
+  Deliverable of the finished work: PR $url
+
+## Done
+- [x] azure-done - Azure completion (repo: example-repo) (kind: ship) (done 2026-09-01)
+  PR $url
+- [x] gitlab-done - GitLab completion https://gitlab.example/group/repo/-/merge_requests/42 (repo: example-repo) (kind: ship) (done 2026-09-01)
+EOF
+  cat > "$fakebin/az" <<'SH'
+#!/usr/bin/env bash
+printf 'unexpected Azure read\n' >> "${FM_HOME:?}/network.log"
+exit 97
+SH
+  chmod +x "$fakebin/az"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --json)
+  printf '%s' "$out" | jq -e --arg url "$url" '
+    (.tasks[] | select(.id == "azure") | .pr.url == $url)
+    and (.backlog.records[] | select(.id == "azure-done") | .pr_url == $url)
+    and (.backlog.records[] | select(.id == "azure-retained") | .pr_url == $url)
+    and (.backlog.records[] | select(.id == "gitlab-done")
+      | .pr_url == "https://gitlab.example/group/repo/-/merge_requests/42")
+  ' >/dev/null || fail "snapshot lost a real Azure/GitLab delivery link: $out"
+  view=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$VIEW")
+  assert_contains "$view" "| $url |" "fleet view exposes the actual Azure artifact"
+  [ ! -e "$home/network.log" ] || fail "local snapshot fetched Azure"
+  pass "fleet snapshots retain Azure status URLs and completed notes without manufacturing row links"
+}
+
+fm_test_run_cases \
+  test_empty_fleet_json \
+  test_fixture_snapshot_json \
+  test_home_summary_excludes_secondmate_from_child_inventory \
+  test_undated_captain_hold_phrasing_and_aging \
+  test_hold_buckets_are_total_and_text_blind \
+  test_main_inventory_orphan_and_unstructured_disclosure \
+  test_normalized_roles_and_plural_blocker_readiness \
+  test_event_hints_follow_reconciled_current_state \
+  test_open_decision_survives_later_unrelated_event \
+  test_secondmate_open_decision_survives_live_endpoint \
+  test_open_decision_transfers_to_captain_hold \
+  test_open_decision_clears_on_keyed_resolution \
+  test_completed_scout_report_is_pointer_not_pending \
+  test_parked_scout_decision_stays_pending \
+  test_scout_reports_include_teardown_reports \
+  test_backlog_tasks_axi_forms_and_overrides \
+  test_view_renders_snapshot \
+  test_view_renders_dead_secondmate_agent_status \
+  test_azure_links_survive_status_and_backlog_notes

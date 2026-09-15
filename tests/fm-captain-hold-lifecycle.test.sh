@@ -3854,53 +3854,108 @@ SH
   pass "cleanup refuses a ship row when its captain hold cannot be read"
 }
 
-test_uninventoried_report_decision_refuses_completion
-test_completion_gate_attests_and_transfers
-test_answer_records_and_closes
-test_release_frees_held_work
-test_hold_stamp_precedes_hold_visibility
-test_interrupted_answer_preserves_hold_age
-test_deferral_leaves_captains_call_until_due
-test_out_of_band_close_is_recordable
-test_visual_review_uses_shared_completion_owner
-test_none_inventory_and_resolved_prose_do_not_create_holds
-test_terminal_single_owner_status_decision_does_not_block_empty_inventory
-test_secondmate_hold_stays_in_authoritative_home
-test_secondmate_home_publishes_holds_and_answers
-test_secondmate_reconcile_publishes_before_request_retirement
-test_bound_channel_answers_close_at_answer_time
-test_reconcile_never_closes_through_the_keyed_answer_intake
-test_normal_answers_retire_pending_reconcile_requests
-test_reconcile_closes_with_evidence_or_keeps_the_call_open
-test_reconcile_outcomes_retry_partial_failures_once
-test_unbound_source_closes_no_hold
-test_legacy_identities_keep_working
-test_board_answer_reaches_the_keyed_answer_intake
-test_chat_channel_feeds_the_same_keyed_answer_intake
-test_origin_slug_validation_precedes_path_construction
-test_status_resolution_over_an_open_hold_is_signalled
-test_legitimate_holds_produce_no_divergence_signal
-test_teardown_never_closes_a_captain_held_task
-test_retained_row_artifacts_survive_captain_answers
-test_interrupted_cleanup_keeps_the_captain_call_recoverable
-test_answer_before_cleanup_replay_preserves_the_retained_report
-test_unusable_pending_close_record_names_its_reason
-test_relocated_report_does_not_wedge_an_answer_before_replay
-test_teardown_retains_captain_calls_in_a_relocated_backlog
-test_merge_approval_releases_before_zero_done_retention
-test_pr_merge_entrypoint_refuses_a_captain_held_task
-test_local_merge_entrypoint_refuses_a_captain_held_task
-test_pr_merge_entrypoint_separates_an_unreadable_record_from_an_absent_one
-test_local_merge_entrypoint_separates_an_unreadable_record_from_an_absent_one
-test_merge_entrypoints_validate_identity_and_state_before_locking
-test_merge_entrypoints_refuse_a_reused_task_incarnation
-test_merge_entrypoints_serialize_forced_teardown_before_task_reads
-test_released_merge_passes_the_entrypoint_and_lands
-test_teardown_refuses_a_ship_when_the_captain_hold_cannot_be_read
-test_verify_resolves_a_hold_migrated_to_beads_notes
-test_verify_resolves_a_hold_migrated_under_the_configured_prefix
-test_marker_noted_row_wins_over_a_prefix_namesake
-test_complete_accepts_a_migrated_inventory_on_beads
-test_verify_names_the_unresolvable_legacy_id_once
-test_verify_resolves_a_pre_collapse_key_through_its_derived_marker
-test_captain_hold_mutations_address_the_beads_backend
+test_azure_pending_artifact_survives_completion_and_answers() {
+  local home id mode marker out show url
+  local -a mode_flags
+  url=https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
+  for mode in close retained answered; do
+    home=$(make_home "azure-pending-$mode")
+    id="sample-azure-$mode"
+    marker="$home/state/$id.backlog-close"
+    tasks_in "$home" add "$id" "Preserve an Azure completion artifact" --kind ship \
+      --repo sample --start >/dev/null || fail "could not create the Azure receipt fixture"
+    mode_flags=()
+    if [ "$mode" != close ]; then
+      run_captain "$home" hold "$id" --reason "fixture follow-up choice pending" >/dev/null \
+        || fail "could not hold the Azure receipt fixture"
+      mode_flags=(--retain)
+    fi
+    # shellcheck disable=SC2016 # The child shell evaluates the library and argument list.
+    FM_HOME="$home" bash -c '. "$1"; shift; fm_backlog_close_marker_write "$@"' _ \
+      "$ROOT/bin/fm-backlog-transition-lib.sh" "$home/state" "$id" "$home/data" fixture-azure \
+      "${mode_flags[@]+"${mode_flags[@]}"}" --pr "$url" \
+      || fail "could not publish the Azure completion receipt"
+    assert_grep 'arg=--pr' "$marker" "the durable receipt must retain the original PR artifact type"
+    printf 'Use the completed result for the fixture follow-up.\n' > "$home/answer.txt"
+    if [ "$mode" = answered ]; then
+      run_captain "$home" answer "$id" --decision-file "$home/answer.txt" >/dev/null \
+        || fail "the pending Azure artifact prevented an answer"
+      show=$(tasks_in "$home" show "$id" --full)
+      assert_contains "$show" "$url" "answering before replay must not discard an unsupported Azure row link"
+    fi
+    out=$(PATH="$home/fakebin:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" \
+      FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+      FM_CONFIG_OVERRIDE="$home/config" FM_BOOTSTRAP_NETWORK=skip \
+      "$ROOT/bin/fm-bootstrap.sh" 2>&1) || fail "Azure receipt replay failed: $out"
+    assert_absent "$marker" "a completed Azure replay must retire its receipt"
+    show=$(tasks_in "$home" show "$id" --full)
+    assert_contains "$show" "$url" "replay must preserve the actual Azure deliverable"
+    if [ "$mode" = retained ]; then
+      assert_contains "$show" 'state: queued' "receipt replay must not close an unanswered choice"
+      assert_contains "$show" 'hold_kind: captain' "receipt replay must preserve the outstanding choice"
+      run_captain "$home" answer "$id" --decision-file "$home/answer.txt" >/dev/null \
+        || fail "the retained Azure task could not be answered"
+      show=$(tasks_in "$home" show "$id" --full)
+    fi
+    assert_contains "$show" 'state: done' "completed or answered Azure work should remain closed"
+    assert_contains "$show" "$url" "closure must retain the original Azure deliverable"
+    if [ "$mode" != close ]; then
+      assert_contains "$show" 'Use the completed result for the fixture follow-up.' \
+        "recording the artifact must preserve the exact answer"
+    fi
+  done
+  pass "Azure completion receipts retain real links across close, held-task replay and answer-before-replay"
+}
+
+fm_test_run_cases \
+  test_uninventoried_report_decision_refuses_completion \
+  test_completion_gate_attests_and_transfers \
+  test_answer_records_and_closes \
+  test_release_frees_held_work \
+  test_hold_stamp_precedes_hold_visibility \
+  test_interrupted_answer_preserves_hold_age \
+  test_deferral_leaves_captains_call_until_due \
+  test_out_of_band_close_is_recordable \
+  test_visual_review_uses_shared_completion_owner \
+  test_none_inventory_and_resolved_prose_do_not_create_holds \
+  test_terminal_single_owner_status_decision_does_not_block_empty_inventory \
+  test_secondmate_hold_stays_in_authoritative_home \
+  test_secondmate_home_publishes_holds_and_answers \
+  test_secondmate_reconcile_publishes_before_request_retirement \
+  test_bound_channel_answers_close_at_answer_time \
+  test_reconcile_never_closes_through_the_keyed_answer_intake \
+  test_normal_answers_retire_pending_reconcile_requests \
+  test_reconcile_closes_with_evidence_or_keeps_the_call_open \
+  test_reconcile_outcomes_retry_partial_failures_once \
+  test_unbound_source_closes_no_hold \
+  test_legacy_identities_keep_working \
+  test_board_answer_reaches_the_keyed_answer_intake \
+  test_chat_channel_feeds_the_same_keyed_answer_intake \
+  test_origin_slug_validation_precedes_path_construction \
+  test_status_resolution_over_an_open_hold_is_signalled \
+  test_legitimate_holds_produce_no_divergence_signal \
+  test_teardown_never_closes_a_captain_held_task \
+  test_retained_row_artifacts_survive_captain_answers \
+  test_interrupted_cleanup_keeps_the_captain_call_recoverable \
+  test_answer_before_cleanup_replay_preserves_the_retained_report \
+  test_unusable_pending_close_record_names_its_reason \
+  test_relocated_report_does_not_wedge_an_answer_before_replay \
+  test_teardown_retains_captain_calls_in_a_relocated_backlog \
+  test_merge_approval_releases_before_zero_done_retention \
+  test_pr_merge_entrypoint_refuses_a_captain_held_task \
+  test_local_merge_entrypoint_refuses_a_captain_held_task \
+  test_pr_merge_entrypoint_separates_an_unreadable_record_from_an_absent_one \
+  test_local_merge_entrypoint_separates_an_unreadable_record_from_an_absent_one \
+  test_merge_entrypoints_validate_identity_and_state_before_locking \
+  test_merge_entrypoints_refuse_a_reused_task_incarnation \
+  test_merge_entrypoints_serialize_forced_teardown_before_task_reads \
+  test_released_merge_passes_the_entrypoint_and_lands \
+  test_teardown_refuses_a_ship_when_the_captain_hold_cannot_be_read \
+  test_verify_resolves_a_hold_migrated_to_beads_notes \
+  test_verify_resolves_a_hold_migrated_under_the_configured_prefix \
+  test_marker_noted_row_wins_over_a_prefix_namesake \
+  test_complete_accepts_a_migrated_inventory_on_beads \
+  test_verify_names_the_unresolvable_legacy_id_once \
+  test_verify_resolves_a_pre_collapse_key_through_its_derived_marker \
+  test_captain_hold_mutations_address_the_beads_backend \
+  test_azure_pending_artifact_survives_completion_and_answers

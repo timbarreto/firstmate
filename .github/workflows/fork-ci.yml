@@ -27,7 +27,7 @@ jobs:
   reconciliation-windows:
     name: Windows reconciliation (${{ matrix.subject }})
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ matrix.timeout || 10 }}
     strategy:
       fail-fast: false
       matrix:
@@ -41,13 +41,18 @@ jobs:
           - subject: legacy-rollback
             script: tests/fm-teardown.test.sh
             case: test_legacy_record_rolls_the_stamp_back_when_the_marker_write_fails
+          - subject: pr-completion
+            script: tests/fm-pr-check-security.test.sh
+            case: test_azure_poll_notification_and_replay
+            timeout: 15
+            script-timeout: 600
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Install tasks-axi for the rollback fixture
-        if: matrix.subject == 'legacy-rollback'
+      - name: Install tasks-axi for backlog fixtures
+        if: matrix.subject == 'legacy-rollback' || matrix.subject == 'pr-completion'
         shell: bash
         run: |
           set -eu
@@ -70,6 +75,14 @@ jobs:
           FM_TEST_ONLY=test_windows_pr_publication_removes_broad_inheritance \
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
               tests/fm-pr-check-security.test.sh
+          for test_case in \
+            test_clone_root_identity_forms \
+            test_directory_aliases_preserve_local_only \
+            test_pruning_preserves_unlanded_gone_branches; do
+            FM_TEST_ONLY="$test_case" \
+              bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+                tests/fm-fleet-sync.test.sh
+          done
       - name: Run named Windows reconciliation case
         if: matrix.subject != 'core'
         shell: bash
@@ -77,11 +90,25 @@ jobs:
           FM_LIVE: "0"
           FM_TEST_ONLY: ${{ matrix.case }}
           FM_TEST_SCRIPT: ${{ matrix.script }}
+          FM_TEST_SCRIPT_TIMEOUT: ${{ matrix.script-timeout || 300 }}
         run: |
           set -eu
           command -v jq >/dev/null || { echo "::error::jq is required for the selected fixture"; exit 1; }
           git --version
-          bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 "$FM_TEST_SCRIPT"
+          bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs "$FM_TEST_SCRIPT_TIMEOUT" "$FM_TEST_SCRIPT"
+      - name: Run native Azure downstream contracts
+        if: matrix.subject == 'pr-completion'
+        shell: bash
+        env:
+          FM_LIVE: "0"
+        run: |
+          set -eu
+          FM_TEST_ONLY=test_azure_completed_pr_preserves_backlog_link \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+              tests/fm-teardown.test.sh
+          FM_TEST_ONLY=test_azure_pr_uses_live_source_head \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+              tests/fm-review-diff.test.sh
 
   harness-package-compatibility:
     name: Harness package compatibility
