@@ -351,6 +351,67 @@ Its `remove` action excises only the marker-delimited Firstmate region and remov
 For Pi and pi-signed secondmate launches, `fm-spawn.sh` starts the selected executable with `-e` pointed at the secondmate home's own tracked `.pi/extensions/fm-primary-pi-watch.ts` and `.pi/extensions/fm-primary-turnend-guard.ts`, both already present from the secondmate home's git worktree.
 For omp secondmate launches, `fm-spawn.sh` passes no `-e` at all: omp auto-discovers the home's tracked `.omp/extensions/` with no trust gate, and naming a discovered file with `-e` as well loads it twice; every omp launch instead carries the tracked `.omp/fm-worker-overlay.yml` posture overlay through `--config`, which [`fm-spawn.sh --help`](../bin/fm-spawn.sh) owns.
 
+## Copilot IDE approval-loop workaround
+
+### When this applies
+
+Copilot can start with `--yolo` successfully, then begin asking for approval on routine Firstmate shell commands after an internal IDE MCP reload fails.
+The distinctive error is:
+
+```text
+mcpServers.ide.type: Invalid literal value
+```
+
+It may accompany `Failed to enforce managed Computer Use policy`, repeated MCP reconciliation warnings, and approval dialogs without an option to approve for the whole session.
+This failure has been confirmed with Copilot CLI 1.0.84-8 on Windows with an automatically connected VS Code workspace; the error signature, not the version alone, identifies this workaround's scope.
+
+The IDE entry is created automatically by Copilot, so the error can occur even when the user's saved MCP configuration is empty.
+A failing reload can leave Copilot unable to determine managed policy, causing it to disable YOLO and require individual approvals despite the launch flag.
+This is a Copilot IDE integration problem, not a Firstmate merge-approval setting.
+Genuine enterprise restrictions still take precedence over `--yolo`; this workaround does not override them.
+
+### Apply the workaround
+
+1. Back up Copilot's user settings file, normally `~/.copilot/settings.json` (`$HOME\.copilot\settings.json` in PowerShell).
+   If `COPILOT_HOME` is set, use `settings.json` in that directory instead.
+   This is a Copilot user setting, not a file under Firstmate's `config/` directory.
+2. Merge the following into the existing JSON object, preserving all other settings and any other fields already under `ide`:
+
+   ```json
+   {
+     "ide": {
+       "autoConnect": false
+     }
+   }
+   ```
+
+3. At a safe stopping point, use `/exit` in the affected primary Copilot window and wait for it to exit before restarting it.
+   Changing the file does not detach an existing IDE connection or necessarily restore that session's permissions.
+   From the same Firstmate directory, resume the existing conversation with YOLO requested again:
+
+   ```sh
+   copilot --yolo --resume
+   ```
+
+   Select the affected conversation rather than starting a second primary session against the same Firstmate home.
+   If you use Agency or a custom launcher, use its equivalent resume command and confirm that it forwards `--yolo`.
+   Other workers do not need to be stopped for this primary-session restart.
+4. Run `/mcp reload`, then ask Copilot to execute a harmless shell command such as PowerShell's `Write-Output 'ok'` or Bash's `printf 'ok\n'`.
+   Confirm that the IDE type error is gone, MCP reload completes, and the command does not require approval when managed policy permits YOLO.
+
+Keep Firstmate's hooks, managed security policy, and unrelated MCP servers unchanged.
+Adding more allow flags is not a repair for undetermined managed policy, and `--disable-mcp-server ide` can still leave Copilot attempting an automatic IDE connection and reporting an IDE-disabled error.
+
+### Trade-off and rollback
+
+Automatic IDE integration is disabled for Copilot CLI sessions using this settings file, not just Firstmate.
+Manually connecting with `/ide` can reintroduce the reload failure on an affected release.
+This is a reversible workaround, not a fix to Copilot's installed code.
+Keep it in place until a Copilot release fixes the internal IDE reload failure; a clean startup or one successful `/mcp reload` alone does not prove that the later policy-refresh failure is fixed.
+After installing such a fix, remove `ide.autoConnect` if it was previously absent, or restore its previous value.
+Preserve unrelated settings when undoing the change, restart the affected session, and verify that the error and unexpected approvals do not return during continued use.
+Use `copilot help config` and `copilot help permissions` for the installed version's setting and permission semantics.
+
 ## Claude permission mode (config/claude-permission-mode)
 
 The optional local, gitignored `config/claude-permission-mode` holds one token selecting the permission flag every Claude worker launch carries: crewmates, scouts, Claude secondmates, and control-plane relaunches alike.
