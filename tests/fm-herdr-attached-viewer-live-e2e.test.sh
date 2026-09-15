@@ -18,6 +18,10 @@
 #      pre-planning pointer;
 #   7. the projection's seeded-tab prune inherits the same refusal.
 #
+# The fork's already-active target returns status 3 silently, leaving deferred
+# reporting to its lifecycle caller. A target that becomes active during
+# planning still reaches the diagnostic-bearing mutation guard instead.
+#
 # Scenarios 4 and 5 need a focus change at one exact product boundary, so a
 # PATH shim performs the real `tab focus` when the close helper issues its
 # planning `pane get`. Every Herdr call, the shim's included, still routes
@@ -170,12 +174,13 @@ lab tab focus "$TAB_THREE_A" >/dev/null || fail "could not focus the scenario 3 
 
 OUT=$(drive fm_backend_herdr_projection_close_pane_focus_preserving "$LAB_SESSION" "$PANE_THREE_A")
 STATUS=$?
-[ "$STATUS" -ne 0 ] || fail "a live viewer on the target tab did not block the close: $OUT"
-assert_contains "$OUT" "target is the captain's active tab" \
-  "the live-viewer refusal did not name the captain's active tab: $OUT"
+[ "$STATUS" -eq 3 ] \
+  || fail "an already-active live target must return deferred status 3 (got $STATUS): $OUT"
+[ -z "$OUT" ] || fail "active-tab deferral must leave reporting to its caller: $OUT"
 pane_exists "$PANE_THREE_A" \
   || fail "the close proceeded and destroyed the tab the live viewer was watching"
-pass "attached viewer: a live client on the target tab refuses the close and keeps the pane"
+[ "$(focused_tab)" = "$TAB_THREE_A" ] || fail "active-tab deferral moved the live viewer's focus"
+pass "attached viewer: an already-active target silently defers and preserves the pane and focus"
 
 # --- scenario 4: the viewer moves ONTO the target mid-close ----------------
 
@@ -235,13 +240,14 @@ lab tab focus "$TAB_SEVEN_SEEDED" >/dev/null || fail "could not focus the seeded
 OUT=$(drive fm_backend_herdr_workspace_prune_seeded_default_tab \
   "$LAB_SESSION" "$WS_SEVEN" "$TAB_SEVEN_SEEDED" focus-preserving)
 STATUS=$?
-[ "$STATUS" -ne 0 ] || fail "the seeded prune did not refuse the tab a live viewer was watching: $OUT"
-assert_contains "$OUT" "target is the captain's active tab" \
-  "the seeded prune refusal did not come from the live-viewer guard: $OUT"
+[ "$STATUS" -eq 3 ] \
+  || fail "active seeded-tab pruning must return deferred status 3 (got $STATUS): $OUT"
+[ -z "$OUT" ] || fail "seeded-tab deferral must leave reporting to its caller: $OUT"
 pane_exists "$PANE_SEVEN_SEEDED" \
   || fail "the seeded prune closed the tab the live viewer was watching"
 pane_exists "$PANE_SEVEN_TASK" || fail "the seeded prune disturbed the task pane"
-pass "attached viewer: the projection seeded-tab prune refuses while a live client watches it"
+[ "$(focused_tab)" = "$TAB_SEVEN_SEEDED" ] || fail "seeded-tab deferral moved the live viewer's focus"
+pass "attached viewer: seeded-tab pruning silently defers and preserves both panes and focus"
 
 # --- detaching restores the no-client contract the detached tests rely on ---
 
