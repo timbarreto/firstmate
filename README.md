@@ -122,6 +122,8 @@ grok --trust
 copilot
 ```
 
+If Copilot requests routine shell approval even with `--yolo` and reports `mcpServers.ide.type: Invalid literal value`, see the [Copilot IDE approval-loop workaround](docs/configuration.md#copilot-ide-approval-loop-workaround).
+
 **Pi**
 
 ```sh
