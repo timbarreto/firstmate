@@ -85,6 +85,42 @@ ok - native Copilot repairs a missing watcher, stays responsive, handles its com
 The native shell-completion notice arrived before Firstmate's supplemental hook context in this run, so handling must not wait for that context to precede the native notice.
 [Copilot supervision](../supervision-protocols/copilot.md) owns that procedure, and [Herdr](../herdr-backend.md) owns literal command transport.
 
+### Native Copilot management responsiveness and process evidence
+
+Verified on 2026-09-16 UTC with Copilot CLI 1.0.85, Herdr 0.8.2, Node 24.19.0, and Git for Windows.
+The guard uses a local deterministic provider, an isolated profile, and a guarded non-default Herdr lab; its long monitoring and management jobs are fixture scripts rather than fleet operations.
+The real Copilot tool interface executes the tracked command-hook transport, rejects a composed monitoring command, confirms one asynchronous monitor separately, accepts a new prompt while management remains active, and observes the original job's completion without creating another monitor.
+The real native worker is classified alive before literal `/exit` and shell-only afterward.
+A controlled `agent_not_found` reply additionally verifies that the same real Windows process tree stays alive without registration evidence; this run did not naturally lose its Herdr registration and is not claimed as a live reproduction of registry loss.
+
+```sh
+FM_COPILOT_MANAGEMENT_LIVE_E2E=1 bash tests/fm-copilot-management-live-e2e.test.sh
+```
+
+Relevant output:
+
+```text
+native registry initially missing: false; missing-registry counterfactual: alive
+harness: Copilot 1.0.85
+ok - native command denial, separate async confirmation, responsive management, and real worker identity/exit with missing-registry counterfactual
+```
+
+The complete native primary-supervision guard also passed on this toolchain after the Stop path was changed to share read-only supervision checks, bind its payload once, and use the existing owner-link protocol through batched Windows mechanics.
+It retained its real session lock, watcher ownership, continuation ceiling, native notifications, and existing deadlines.
+
+```sh
+FM_COPILOT_PRIMARY_LIVE_E2E=1 bash tests/fm-copilot-primary-live-e2e.test.sh
+```
+
+```text
+harness: Copilot 1.0.85
+ok - native Copilot repairs a missing watcher, stays responsive, handles its completion, rearms exactly once, and accepts literal /exit
+```
+
+The portable Windows-fact regression covers missing, ambiguous, and shell-only observations, while the native process suite verifies PID birth ordering, complete descendant snapshots, and refusal on incomplete proof.
+These checks do not authorize or exercise repair of a live fleet record; approved record recovery is separately covered through the control interface's isolated transaction tests.
+[Copilot supervision](../supervision-protocols/copilot.md) owns scheduling, and [agent control](../agent-control.md) owns lifecycle and recovery policy.
+
 ## Harness detection precedence
 
 Firstmate's own harness comes from two kinds of evidence, and `bin/fm-harness.sh` owns how they combine: an environment marker names its harness, and the nearest harness process in the parent chain proves who owns the process tree.

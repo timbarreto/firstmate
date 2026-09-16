@@ -26,7 +26,8 @@
 # about what a given name means.
 fm_agent_process_classify_name() {  # <path> [argv0] -> agent|shell|other
   local path=$1 argv0=${2:-} base
-  base=${path##*/}
+  base=${path//\\//}
+  base=${base##*/}
   base=${base#-}
   case "$base" in
     # muse is anchored rather than globbed like its neighbours: its installed
@@ -46,7 +47,7 @@ fm_agent_process_classify_name() {  # <path> [argv0] -> agent|shell|other
     # single binary, comm=agy with argv[0]=agy), and a glob would claim
     # unrelated commands containing that fragment.
     agy) printf 'agent' ;;
-    zsh|bash|sh|dash|ash|ksh|mksh|tcsh|csh|fish) printf 'shell' ;;
+    zsh|bash|sh|dash|ash|ksh|mksh|tcsh|csh|fish|bash.exe|sh.exe|powershell.exe|pwsh.exe|cmd.exe) printf 'shell' ;;
     *)
       if fm_harness_path_name "$path" >/dev/null || fm_harness_path_name "$argv0" >/dev/null; then
         printf 'agent'

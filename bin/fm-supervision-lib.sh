@@ -97,6 +97,53 @@ fm_supervision_status() {
   return 0
 }
 
+# Read-only turn-end observation shared by the CLI guard and native Copilot's
+# continuation owner. The caller sources fm-wake-lib.sh for identity predicates.
+# Return 0 when no repair is needed, 2 otherwise; FM_SUP_* remains the fresh
+# observation used to render its diagnostic. No ledger or authority is cached.
+fm_supervision_stop_probe() {  # <state> <watch> <grace> <home>
+  local state=$1 watch=$2 grace=$3 home=$4 afk_grace
+  fm_supervision_status "$state" "$grace"
+  [ "$FM_SUP_NEEDED" != false ] || return 0
+  fm_watcher_healthy "$state" "$watch" "$grace" "$home" && return 0
+  if [ -e "$state/.afk" ]; then
+    afk_grace=${FM_GUARD_GRACE:-$(fm_poll_derived_grace)}
+    if [ "$(fm_path_age "$state/.last-watcher-beat")" -lt "$afk_grace" ] \
+       && fm_afk_daemon_owns_supervision "$state"; then
+      return 0
+    fi
+  fi
+  return 2
+}
+
+# Render the current FM_SUP_* observation; stdout is diagnostic text only.
+# Mode selection belongs to the verified caller, not another ancestry walk.
+fm_supervision_stop_diagnostic() {  # <script-dir> <state> <config> <claude-mode> [known-harness]
+  local script_dir=$1 state=$2 config=$3 claude=$4 harness=${5:-} afk=0 x_mode=0 reason rule
+  local -a args=()
+  [ ! -e "$state/.afk" ] || afk=1
+  [ ! -f "$config/x-mode.env" ] || x_mode=1
+  [ -z "$harness" ] || args=(--harness "$harness")
+  reason=$("$script_dir/fm-supervision-instructions.sh" ${args[@]+"${args[@]}"} \
+    --afk "$afk" --x-mode "$x_mode" --repair-line 2>/dev/null \
+    || printf '%s\n' 'tasks in flight, no live watcher - repair missing watcher supervision according to the session-start operating block before ending the turn')
+  rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  printf '●%s\n' "$rule"
+  printf '●  TURN WOULD END BLIND - SUPERVISION IS OFF\n'
+  if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
+    printf '●  %s task(s) in flight, but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_IN_FLIGHT" "$FM_SUP_BEACON_DESC"
+  elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
+    printf '●  %s process-event source(s) registered, but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_SOURCES" "$FM_SUP_BEACON_DESC"
+  elif [ "$FM_SUP_CHECKS" -gt 0 ]; then
+    printf '●  %s registered custom check(s), but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_CHECKS" "$FM_SUP_BEACON_DESC"
+  else
+    printf '●  X-mode relay polling needs supervision, but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_BEACON_DESC"
+  fi
+  [ "$claude" -eq 0 ] || printf '●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.\n'
+  printf '●  %s\n' "$reason"
+  printf '●%s\n' "$rule"
+}
+
 # fm_supervision_needed <state-dir> [grace-seconds]
 # Exit 0 (true) exactly when the home needs a watcher.
 fm_supervision_needed() {

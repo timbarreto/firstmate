@@ -24,6 +24,16 @@ _FM_PR_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=bin/fm-private-path-lib.sh
 . "$_FM_PR_LIB_DIR/fm-private-path-lib.sh" || return 1
 
+# Immutable platform and one pure identity parse, never filesystem/ACL or forge
+# state. Each source/load starts a fresh invocation-local cache.
+_FM_PR_PLATFORM=$(uname -s 2>/dev/null) || _FM_PR_PLATFORM=unknown
+_FM_PR_AZURE_IDENTITY_INPUT=
+_FM_PR_AZURE_IDENTITY_RECORD=
+FM_PR_FILE_DEVICE=
+FM_PR_FILE_INODE=
+FM_PR_FILE_LINKS=
+FM_PR_FILE_MODE=
+
 FM_PR_PROVIDER=
 FM_PR_URL=
 FM_PR_HOST=
@@ -228,7 +238,12 @@ fm_pr_azure_record_read() {  # --azure-identity|--azure-read <url>
   FM_PR_AZURE_HEAD=
   # shellcheck disable=SC2034 # Azure has no GitHub owner/repository tuple.
   FM_PR_OWNER='' FM_PR_REPO=''
-  record=$(bash "$_FM_PR_LIB_DIR/fm-pr-poll.sh" "$1" "$2") || return 1
+  if [ "$1" = --azure-identity ] && [ -n "$_FM_PR_AZURE_IDENTITY_RECORD" ] \
+     && [ "$2" = "$_FM_PR_AZURE_IDENTITY_INPUT" ]; then
+    record=$_FM_PR_AZURE_IDENTITY_RECORD
+  else
+    record=$(bash "$_FM_PR_LIB_DIR/fm-pr-poll.sh" "$1" "$2") || return 1
+  fi
   {
     IFS= read -r FM_PR_PROVIDER && IFS= read -r FM_PR_URL \
       && IFS= read -r FM_PR_HOST && IFS= read -r FM_PR_PATH \
@@ -239,7 +254,12 @@ fm_pr_azure_record_read() {  # --azure-identity|--azure-read <url>
       [ "$FM_PR_AZURE_HEAD" != - ] || FM_PR_AZURE_HEAD=
     fi
     ! IFS= read -r _extra
-  } <<< "$record"
+  } <<< "$record" || return 1
+  if [ "$1" = --azure-identity ]; then
+    _FM_PR_AZURE_IDENTITY_INPUT=$2
+    _FM_PR_AZURE_IDENTITY_RECORD=$record
+  fi
+  return 0
 }
 
 fm_pr_head_valid() {
@@ -248,44 +268,34 @@ fm_pr_head_valid() {
   [[ "$head" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]
 }
 
-fm_pr_file_mode() {
-  if [ "$(uname)" = Darwin ]; then
-    /usr/bin/stat -f %Lp "$1" 2>/dev/null
+_fm_pr_stat() {  # <path> <BSD-format> <GNU-format>
+  if [ "$_FM_PR_PLATFORM" = Darwin ]; then
+    /usr/bin/stat -f "$2" "$1" 2>/dev/null
   else
-    stat -c %a "$1" 2>/dev/null
+    stat -c "$3" -- "$1" 2>/dev/null
   fi
 }
 
-fm_pr_file_device() {
-  if [ "$(uname)" = Darwin ]; then
-    /usr/bin/stat -f %d "$1" 2>/dev/null
-  else
-    stat -c %d "$1" 2>/dev/null
-  fi
-}
+fm_pr_file_mode() { _fm_pr_stat "$1" %Lp %a; }
+fm_pr_file_device() { _fm_pr_stat "$1" %d %d; }
+fm_pr_file_link_count() { _fm_pr_stat "$1" %l %h; }
+fm_pr_file_inode() { _fm_pr_stat "$1" %i %i; }
 
-fm_pr_file_link_count() {
-  if [ "$(uname)" = Darwin ]; then
-    /usr/bin/stat -f %l "$1" 2>/dev/null
-  else
-    stat -c %h "$1" 2>/dev/null
-  fi
-}
-
-fm_pr_file_inode() {
-  if [ "$(uname)" = Darwin ]; then
-    /usr/bin/stat -f %i "$1" 2>/dev/null
-  else
-    stat -c %i "$1" 2>/dev/null
-  fi
+# A fresh, single-query snapshot for ONE observation. Callers never reuse these
+# facts across publication phases; combining them also avoids torn stat fields.
+fm_pr_file_facts() {
+  local record extra
+  record=$(_fm_pr_stat "$1" '%d %i %l %Lp' '%d %i %h %a') || return 1
+  case "$record" in *$'\n'*) return 1 ;; esac
+  IFS=' ' read -r FM_PR_FILE_DEVICE FM_PR_FILE_INODE FM_PR_FILE_LINKS FM_PR_FILE_MODE extra <<< "$record"
+  [ -z "$extra" ] || return 1
+  case "$FM_PR_FILE_DEVICE:$FM_PR_FILE_INODE:$FM_PR_FILE_LINKS" in *[!0-9:]*|:*|*::*|*:) return 1 ;; esac
+  case "$FM_PR_FILE_MODE" in ''|*[!0-7]*) return 1 ;; esac
 }
 
 fm_pr_file_identity() {
-  local device inode
-  device=$(fm_pr_file_device "$1") || return 1
-  inode=$(fm_pr_file_inode "$1") || return 1
-  [ -n "$device" ] && [ -n "$inode" ] || return 1
-  printf '%s:%s\n' "$device" "$inode"
+  fm_pr_file_facts "$1" || return 1
+  printf '%s:%s\n' "$FM_PR_FILE_DEVICE" "$FM_PR_FILE_INODE"
 }
 
 fm_pr_sha256() {
@@ -299,7 +309,7 @@ fm_pr_sha256() {
 }
 
 fm_pr_native_windows_private_paths_valid() {
-  case "$(uname -s 2>/dev/null)" in
+  case "$_FM_PR_PLATFORM" in
     MSYS*|MINGW*|CYGWIN*) ;;
     *) return 1 ;;
   esac
@@ -307,24 +317,33 @@ fm_pr_native_windows_private_paths_valid() {
   fm_private_path_native pr validate any "$@"
 }
 
-fm_pr_private_file_secure() {  # <path> <mode>
-  local path=$1 mode=$2
-  [ -f "$path" ] && [ ! -L "$path" ] || return 1
-  chmod "$mode" "$path" || return 1
-  case "$(uname -s 2>/dev/null)" in
-    MSYS*|MINGW*|CYGWIN*)
-      fm_private_path_native pr secure file "$path"
-      return
-      ;;
+fm_pr_private_files_secure() {  # <mode> <path> [<path> ...], at most three
+  local mode=$1 path
+  shift
+  [ "$#" -ge 1 ] && [ "$#" -le 3 ] || return 1
+  for path in "$@"; do
+    [ -f "$path" ] && [ ! -L "$path" ] || return 1
+    chmod "$mode" "$path" || return 1
+    case "$_FM_PR_PLATFORM" in
+      MSYS*|MINGW*|CYGWIN*) ;;
+      *) [ "$(fm_pr_file_mode "$path")" = "$mode" ] || return 1 ;;
+    esac
+  done
+  case "$_FM_PR_PLATFORM" in
+    MSYS*|MINGW*|CYGWIN*) fm_private_path_native pr secure file "$@"; return ;;
   esac
-  [ "$(fm_pr_file_mode "$path")" = "$mode" ]
+  return 0
+}
+
+fm_pr_private_file_secure() {  # <path> <mode>
+  fm_pr_private_files_secure "$2" "$1"
 }
 
 fm_pr_private_file_structure_valid() {  # <path> <device>
   local path=$1 device=$2
   [ -f "$path" ] && [ ! -L "$path" ] || return 1
-  [ "$(fm_pr_file_device "$path")" = "$device" ] || return 1
-  [ "$(fm_pr_file_link_count "$path")" = 1 ]
+  fm_pr_file_facts "$path" || return 1
+  [ "$FM_PR_FILE_DEVICE" = "$device" ] && [ "$FM_PR_FILE_LINKS" = 1 ]
 }
 
 fm_pr_private_files_valid() {  # <device> <path> <mode> [<path> <mode> ...]
@@ -337,9 +356,9 @@ fm_pr_private_files_valid() {  # <device> <path> <mode> [<path> <mode> ...]
     mode=$2
     shift 2
     fm_pr_private_file_structure_valid "$path" "$device" || return 1
-    case "$(uname -s 2>/dev/null)" in
+    case "$_FM_PR_PLATFORM" in
       MSYS*|MINGW*|CYGWIN*) windows_paths+=("$path") ;;
-      *) [ "$(fm_pr_file_mode "$path")" = "$mode" ] || return 1 ;;
+      *) [ "$FM_PR_FILE_MODE" = "$mode" ] || return 1 ;;
     esac
   done
   while [ "$index" -lt "${#windows_paths[@]}" ]; do
@@ -568,8 +587,13 @@ fm_pr_poll_prepare() {
     return 1
   }
 
+  # Secure the empty cohort before writing any payload. Batching the native
+  # setup never lengthens the interval in which staged data has inherited ACLs.
+  if ! fm_pr_private_files_secure 600 "$FM_PR_POLL_DATA_TMP" "$FM_PR_POLL_CHECK_TMP" "$FM_PR_POLL_REG_TMP"; then
+    fm_pr_poll_cleanup
+    return 1
+  fi
   if ! printf '%s\n%s\n%s\n%s\n%s\n' "$provider" "$url" "$host" "$path" "$number" > "$FM_PR_POLL_DATA_TMP" \
-    || ! fm_pr_private_file_secure "$FM_PR_POLL_DATA_TMP" 600 \
     || ! fm_pr_poll_data_parse "$FM_PR_POLL_DATA_TMP" \
     || [ "$FM_PR_DATA_PROVIDER" != "$provider" ] \
     || [ "$FM_PR_DATA_URL" != "$url" ] \
@@ -577,7 +601,6 @@ fm_pr_poll_prepare() {
     || [ "$FM_PR_DATA_PATH" != "$path" ] \
     || [ "$FM_PR_DATA_NUMBER" != "$number" ] \
     || ! cp "$template" "$FM_PR_POLL_CHECK_TMP" \
-    || ! fm_pr_private_file_secure "$FM_PR_POLL_CHECK_TMP" 600 \
     || ! cmp -s "$template" "$FM_PR_POLL_CHECK_TMP"; then
     fm_pr_poll_cleanup
     return 1
@@ -591,7 +614,6 @@ fm_pr_poll_prepare() {
       "$FM_PR_POLL_EXPECT_DATA_HASH" "$FM_PR_POLL_EXPECT_TEMPLATE_HASH" \
       "$FM_PR_POLL_EXPECT_DATA_IDENTITY" "$FM_PR_POLL_EXPECT_CHECK_IDENTITY" \
       > "$FM_PR_POLL_REG_TMP" \
-    || ! fm_pr_private_file_secure "$FM_PR_POLL_REG_TMP" 600 \
     || ! fm_pr_poll_registration_parse "$FM_PR_POLL_REG_TMP" \
     || [ "$FM_PR_REG_ID" != "$id" ] \
     || [ "$FM_PR_REG_DATA_HASH" != "$FM_PR_POLL_EXPECT_DATA_HASH" ] \

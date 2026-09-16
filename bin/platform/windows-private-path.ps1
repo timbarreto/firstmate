@@ -11,7 +11,7 @@ if ($env:FM_PRIVATE_PATH_COUNT -notmatch '^[1-3]$') { exit 1 }
 $count = [int]$env:FM_PRIVATE_PATH_COUNT
 switch ("$policy/$action/$kind") {
     "pr/validate/any" {}
-    "pr/secure/file" { if ($count -ne 1) { exit 1 } }
+    "pr/secure/file" {}
     "x/validate/any" { if ($count -ne 1) { exit 1 } }
     "x/secure/any" { if ($count -ne 1) { exit 1 } }
     "worker/validate/directory" { if ($count -ne 1) { exit 1 } }

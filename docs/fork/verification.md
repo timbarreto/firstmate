@@ -3,13 +3,13 @@
 ## CI ownership
 
 [Fork CI](../../.github/workflows/fork-ci.yml) owns the Windows updater, focused Windows reconciliation, and pinned package-compatibility jobs.
-Their expanded check names are `Windows self-update entry point`, `Windows reconciliation (core)`, `Windows reconciliation (copilot-launch)`, `Windows reconciliation (legacy-rollback)`, `Windows reconciliation (pr-completion)`, and `Harness package compatibility`.
+Their expanded check names are `Windows self-update entry point`, `Windows reconciliation (core)`, `Windows reconciliation (copilot-launch)`, `Windows reconciliation (legacy-rollback)`, `Windows reconciliation (pr-completion)`, `Windows Copilot management`, and `Harness package compatibility`.
 The workflow owns exact subjects, named-case selectors, package pins, timeouts, and live-test gates.
 The non-credentialed package job detects package API drift and missing runner CLIs without vendor credentials.
 
 [Shared CI](../../.github/workflows/ci.yml) retains lint, coverage, portable parallel and serial shards, real Herdr, timing aggregation, stock macOS Bash, and repository invariants.
 The real-Herdr job also installs the pinned Pi prerequisite for the non-credentialed agent exit-to-shell regression; an absent Pi is a job failure, not accepted missing coverage.
-The two workflows together produce 19 automatic checks, with one producer for each check name.
+The two workflows together produce 20 automatic checks, with one producer for each check name.
 Both use the same main-branch push and pull-request triggers and read-only permissions, with workflow-qualified concurrency groups so neither cancels the other.
 The [Windows Herdr experiment](../../.github/workflows/windows-herdr-spike.yml) remains manual.
 These owners apply to every compatibility section below; focused local cases never replace the complete exact-head CI results.
@@ -54,6 +54,30 @@ The full bootstrap suite also covers failed, unrecognized, and truncated batch r
 The backlog atomicity, Bearings snapshot, crew-state, and decision-fold suites retain their confinement, generation/replacement, lifecycle, and status-vocabulary coverage.
 The optimizations do not cache filesystem grants, authorize mutations from a prior list, weaken worker-state deadlines, or change the snapshot schema.
 Operation counts and controlled read bounds are regression signals, not an end-to-end startup SLA; keep real-fleet timing comparisons and their load conditions in PR evidence.
+
+## Windows management
+
+`tests/fm-home-summary-request.test.sh` verifies coalesced requests, request arrival during sampling, failed-publication retry, and retention of the prior complete ledger.
+`test_relaunch_defers_home_summary_until_after_delivery` in `tests/fm-control-relaunch.test.sh` exercises actual relaunch delivery without an inline whole-fleet read.
+The same suite verifies that structured inspection remains read-only while another action is active.
+The existing full home-summary suite retains publication, interruption, watcher cadence, and ledger-consumer coverage.
+
+`tests/fm-pr-local-cost.test.sh` bounds repeated pure Azure identity parsing while requiring fresh remote observations and fresh file identity after replacement.
+The native private-path suite secures a three-file cohort, checks every applied ACL, and rejects later drift; the PR security suite retains tampering, publication, replay, and crash-recovery coverage.
+These are operation/freshness checks, not a relaxed timing budget or cached grant.
+
+`tests/fm-copilot-harness.test.sh` compares native and legacy command-policy verdicts and verifies that Windows command checks do not load a Git Bash transport.
+The same suite verifies known-harness repair, one late ownership-checked continuation transaction, and early resolver completion without changing installation precedence.
+`tests/fm-lock-fast.test.sh` verifies interoperability with ordinary lock holders, foreign-owner refusal, the recovery-claim exclusion, and retention of unknown artifacts.
+The watcher-health case in the startup-performance suite retains fresh home and process identity checks while bounding record-reader launches.
+The existing arm/cd and turn-end suites retain semantic policy, supervision, and refusal coverage.
+`tests/fm-herdr-unregistered-agent.test.sh` exercises the Windows missing-registration case with native descendant evidence, including shell-only, unknown, and unavailable observations.
+The native process suite tests birth-bound descendant traversal and refusal instead of truncated absence proof.
+
+`tests/fm-control-recovery.test.sh` covers approved recovery, preservation of both copies and current PR records, stale and foreign evidence, competing claims, PID birth drift, and completed/partial replay.
+Its backend, native-fact, pool, and launch adapters are fixtures; they do not establish live vendor behavior.
+`Windows Copilot management` owns the focused native management cases, while portable CI owns the complete subjects.
+The separately gated `tests/fm-copilot-management-live-e2e.test.sh` exercises the real installed Copilot transport; [runtime backend verification](../verification/runtime-backends.md) records its actual scope and result.
 
 ## Project refresh and Azure completion
 
@@ -184,6 +208,6 @@ For documentation changes, run `bin/fm-doc-audience-check.sh` and `bin/fm-test-r
 Neither the structural checker nor a smaller line count proves semantic preservation.
 
 Before closing the implementation series, account for every acceptance criterion in the [approved plan](upstream-plan.md#completion-criteria-and-rollback).
-Verify all 19 automatic check names and their single producers against the exact final head, and preserve the manual-only experiment, live-test gates, and package pins.
+Verify all 20 automatic check names and their single producers against the exact final head, and preserve the manual-only experiment, live-test gates, and package pins.
 Separate deterministic fixtures, actual native execution, installed-package checks, and live vendor/backend proof.
 A gated skip, an unavailable optional package, or historical vendor evidence is not a new live pass; retain any unresolved requirement explicitly instead of declaring the series complete by inference.

@@ -184,7 +184,11 @@ budget_reset() {
   fm_lock_release "$BUDGET_LOCK"
 }
 
-fm_supervision_status "$STATE" "$GRACE"
+if fm_supervision_stop_probe "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
+  STOP_SUPERVISED=1
+else
+  STOP_SUPERVISED=0
+fi
 if [ "$FM_SUP_NEEDED" = false ]; then
   [ -e "$FAILURE_NOTICE" ] || budget_reset
   exit 0
@@ -197,55 +201,14 @@ allow_supervised_stop() {
   exit 2
 }
 
-if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
-  allow_supervised_stop
-fi
-
-# Away mode transfers supervision ownership from the watcher to the away-mode
-# daemon, which runs the watcher one-shot and starts its replacement after every
-# wake (bin/fm-supervise-daemon.sh). A turn boundary regularly lands in that
-# hand-off, when no watcher process holds the lock and nothing is wrong, so
-# requiring one here alarmed on healthy away-mode supervision. A live
-# identity-matched daemon holding this home is the right owner to test for.
-# The beacon half of the predicate still applies: a daemon that stops
-# restarting its watcher still blocks once the beacon passes grace, and a home
-# with no daemon and no watcher blocks exactly as before. It uses AFK_GRACE
-# (poll-cadence-derived, see the comment above) instead of the flat $GRACE
-# every other check on this page uses, so a daemon that is genuinely still
-# cycling - just slower than a fixed 300s window - is not misread as down.
-AFK_GRACE=${FM_GUARD_GRACE:-$(fm_poll_derived_grace)}
-if [ "$(fm_path_age "$STATE/.last-watcher-beat")" -lt "$AFK_GRACE" ] \
-  && fm_afk_daemon_owns_supervision "$STATE"; then
+if [ "$STOP_SUPERVISED" = 1 ]; then
   allow_supervised_stop
 fi
 
 block_stop() {
-  local afk x_mode reason rule
-  afk=0
-  [ -e "$STATE/.afk" ] && afk=1
-  x_mode=0
-  [ -f "$CONFIG/x-mode.env" ] && x_mode=1
-  reason=$("$SCRIPT_DIR/fm-supervision-instructions.sh" --afk "$afk" --x-mode "$x_mode" --repair-line 2>/dev/null \
-    || printf '%s\n' 'tasks in flight, no live watcher - repair missing watcher supervision according to the session-start operating block before ending the turn')
-  rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-  {
-    printf '●%s\n' "$rule"
-    printf '●  TURN WOULD END BLIND - SUPERVISION IS OFF\n'
-    if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
-      printf '●  %s task(s) in flight, but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_IN_FLIGHT" "$FM_SUP_BEACON_DESC"
-    elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
-      printf '●  %s process-event source(s) registered, but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_SOURCES" "$FM_SUP_BEACON_DESC"
-    elif [ "$FM_SUP_CHECKS" -gt 0 ]; then
-      printf '●  %s registered custom check(s), but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_CHECKS" "$FM_SUP_BEACON_DESC"
-    else
-      printf '●  X-mode relay polling needs supervision, but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_BEACON_DESC"
-    fi
-    if [ "$CLAUDE_MODE" -eq 1 ]; then
-      printf '●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.\n'
-    fi
-    printf '●  %s\n' "$reason"
-    printf '●%s\n' "$rule"
-  } >&2
+  local known_harness=''
+  [ "$COPILOT_MODE" -eq 0 ] || known_harness=copilot
+  fm_supervision_stop_diagnostic "$SCRIPT_DIR" "$STATE" "$CONFIG" "$CLAUDE_MODE" "$known_harness" >&2
   exit 2
 }
 

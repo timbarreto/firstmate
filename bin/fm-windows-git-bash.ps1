@@ -19,77 +19,49 @@ function Resolve-FirstmateGitBash {
     [CmdletBinding()]
     param()
 
-    $candidatePaths = [System.Collections.Generic.List[string]]::new()
-
-    function Add-GitBashCandidate {
-        param(
-            [string]$Path
-        )
-
-        if ($Path) {
-            $candidatePaths.Add($Path)
+    $seenPaths = [System.Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase
+    )
+    function Find-GitBashCandidate([string]$Path) {
+        if ($Path -and $seenPaths.Add($Path) -and (Test-Path -LiteralPath $Path -PathType Leaf)) {
+            return (Resolve-Path -LiteralPath $Path).Path
         }
     }
-
-    $gitPaths = [System.Collections.Generic.List[string]]::new()
-    $gitCommands = @(
-        Get-Command "git.exe" -CommandType Application -All -ErrorAction SilentlyContinue
-    )
-    foreach ($gitCommand in $gitCommands) {
-        $gitPaths.Add($gitCommand.Source)
-
+    function Find-GitBashRoot([string]$Root) {
+        foreach ($relative in @('bin\bash.exe', 'usr\bin\bash.exe')) {
+            $found = Find-GitBashCandidate (Join-Path $Root $relative)
+            if ($found) { return $found }
+        }
+    }
+    # Preserve the original candidate order, but stop at the first valid Git
+    # installation instead of probing every alias and registry key first.
+    foreach ($gitCommand in @(Get-Command 'git.exe' -CommandType Application -All -ErrorAction SilentlyContinue)) {
+        $found = Find-GitBashRoot (Split-Path -Parent (Split-Path -Parent $gitCommand.Source))
+        if ($found) { return $found }
         $gitItem = Get-Item -LiteralPath $gitCommand.Source -ErrorAction SilentlyContinue
         if ($gitItem) {
-            $targetProperty = $gitItem.PSObject.Properties["Target"]
+            $targetProperty = $gitItem.PSObject.Properties['Target']
             if ($targetProperty -and $targetProperty.Value) {
                 foreach ($target in @($targetProperty.Value)) {
-                    if ([IO.Path]::IsPathRooted($target)) {
-                        $gitPaths.Add($target)
+                    if (-not [IO.Path]::IsPathRooted($target)) {
+                        $target = Join-Path $gitItem.DirectoryName $target
                     }
-                    else {
-                        $gitPaths.Add((Join-Path $gitItem.DirectoryName $target))
-                    }
+                    $found = Find-GitBashRoot (Split-Path -Parent (Split-Path -Parent $target))
+                    if ($found) { return $found }
                 }
             }
         }
     }
-
-    foreach ($gitPath in $gitPaths) {
-        $gitDirectory = Split-Path -Parent $gitPath
-        $gitRoot = Split-Path -Parent $gitDirectory
-        Add-GitBashCandidate (Join-Path $gitRoot "bin\bash.exe")
-        Add-GitBashCandidate (Join-Path $gitRoot "usr\bin\bash.exe")
-    }
-
-    $registryKeys = @(
-        "HKLM:\SOFTWARE\GitForWindows",
-        "HKLM:\SOFTWARE\WOW6432Node\GitForWindows",
-        "HKCU:\SOFTWARE\GitForWindows"
-    )
-    foreach ($registryKey in $registryKeys) {
-        $gitProperties = Get-ItemProperty `
-            -LiteralPath $registryKey `
-            -Name "InstallPath" `
-            -ErrorAction SilentlyContinue
+    foreach ($registryKey in @('HKLM:\SOFTWARE\GitForWindows', 'HKLM:\SOFTWARE\WOW6432Node\GitForWindows', 'HKCU:\SOFTWARE\GitForWindows')) {
+        $gitProperties = Get-ItemProperty -LiteralPath $registryKey -Name 'InstallPath' -ErrorAction SilentlyContinue
         if ($gitProperties -and $gitProperties.InstallPath) {
-            Add-GitBashCandidate (Join-Path $gitProperties.InstallPath "bin\bash.exe")
-            Add-GitBashCandidate (Join-Path $gitProperties.InstallPath "usr\bin\bash.exe")
+            $found = Find-GitBashRoot $gitProperties.InstallPath
+            if ($found) { return $found }
         }
     }
-
-    Add-GitBashCandidate (Join-Path $env:ProgramFiles "Git\bin\bash.exe")
-    Add-GitBashCandidate (Join-Path $env:LOCALAPPDATA "Programs\Git\bin\bash.exe")
-
-    $seenPaths = [System.Collections.Generic.HashSet[string]]::new(
-        [StringComparer]::OrdinalIgnoreCase
-    )
-    foreach ($candidatePath in $candidatePaths) {
-        if (-not $seenPaths.Add($candidatePath)) {
-            continue
-        }
-        if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
-            return (Resolve-Path -LiteralPath $candidatePath).Path
-        }
+    foreach ($candidate in @((Join-Path $env:ProgramFiles 'Git\bin\bash.exe'), (Join-Path $env:LOCALAPPDATA 'Programs\Git\bin\bash.exe'))) {
+        $found = Find-GitBashCandidate $candidate
+        if ($found) { return $found }
     }
 
     throw "Git Bash was not found. Run .\bin\fm-install-windows.ps1 to install Git for Windows, then retry."

@@ -10,6 +10,7 @@ When this session owns supervision and away mode is not active:
 3. The asynchronous tool call must return immediately with its tracked task identifier.
    Use the native task-output reader (`read_powershell` on Windows) to confirm the arm wrapper's `started` or `attached` result, or handle its explicit failure, before reporting monitoring restored.
    This is a bounded startup confirmation, not a wait for the watcher to finish.
+   Make this short confirmation its own tool call before starting a long management command; Copilot can withhold a short read's result until the other tools in its batch finish.
    End the response after confirmation when there is nothing else to tell the captain, so captain prompts remain available while the watcher runs.
 4. Copilot emits a native shell-completion notice and a `shell_completed` or `shell_detached_completed` hook event when the watcher task ends.
    The tracked `notification` hook adds typed handling context only when supervision still needs attention and no healthy watcher remains.
@@ -21,6 +22,15 @@ When this session owns supervision and away mode is not active:
 7. Copilot CLI overrides an eighth consecutive blocked stop.
    Firstmate stops at seven, using the last continuation to report the ceiling; queued events remain durable, and a real captain prompt resets the sequence.
 8. Waiting on a healthy asynchronous watcher task is silent.
+
+## Long management operations
+
+Run long lifecycle and PR-registration commands as separate native tracked asynchronous shell tasks, while retaining the one existing supervision cycle.
+Keep each task identifier and observe that original task until it completes; a foreground wait expiring means the command may still be running, not that another restart or registration is needed.
+Use bounded, separate output reads for useful progress rather than pairing a short monitoring confirmation with a long command or long output wait.
+When work can continue asynchronously, end the response with the operation explicitly still in progress so a new user prompt remains possible.
+Report completion only after the original task exits successfully and its operation-specific postcondition is verified.
+For an interrupted lifecycle operation, use `bin/fm-control.sh`'s read-only inspection before deciding whether another action is needed; its header owns recovery planning and approved replay.
 
 The watcher remains `bin/fm-watch.sh`, and `bin/fm-watch-arm.sh` remains its verified arm wrapper.
 `bin/fm-watch-arm.ps1` is the Windows shell-tool bridge to that same wrapper.

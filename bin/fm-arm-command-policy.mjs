@@ -9,9 +9,9 @@
 // The tokenizer and command-position analysis (Lexer, splitProgram,
 // commandPosition) are exported so the sibling cd-guard policy
 // (bin/fm-cd-command-policy.mjs) reuses the same proven parser instead of
-// duplicating shell lexing; see docs/cd-guard.md. The watcher-arm decision
-// procedure below stays private to this file. The CLI entry point at the bottom
-// runs only when this module is invoked directly, never on import.
+// duplicating shell lexing; see docs/cd-guard.md. The exported decision is also
+// consumed by the native Copilot transport; this file remains its sole owner.
+// The CLI runs only when this module is invoked directly, never on import.
 
 import path from "node:path";
 import { readFileSync, realpathSync } from "node:fs";
@@ -925,7 +925,7 @@ function blessedProgram(analysis, context) {
   return true;
 }
 
-function decision(command, root, home) {
+export function decision(command, root, home) {
   const context = { root: normalizeShellPath(root), home: normalizeShellPath(home), protectedVariables: new Set(), watcherPatterns: new Set(), watcherPids: new Set() };
   const analysis = analyzeProgram(command, context);
   if (analysis.broadKill) return deny("broad-watcher-kill");

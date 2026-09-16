@@ -1941,7 +1941,9 @@ while :; do
   # alive. Supervision scripts warn when this goes stale with tasks in flight.
   touch "$STATE/.last-watcher-beat"
 
-  if [ "$(age_of "$STATE/home-summary.json")" -ge "$HOME_SUMMARY_INTERVAL" ]; then
+  if [ -e "$STATE/.home-summary-refresh.request" ] || [ -L "$STATE/.home-summary-refresh.request" ] \
+     || [ -e "$STATE/.home-summary-refresh.inflight" ] || [ -L "$STATE/.home-summary-refresh.inflight" ] \
+     || [ "$(age_of "$STATE/home-summary.json")" -ge "$HOME_SUMMARY_INTERVAL" ]; then
     home_summary_refresh_detached
   fi
 

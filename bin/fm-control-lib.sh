@@ -49,6 +49,7 @@
 # The complete control-plane verb allowlist, one per line.
 fm_control_verbs() {
   cat <<'EOF'
+inspect
 interrupt
 exit
 relaunch
@@ -57,7 +58,7 @@ EOF
 
 fm_control_verb_allowed() {  # <verb>
   case "${1-}" in
-    interrupt|exit|relaunch) return 0 ;;
+    inspect|interrupt|exit|relaunch) return 0 ;;
   esac
   return 1
 }

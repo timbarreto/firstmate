@@ -2,11 +2,28 @@
 # fm-control.sh - the CONTROL PLANE for a firstmate-owned agent: allowlisted
 # lifecycle verbs addressed to an exact task id.
 #
-# Usage: fm-control.sh <task-id> interrupt
+# Usage: fm-control.sh <task-id> inspect [--recover-from <home-local-prior-meta>]
+#        fm-control.sh <task-id> interrupt
 #        fm-control.sh <task-id> exit
 #        fm-control.sh <task-id> relaunch [--harness <name>] [--model <name>]
 #                                         [--effort <level>]
 #                                         (--note <text> | --note-file <path>)
+#                                         [--recover-from <home-local-prior-meta>
+#                                          --approve-recovery <inspection-digest>]
+#
+# inspect is read-only, including while another lifecycle action is active.
+# With --recover-from it returns a native Windows/Herdr recovery plan for a
+# positively missing recorded endpoint and a prior Copilot ship record in this
+# task's state/data directory. It verifies the project, exact fm/<task> branch,
+# endpoint cwd, both task-held Treehouse leases, and native PID birth identities.
+# The recorded copy must be unused; both copies and leases are preserved.
+# After explicit approval of that exact plan, relaunch may use its digest to
+# rebind the record and run the existing checkpoint/exit/launch transaction.
+# The digest is a stale-plan guard, not permission inferred from a record or a
+# terminal title. Current PR, steering, delivery, and other durable fields stay.
+# Receipts and both prior records live under state/<id>.control-recovery/<digest>.
+# Replaying an applied plan never launches or stops another agent: completed
+# plans report already-complete; incomplete plans require inspection.
 #
 # Why this exists, and how it differs from fm-send.sh. bin/fm-send.sh is the
 # DATA plane: conversational text for the agent to read, always routing-marked
@@ -152,6 +169,10 @@ die() {  # <message>
 
 CONTROL_LOCK=
 CONTROL_LOCK_HELD=0
+RECOVERY_META_LOCK=
+RECOVERY_META_LOCK_HELD=0
+RECOVERY_SET_LOCK=
+RECOVERY_SET_LOCK_HELD=0
 RELAUNCH_ACTIVE=0
 RELAUNCH_PHASE=start
 
@@ -160,6 +181,17 @@ control_cleanup() {
   if [ "$RELAUNCH_ACTIVE" = 1 ] \
      && declare -F relaunch_rollback >/dev/null 2>&1; then
     relaunch_rollback || true
+  fi
+  if [ "$RECOVERY_META_LOCK_HELD" = 1 ]; then
+    fm_lock_release "$RECOVERY_META_LOCK" || true
+    RECOVERY_META_LOCK_HELD=0
+  fi
+  if [ "$RECOVERY_SET_LOCK_HELD" = 1 ]; then
+    fm_lock_release "$RECOVERY_SET_LOCK" || true
+    RECOVERY_SET_LOCK_HELD=0
+  fi
+  if declare -F fm_control_recovery_cleanup >/dev/null 2>&1; then
+    fm_control_recovery_cleanup || true
   fi
   if [ "$CONTROL_LOCK_HELD" = 1 ]; then
     CONTROL_LOCK_HELD=0
@@ -199,6 +231,10 @@ MODEL_SET=0
 EFFORT_SET=0
 NOTE=
 NOTE_SET=0
+RECOVER_FROM=
+APPROVE_RECOVERY=
+RECOVER_SET=0
+APPROVE_SET=0
 control_want_value=
 for control_arg in "$@"; do
   if [ -n "$control_want_value" ]; then
@@ -210,6 +246,8 @@ for control_arg in "$@"; do
       model) NEW_MODEL=$control_arg; MODEL_SET=1 ;;
       effort) NEW_EFFORT=$control_arg; EFFORT_SET=1 ;;
       note) NOTE=$control_arg; NOTE_SET=1 ;;
+      recover_from) RECOVER_FROM=$control_arg; RECOVER_SET=1 ;;
+      approve_recovery) APPROVE_RECOVERY=$control_arg; APPROVE_SET=1 ;;
       note_file)
         [ -f "$control_arg" ] || die "--note-file '$control_arg' is not a readable file"
         NOTE=$(cat "$control_arg")
@@ -228,6 +266,10 @@ for control_arg in "$@"; do
     --effort=*) NEW_EFFORT=${control_arg#--effort=}; EFFORT_SET=1 ;;
     --note) control_want_value=note ;;
     --note=*) NOTE=${control_arg#--note=}; NOTE_SET=1 ;;
+    --recover-from) control_want_value=recover_from ;;
+    --recover-from=*) RECOVER_FROM=${control_arg#--recover-from=}; RECOVER_SET=1 ;;
+    --approve-recovery) control_want_value=approve_recovery ;;
+    --approve-recovery=*) APPROVE_RECOVERY=${control_arg#--approve-recovery=}; APPROVE_SET=1 ;;
     --note-file) control_want_value=note_file ;;
     --note-file=*)
       [ -f "${control_arg#--note-file=}" ] || die "--note-file '${control_arg#--note-file=}' is not a readable file"
@@ -245,6 +287,21 @@ fi
 if [ "$VERB" != relaunch ]; then
   [ "$HARNESS_SET" = 0 ] && [ "$MODEL_SET" = 0 ] && [ "$EFFORT_SET" = 0 ] && [ "$NOTE_SET" = 0 ] \
     || die "--harness, --model, --effort, and --note apply to 'relaunch' only"
+fi
+[ "$RECOVER_SET" = 0 ] || [ -n "$RECOVER_FROM" ] || die "--recover-from requires a non-empty path"
+[ "$APPROVE_SET" = 0 ] || [ -n "$APPROVE_RECOVERY" ] || die "--approve-recovery requires a non-empty digest"
+if [ -n "$RECOVER_FROM" ]; then
+  case "$VERB" in inspect|relaunch) ;; *) die "--recover-from applies to inspect or relaunch only" ;; esac
+  if [ "$VERB" = relaunch ]; then
+    [ -n "$APPROVE_RECOVERY" ] || die "recovery requires the explicitly approved inspection digest"
+    [ "$HARNESS_SET" = 0 ] && [ "$MODEL_SET" = 0 ] && [ "$EFFORT_SET" = 0 ] \
+      || die "record recovery cannot also change the worker profile"
+  fi
+fi
+if [ -n "$APPROVE_RECOVERY" ]; then
+  [ "$VERB" = relaunch ] && [ -n "$RECOVER_FROM" ] || die "--approve-recovery requires relaunch --recover-from"
+  case "$APPROVE_RECOVERY" in *[!0-9a-f]*) die "invalid recovery approval digest" ;; esac
+  [ "${#APPROVE_RECOVERY}" = 64 ] || die "invalid recovery approval digest"
 fi
 [ "$HARNESS_SET" = 0 ] || [ -n "$NEW_HARNESS" ] || die "--harness requires a non-empty value"
 [ "$MODEL_SET" = 0 ] || [ -n "$NEW_MODEL" ] || die "--model requires a non-empty value"
@@ -268,12 +325,14 @@ ID=$RAW_ID
 # live lease (contract: bin/fm-lease-lib.sh; no-op in homes without leases).
 # shellcheck source=bin/fm-lease-lib.sh
 . "$SCRIPT_DIR/fm-lease-lib.sh"
-fm_lease_guard "$ID" "lifecycle control (fm-control)"
 CONTROL_LOCK="$STATE/.control-$ID.lock"
 trap control_cleanup EXIT
-fm_lock_try_acquire "$CONTROL_LOCK" \
-  || die "another lifecycle action is already running for task $ID"
-CONTROL_LOCK_HELD=1
+if [ "$VERB" != inspect ]; then
+  fm_lease_guard "$ID" "lifecycle control (fm-control)"
+  fm_lock_try_acquire "$CONTROL_LOCK" \
+    || die "another lifecycle action is already running for task $ID"
+  CONTROL_LOCK_HELD=1
+fi
 META="$STATE/$ID.meta"
 if [ ! -f "$META" ]; then
   case "$RAW_ID" in
@@ -451,6 +510,11 @@ retire_busy_incarnation() {
 do_exit() {
   local state cmd verdict composer_state cancel interrupt_result=not-needed
   require_state_verified_backend exit
+  if [ -n "${FM_CONTROL_RECOVERY_EXPECTED_INSTANCES:-}" ]; then
+    fm_control_recovery_instances "$T" \
+      && [ "$FM_CONTROL_RECOVERY_INSTANCES" = "$FM_CONTROL_RECOVERY_EXPECTED_INSTANCES" ] \
+      || die "the approved native process instances changed before exit; preserving the rebound record and all work"
+  fi
   state=$(agent_state)
   case "$state" in
     dead)
@@ -461,8 +525,13 @@ do_exit() {
     missing) die "task $ID's recorded endpoint is gone, so there is no agent to stop; reconcile the task before any further control action" ;;
     *) die "task $ID's endpoint reads '$state' rather than a positively classified state; refusing to send a lifecycle command into an unattributed endpoint" ;;
   esac
+  # A recovered record may have lost its old busy-generation wiring. Its exact
+  # live process was just revalidated, so cancel its turn before sending exit
+  # rather than borrowing a replacement generation's idle claim.
+  if [ -n "${FM_CONTROL_RECOVERY_EXPECTED_INSTANCES:-}" ]; then verdict=busy;
+  else verdict=$(busy_verdict); fi
   # A busy agent is interrupted first before the exit command is submitted.
-  case "$(busy_verdict)" in
+  case "$verdict" in
     busy*)
       cancel=$(deliver_interrupt) || return $?
       state=$(agent_state)
@@ -867,6 +936,85 @@ do_relaunch() {
   echo "relaunched $ID harness=$TARGET_HARNESS from=$PRIOR_RECORDED_HARNESS model=$TARGET_MODEL effort=$TARGET_EFFORT backend=$BACKEND endpoint=$T worktree=$WT"
 }
 
+# --- inspection and explicitly approved record recovery ----------------------
+
+if [ -n "$RECOVER_FROM" ] || [ "$VERB" = inspect ]; then
+  # shellcheck source=bin/fm-control-recovery-lib.sh
+  . "$SCRIPT_DIR/fm-control-recovery-lib.sh"
+fi
+
+if [ "$VERB" = inspect ]; then
+  recovery=null
+  recovered_token=$(fm_meta_get "$META" control_recovery_token)
+  if [ -n "$recovered_token" ]; then
+    recovery=$(fm_control_recovery_read_receipt "$STATE" "$ID" "$FM_HOME" "$recovered_token") \
+      || die "the bound recovery receipt cannot be read safely"
+  elif [ -n "$RECOVER_FROM" ]; then
+    fm_control_recovery_plan "$META" "$RECOVER_FROM" "$ID" "$STATE" "$DATA" "$FM_HOME" \
+      || die "no safe record-recovery plan could be proven"
+    recovery=$FM_CONTROL_RECOVERY_PLAN
+    if [ -e "$STATE/$ID.control-recovery/$FM_CONTROL_RECOVERY_TOKEN/receipt.json" ]; then
+      attempt=$(fm_control_recovery_read_receipt "$STATE" "$ID" "$FM_HOME" "$FM_CONTROL_RECOVERY_TOKEN") \
+        || die "the prior recovery attempt cannot be read safely"
+      recovery=$(printf '%s' "$recovery" | jq --argjson attempt "$attempt" '. + {previous_attempt:$attempt}')
+    fi
+  fi
+  in_progress=false
+  [ ! -e "$CONTROL_LOCK" ] && [ ! -L "$CONTROL_LOCK" ] || in_progress=true
+  jq -n --arg task "$ID" --arg backend "$BACKEND" --arg endpoint "$T" \
+    --arg worktree "$WT" --arg harness "$HARNESS" --arg state "$(agent_state)" \
+    --arg phase "$(fm_meta_get "$JOURNAL" phase)" --argjson progress "$in_progress" \
+    --argjson recovery "$recovery" \
+    '{schema:"fm-control-inspection.v1",task:$task,backend:$backend,endpoint:$endpoint,worktree:$worktree,harness:$harness,agent_state:$state,transaction_phase:$phase,action_in_progress:$progress,recovery:$recovery}'
+  exit 0
+fi
+
+if [ -n "$RECOVER_FROM" ]; then
+  [ "$NOTE_SET" = 1 ] && [ -n "$NOTE" ] || die "record recovery requires a progress note"
+  prior_receipt="$STATE/$ID.control-recovery/$APPROVE_RECOVERY/receipt.json"
+  if [ -e "$prior_receipt" ] || [ -L "$prior_receipt" ]; then
+    if [ "$(fm_meta_get "$META" control_recovery_token)" = "$APPROVE_RECOVERY" ] \
+       && prior_attempt=$(fm_control_recovery_read_receipt "$STATE" "$ID" "$FM_HOME" "$APPROVE_RECOVERY") \
+       && printf '%s' "$prior_attempt" | jq -e '.phase == "complete"' >/dev/null; then
+      echo "recovery-already-complete $ID receipt=$prior_receipt"
+      exit 0
+    fi
+    die "this recovery was already attempted; inspect $prior_receipt and the current transaction instead of relaunching again"
+  fi
+  RECOVERY_META_LOCK=$(fm_meta_lock_path "$META") || exit 1
+  fm_lock_try_acquire "$RECOVERY_META_LOCK" || die "task metadata is busy; inspect again after its writer finishes"
+  RECOVERY_META_LOCK_HELD=1
+  RECOVERY_SET_LOCK=$(fm_task_set_lock_path "$STATE") || exit 1
+  fm_lock_try_acquire "$RECOVERY_SET_LOCK" || die "the task set is changing; inspect again after it settles"
+  RECOVERY_SET_LOCK_HELD=1
+  fm_control_recovery_plan "$META" "$RECOVER_FROM" "$ID" "$STATE" "$DATA" "$FM_HOME" \
+    || die "the approved record-recovery conditions no longer hold"
+  [ "$FM_CONTROL_RECOVERY_TOKEN" = "$APPROVE_RECOVERY" ] \
+    || die "recovery plan changed since approval; inspect the new evidence before any mutation"
+  for other_meta in "$STATE/"*.meta; do
+    [ "$other_meta" = "$META" ] && continue
+    [ -e "$other_meta" ] || [ -L "$other_meta" ] || continue
+    [ -f "$other_meta" ] && [ ! -L "$other_meta" ] || die "another task record is unreadable"
+    other_target=$(fm_backend_meta_exact_value "$other_meta" window) || die "another task's endpoint claim is ambiguous"
+    other_wt=$(fm_backend_meta_exact_value "$other_meta" worktree) || die "another task's worktree claim is ambiguous"
+    candidate_wt=$(fm_meta_get "$FM_CONTROL_RECOVERY_CANDIDATE_SNAPSHOT" worktree)
+    if [ "$other_target" = "$FM_CONTROL_RECOVERY_TARGET" ] \
+       || fm_platform_same_directory "$other_wt" "$candidate_wt"; then
+      die "another task record claims the proposed endpoint or worktree"
+    fi
+  done
+  fm_control_recovery_apply "$META" "$STATE" "$ID" || die "record recovery could not be published; inspect the retained receipt"
+  fm_backend_validate_task_endpoint "$META" "$ID" || exit 1
+  BACKEND=$FM_BACKEND_VALIDATED_BACKEND
+  T=$FM_BACKEND_VALIDATED_TARGET
+  fm_meta_read "$META" worktree WT harness RECORDED_HARNESS kind KIND
+  HARNESS=$(fm_control_harness_family "$RECORDED_HARNESS") || exit 1
+  fm_lock_release "$RECOVERY_META_LOCK"
+  RECOVERY_META_LOCK_HELD=0
+  fm_lock_release "$RECOVERY_SET_LOCK"
+  RECOVERY_SET_LOCK_HELD=0
+fi
+
 # --- verbs ------------------------------------------------------------------
 
 case "$VERB" in
@@ -892,5 +1040,10 @@ case "$VERB" in
     ;;
   relaunch)
     do_relaunch
+    if [ -n "$RECOVER_FROM" ]; then
+      fm_control_recovery_receipt_phase complete \
+        || die "the recovered worker is running but its completion receipt could not be written"
+      echo "recovery-complete $ID receipt=$FM_CONTROL_RECOVERY_RECEIPT prior-copy-and-lease=preserved"
+    fi
     ;;
 esac

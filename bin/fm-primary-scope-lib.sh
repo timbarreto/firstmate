@@ -21,11 +21,13 @@ fm_root_is_secondmate_home() {
 # A valid secondmate marker force-includes a linked secondmate home.
 # Otherwise only a plain checkout is primary, never a linked task worktree.
 fm_primary_scope_matches() {
-  local root=$1 state=$2 git_dir git_common_dir
+  local root=$1 state=$2 git_dir git_common_dir directories extra
   if ! fm_root_is_secondmate_home "$root"; then
-    git_dir=$(git -C "$root" rev-parse --git-dir 2>/dev/null) || return 1
-    git_common_dir=$(git -C "$root" rev-parse --git-common-dir 2>/dev/null) || return 1
-    [ "$git_dir" = "$git_common_dir" ] || return 1
+    directories=$(git -C "$root" rev-parse --git-dir --git-common-dir 2>/dev/null) || return 1
+    {
+      IFS= read -r git_dir && IFS= read -r git_common_dir && ! IFS= read -r extra
+    } <<< "$directories" || return 1
+    [ -n "$git_dir" ] && [ "$git_dir" = "$git_common_dir" ] || return 1
   fi
   [ -f "$root/AGENTS.md" ] || return 1
   [ -d "$root/bin" ] || return 1

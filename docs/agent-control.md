@@ -15,7 +15,7 @@ The failure repeated across harnesses and homes, and the workaround (remember to
 
 `bin/fm-control-lib.sh` is the single executable owner of three capability tables, with no side effects, so it can be read as a contract:
 
-- The **verb allowlist**: `interrupt`, `exit`, `relaunch`.
+- The **verb allowlist**: read-only `inspect`, and lifecycle actions `interrupt`, `exit`, `relaunch`.
   There is no arbitrary-text and no generic raw-key entry point.
   A caller either names an allowlisted verb or is refused.
 - **Per-harness mechanics**: the key that cancels a running turn, how many times it must be delivered, whether the composer needs clearing afterwards, the command that exits the agent, and which task kinds the adapter is verified to run.
@@ -30,6 +30,7 @@ A recorded `harness=` is not always an exact adapter name: a task launched from 
 
 | Verb | Effect | Postcondition |
 | --- | --- | --- |
+| `inspect` | Return structured current evidence and any retained recovery receipt, including while another action is active. | No lifecycle input, record mutation, or acquisition of lifecycle authority. |
 | `interrupt` | Deliver the harness's verified interrupt sequence while leaving the agent running. | Delivery succeeds while the endpoint still exists and the agent is still alive where the backend can classify that; cancellation is confirmed only from an adapter-owned acknowledgement and otherwise reports `cancel=unconfirmed`. |
 | `exit` | Stop the agent, preserving the endpoint, the worktree, and every uncommitted change. | The backend's recovery-grade classifier reports the agent gone. Already-stopped is idempotent success. |
 | `relaunch` | Replace the running agent with a new one in the same endpoint and worktree, on the exact recorded adapter or an explicitly chosen harness, model, and effort. | The new agent is alive on the recorded endpoint, and the durable record names the harness that is actually running. |
@@ -82,6 +83,20 @@ Switching harness is therefore one ordinary relaunch rather than a separate mech
 - If the launch owner already published the new record but no running agent can be confirmed, the new record is kept: the task is recorded on the new harness with no agent confirmed, which is exactly what recovery reconciles.
   Rewriting it back to the old harness would be a second, worse inaccuracy.
 
+## Approved recovery of a contradictory record
+
+Read-only inspection can prepare a narrow Windows Copilot recovery plan when this home's recorded Herdr endpoint is positively missing and a preserved task-local record identifies the original copy.
+The recovery implementation in `bin/fm-control-recovery-lib.sh` is internal to this same control plane, not another lifecycle owner.
+It verifies the exact task branch and project, endpoint directory, both task-held Treehouse leases, and native process creation identities; a still-used replacement copy or an ambiguous claim stops recovery.
+The inspection digest binds that evidence, and applying it requires explicit approval of that exact plan rather than inference from a record or terminal title.
+Current task fields unrelated to endpoint/incarnation identity, including PR tracking, survive the repair.
+
+After the record is safely rebound, the existing relaunch transaction owns checkpointing, interruption, exit, fresh launch, and confirmation.
+Native process instances are checked again immediately before exit, so PID reuse cannot redirect the approved action.
+Both copies and leases remain preserved, with private receipts and the prior records retained for inspection; accounting for the other copy is separate work, not cleanup authority granted by recovery.
+A completed approval replay does nothing, and a partially applied approval directs inspection rather than restarting another worker.
+The command header owns flags, supported record shape, digest and receipt mechanics, and replay behavior.
+
 ## Fail-closed boundaries
 
 - Targeting is exact.
@@ -123,5 +138,6 @@ The empirical basis for each adapter's value is the `harness-adapters` skill's v
 ## Verification
 
 - `tests/fm-control.test.sh` - the adapter contract for its verified-harness lane (adapters outside the lane pin their control mechanics in their own harness suites), the backend capability matrix, exact-id scoping, the closed verb list, the busy, idle, dead, and idempotent lifecycle cases, and marker non-regression, all against a stubbed session provider.
+- `tests/fm-control-recovery.test.sh` - structured inspection, exact approval, original-copy preservation, stale/foreign evidence, native instance replacement, and completed/partial replay.
 - `tests/fm-control-relaunch.test.sh` - the relaunch transaction: identity preservation, harness switching, the progress note, checkpoint refusals, and rollback after a failed launch.
 - `tests/fm-control-herdr-smoke.test.sh` - the second state-verified backend against the real herdr binary, on an isolated throwaway lab session.

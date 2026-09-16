@@ -2,6 +2,18 @@
 # fm-home-summary-refresh.sh - publish this home's structured summary ledger.
 #
 # Usage: fm-home-summary-refresh.sh [--best-effort]
+#        fm-home-summary-refresh.sh --request [--best-effort]
+#        fm-home-summary-refresh.sh --pending
+#
+# --request coalesces publication work into an empty home-local request
+# directory and returns without computing a summary or waiting for its lock.
+# The existing watcher owns execution on its next poll; no new daemon is started.
+# --pending is a read-only predicate (0 pending, 1 absent). A worker claims the
+# current request before sampling and retains an inflight marker until atomic
+# publication succeeds. Requests arriving during that sample survive for the
+# next refresh; failure or abrupt termination leaves pending work retryable.
+# Readers still receive the prior complete ledger with its original freshness
+# timestamp until a refresh publishes; a request never certifies fresh data.
 #
 # The published state/home-summary.json is the exact
 # `fm-fleet-snapshot.sh --secondmate-home-summary` document for this FM_HOME.
@@ -37,6 +49,8 @@ PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
 LEDGER="$STATE/home-summary.json"
 ERROR_LOG="$STATE/.home-summary-refresh.log"
 REFRESH_LOCK="$STATE/.home-summary-refresh.lock"
+REQUEST="$STATE/.home-summary-refresh.request"
+INFLIGHT="$STATE/.home-summary-refresh.inflight"
 ERROR_LOG_MAX_BYTES=${FM_HOME_SUMMARY_ERROR_LOG_MAX_BYTES:-65536}
 HOME_SUMMARY_TIMEOUT=${FM_HOME_SUMMARY_TIMEOUT:-60}
 HOME_SUMMARY_IF_IDLE=${FM_HOME_SUMMARY_IF_IDLE:-0}
@@ -56,17 +70,29 @@ usage() {
   sed -n '2,${/^#/!q;p;}' "$0" | sed 's/^# \{0,1\}//'
 }
 
-case "${1:-}" in
-  '') ;;
-  --best-effort) BEST_EFFORT=1 ;;
-  --_worker)
-    HOME_SUMMARY_MODE=worker
-    BEST_EFFORT=${FM_HOME_SUMMARY_WORKER_BEST_EFFORT:-0}
-    ;;
-  --_log-failure) HOME_SUMMARY_MODE=log-failure ;;
-  -h|--help) usage; exit 0 ;;
-  *) usage >&2; exit 2 ;;
-esac
+for home_summary_arg in "$@"; do
+  case "$home_summary_arg" in
+    --best-effort) BEST_EFFORT=1 ;;
+    --request|--pending|--_worker|--_log-failure)
+      [ "$HOME_SUMMARY_MODE" = parent ] || { usage >&2; exit 2; }
+      case "$home_summary_arg" in
+        --request) HOME_SUMMARY_MODE=request ;;
+        --pending) HOME_SUMMARY_MODE=pending ;;
+        --_worker)
+          HOME_SUMMARY_MODE=worker
+          BEST_EFFORT=${FM_HOME_SUMMARY_WORKER_BEST_EFFORT:-0}
+          ;;
+        --_log-failure) HOME_SUMMARY_MODE=log-failure ;;
+      esac
+      ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+  esac
+done
+if [ "$HOME_SUMMARY_MODE" = pending ]; then
+  [ -e "$REQUEST" ] || [ -L "$REQUEST" ] || [ -e "$INFLIGHT" ] || [ -L "$INFLIGHT" ]
+  exit "$?"
+fi
 case "$ERROR_LOG_MAX_BYTES" in
   ''|*[!0-9]*|0) ERROR_LOG_MAX_BYTES=65536 ;;
 esac
@@ -78,7 +104,7 @@ case "$HOME_SUMMARY_IF_IDLE" in
   *) HOME_SUMMARY_IF_IDLE=0 ;;
 esac
 
-if [ "$HOME_SUMMARY_MODE" != parent ]; then
+if [ "$HOME_SUMMARY_MODE" = worker ] || [ "$HOME_SUMMARY_MODE" = log-failure ]; then
   # shellcheck source=bin/fm-wake-lib.sh
   # shellcheck disable=SC1091
   . "$SCRIPT_DIR/fm-wake-lib.sh"
@@ -115,6 +141,14 @@ home_summary_refresh_once() {
     fm_lock_acquire_wait "$REFRESH_LOCK"
   fi
   HOME_SUMMARY_LOCK_HELD=1
+  # Only the serialized publisher touches INFLIGHT. Claim before reading any
+  # inputs; a later request creates REQUEST again and is never cleared here.
+  if [ -L "$REQUEST" ] || [ -L "$INFLIGHT" ] \
+     || { ! mkdir "$INFLIGHT" 2>/dev/null && [ ! -d "$INFLIGHT" ]; } \
+     || { [ -e "$REQUEST" ] && ! rmdir "$REQUEST" 2>/dev/null; }; then
+    home_summary_fail "summary refresh request is not a safe empty directory"
+    return 1
+  fi
   HOME_SUMMARY_TMP=$(umask 077; mktemp "$STATE/.home-summary.json.XXXXXX") || {
     home_summary_fail "could not create an atomic publication file in $STATE"
     return 1
@@ -182,6 +216,10 @@ home_summary_refresh_once() {
     return 1
   fi
   HOME_SUMMARY_TMP=
+  if ! rmdir "$INFLIGHT" 2>/dev/null; then
+    home_summary_fail "summary was published but its inflight request could not be retired"
+    return 1
+  fi
   fm_lock_release "$REFRESH_LOCK"
   HOME_SUMMARY_LOCK_HELD=0
   trap - EXIT HUP INT TERM
@@ -207,6 +245,21 @@ home_summary_log_failure() {
     rm -f -- "$tmp" 2>/dev/null || true
   fi
 }
+
+if [ "$HOME_SUMMARY_MODE" = request ]; then
+  if [ ! -L "$REQUEST" ] && mkdir -p "$STATE" 2>/dev/null \
+     && { (umask 077; mkdir "$REQUEST") 2>/dev/null || [ -d "$REQUEST" ]; }; then
+    exit 0
+  fi
+  if [ "$BEST_EFFORT" = 1 ]; then
+    fm_run_timed 2 env \
+      FM_HOME_SUMMARY_PARENT_ERROR='could not request a home-summary refresh' \
+      "$SCRIPT_DIR/fm-home-summary-refresh.sh" --_log-failure >/dev/null || true
+    exit 0
+  fi
+  printf 'fm-home-summary-refresh: could not request a home-summary refresh\n' >&2
+  exit 1
+fi
 
 if [ "$HOME_SUMMARY_MODE" = log-failure ]; then
   HOME_SUMMARY_ERROR=${FM_HOME_SUMMARY_PARENT_ERROR:-"refresh worker failed"}

@@ -4,6 +4,16 @@ test	tests/fm-test-catalog.test.sh	pure-contract-unit
 test	tests/fm-remote-job-wait.test.sh	pure-contract-unit
 test	tests/fm-private-path.test.sh	pure-contract-unit
 test	tests/fm-startup-performance.test.sh	pure-contract-unit
+test	tests/fm-home-summary-request.test.sh	pure-contract-unit
+test	tests/fm-lock-fast.test.sh	pure-contract-unit
+map	route-lock-fast	59	bin/fm-wake-lib.sh|bin/fm-lock-fast.pl|bin/fm-copilot-stop.sh	__script__:fm-lock-fast.test.sh
+test	tests/fm-pr-local-cost.test.sh	pure-contract-unit
+test	tests/fm-herdr-unregistered-agent.test.sh	pure-contract-unit
+test	tests/fm-control-recovery.test.sh	pure-contract-unit
+map	route-control-recovery	58	bin/fm-control.sh|bin/fm-control-lib.sh|bin/fm-control-recovery-lib.sh	__script__:fm-control-recovery.test.sh
+map	route-herdr-unregistered-agent	57	bin/backends/herdr.sh|bin/fm-agent-process-lib.sh|bin/fm-platform-process-lib.sh|bin/platform/windows-process.ps1	__script__:fm-herdr-unregistered-agent.test.sh
+map	route-pr-local-cost	56	bin/fm-pr-lib.sh|bin/fm-pr-poll.sh|bin/fm-private-path-lib.sh	__script__:fm-pr-local-cost.test.sh
+map	route-home-summary-requests	55	bin/fm-home-summary-refresh.sh|bin/fm-spawn.sh|bin/fm-watch.sh	__script__:fm-home-summary-request.test.sh
 override-map	route-bin-fm-herdr-session-cleanup-sh	600	bin/fm-herdr-session-cleanup.sh	session-bootstrap,real-herdr-gated,backend-dispatch	600	bin/fm-herdr-session-cleanup.sh	session-bootstrap,real-herdr-gated,backend-dispatch,__script__:fm-startup-performance.test.sh
 override-map	route-bin-fm-backend-sh	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh	backend-dispatch,real-herdr-gated	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh	backend-dispatch,real-herdr-gated,__script__:fm-startup-performance.test.sh
 map	route-startup-status-fold	1080	bin/fm-classify-lib.sh|bin/fm-wake-lib.sh	watcher-wake-lock,__script__:fm-startup-performance.test.sh
@@ -22,7 +32,8 @@ test	tests/fm-reconcile-validation.test.sh	pure-contract-unit
 test	tests/fm-update-windows.test.sh	session-bootstrap
 test	tests/fm-copilot-hooks-live-e2e.test.sh	live-harness-optin
 test	tests/fm-copilot-primary-live-e2e.test.sh	live-harness-optin
-map	route-copilot-hook-transport	45	bin/fm-ghcp-hook.sh|tests/fm-copilot-primary-live-e2e.mjs	pure-contract-unit,live-harness-optin
+test	tests/fm-copilot-management-live-e2e.test.sh	live-harness-optin
+map	route-copilot-hook-transport	45	bin/fm-ghcp-hook.sh|bin/fm-ghcp-hook.ps1|bin/fm-copilot-command-check.mjs|tests/fm-copilot-primary-live-e2e.mjs|tests/fm-copilot-management-live-e2e.mjs	pure-contract-unit,live-harness-optin
 test	tests/fm-claude-session-lock-live-e2e.test.sh	live-harness-optin
 duration	tests/fm-copilot-hooks-live-e2e.test.sh	20
 duration	tests/fm-reconcile-validation.test.sh	15825
@@ -32,7 +43,7 @@ override-map	route-bin-fm-watch	1100	bin/fm-watch*|bin/fm-wake*|bin/fm-inactive-
 map	route-bin-fm-install-windows-ps1	1600	bin/fm-install-windows.ps1|bin/fm-session-start.sh|bin/fm-fleet-sync.sh|bin/fm-sessionstart-nudge.sh|bin/fm-startup-network.sh|bin/fm-tangle*|bin/fm-update.sh|bin/fm-gate-refuse*|bin/fm-lock*	session-bootstrap
 override-map	route-bin-fm-extension-mjs	2300	bin/fm-extension.mjs|bin/fm-extension.sh|docs/examples/process-event-extension/*	__script__:fm-extension-binding.test.sh	2300	bin/fm-extension.mjs|bin/fm-extension-launch-barrier.mjs|bin/fm-extension.sh|docs/examples/process-event-extension/*	__script__:fm-extension-binding.test.sh
 override-map	route-agents-skills-skill-md	3700	.agents/skills/*/SKILL.md	pure-contract-unit	3700	.agents/skills/*/SKILL.md|skills/*/SKILL.md	pure-contract-unit
-map	route-github-workflows-fork-ci-yml	3800	.github/workflows/fork-ci.yml	pure-contract-unit,__script__:fm-update-windows.test.sh,__script__:fm-reconcile-validation.test.sh,__script__:fm-backend-herdr-treehouse.test.sh,__script__:fm-pi-windows-shell-invocation.test.sh,__script__:fm-spawn-dispatch-profile.test.sh,__script__:fm-teardown.test.sh,__script__:fm-pi-primary-types.test.sh,__script__:fm-pi-branch-extension.test.sh,__script__:fm-fleet-sync.test.sh,__script__:fm-pr-check-security.test.sh,__script__:fm-review-diff.test.sh
+map	route-github-workflows-fork-ci-yml	3800	.github/workflows/fork-ci.yml	pure-contract-unit,__script__:fm-update-windows.test.sh,__script__:fm-reconcile-validation.test.sh,__script__:fm-backend-herdr-treehouse.test.sh,__script__:fm-pi-windows-shell-invocation.test.sh,__script__:fm-spawn-dispatch-profile.test.sh,__script__:fm-teardown.test.sh,__script__:fm-pi-primary-types.test.sh,__script__:fm-pi-branch-extension.test.sh,__script__:fm-fleet-sync.test.sh,__script__:fm-pr-check-security.test.sh,__script__:fm-review-diff.test.sh,__script__:fm-control-relaunch.test.sh
 override-map	route-github	4100	.github/*|.gitattributes|.tasks.toml|AGENTS.md|CLAUDE.md|CONTRIBUTING.md|docs/configuration.md|docs/supervision-protocols/*	pure-contract-unit	4100	.github/*|.tasks.toml|AGENTS.md|CLAUDE.md|CONTRIBUTING.md|docs/configuration.md|docs/supervision-protocols/*	pure-contract-unit
 map	route-gitattributes	4200	.gitattributes	pure-contract-unit,__script__:fm-gitignore-config.test.sh
 map	route-gitignore	4300	.gitignore	__script__:fm-gitignore-config.test.sh

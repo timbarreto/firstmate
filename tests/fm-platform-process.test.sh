@@ -294,6 +294,27 @@ JSON
   jq -n '[range(0;20) | {ProcessId:(1000+.),ParentProcessId:(1001+.),Name:"bash.exe",ExecutablePath:null,CommandLine:"bash.exe",CreationDate:"2026-01-01T00:00:00Z"}]' > "$dir/input.json"
   out=$(native_facts_query parent-processes 1000) || fail "bounded native ancestry failed"
   [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 16 ] || fail "native ancestry exceeded its depth bound"
+  cp "$dir/original.json" "$dir/input.json"
+  before=$(wc -l < "$dir/queries" | tr -d ' ')
+  out=$(native_facts_query descendant-processes 8000) || fail "native descendant snapshot failed"
+  out=${out//$'\r'/}
+  [ "$(printf '%s\n' "$out" | cut -f1)" = $'8000\n8100\n9000' ] || fail "native descendant traversal lost the owned chain"
+  printf '%s\n' "$out" | awk -F '\t' 'NF < 4 || $2 !~ /^[0-9]+$/ {bad=1} END {exit bad ? 1 : 0}' \
+    || fail "native descendants did not carry birth identity and sanitized fields"
+  [ "$(wc -l < "$dir/queries" | tr -d ' ')" -eq "$((before + 1))" ] || fail "native descendants queried per process"
+  jq '.[1].CreationDate = "2026-01-04T00:00:00Z"' "$dir/original.json" > "$dir/input.json"
+  out=$(native_facts_query descendant-processes 8100) || fail "reused descendant-parent proof failed"
+  [ "$(printf '%s\n' "$out" | cut -f1)" = 8100 ] || fail "an old child was attached to a reused native parent"
+  jq '.[0].CreationDate = null' "$dir/original.json" > "$dir/input.json"
+  rc=0
+  out=$(native_facts_query descendant-processes 8000) || rc=$?
+  expect_code 2 "$rc" "missing descendant birth identity must be uncertainty"
+  [ -z "$out" ] || fail "incomplete descendant proof leaked partial rows"
+  jq -n '[range(0;4100) | {ProcessId:(10000+.),ParentProcessId:(if . == 0 then 1 else 10000 end),Name:"bash.exe",ExecutablePath:null,CommandLine:"bash.exe",CreationDate:"2026-01-01T00:00:00Z"}]' > "$dir/input.json"
+  rc=0
+  out=$(native_facts_query descendant-processes 10000) || rc=$?
+  expect_code 2 "$rc" "a truncated descendant set cannot prove absence"
+  [ -z "$out" ] || fail "bounded descendant failure leaked a successful prefix"
   pass "native process facts use one bounded snapshot, sanitize rows, reject reused parents, and distinguish missing PIDs from query errors"
 }
 

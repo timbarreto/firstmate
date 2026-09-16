@@ -35,7 +35,11 @@ When no authoritative run accounts for the task, inspect only its recorded backe
 Use `treehouse status` for treehouse-backed tmux, herdr, zellij, or cmux tasks, and use the recorded `orca_worktree_id=` and `terminal=` for Orca tasks.
 Do not sweep another home's endpoints or infer ownership from a matching window label.
 
-Before relaunch, prove that no live agent still owns the recorded task and that the existing worktree remains available.
+Use `bin/fm-control.sh <task-id> inspect` for the current lifecycle observation and any retained recovery receipt before deciding to relaunch.
+When a Windows Copilot task points to a missing Herdr endpoint but this task has a preserved prior record, use that command's `--recover-from` inspection and review the exact endpoint, process instances, task-held leases, and copies it proposes to preserve.
+Only after explicit approval of that plan, use the inspection digest with the same owner's guarded relaunch; changed evidence or an incomplete prior attempt requires inspection rather than a duplicate action.
+The script's header owns the syntax, supported recovery shape, and transaction mechanics; record repair does not authorize returning either lease or discarding either copy.
+Before launching a replacement, the control plane must prove the prior agent has stopped and the existing worktree remains available; an approved relaunch owns that stop rather than requiring manual process termination.
 Preserve its uncommitted changes and commits, keep the same task identity, and resume or relaunch the recorded harness in that existing worktree with the same brief plus a concise progress note.
 Do not use a fresh generic spawn while the recorded worktree is unaccounted for, because allocating another worktree can split one task across two copies.
 If the worktree or ownership cannot be reconciled safely, leave all state intact and report the task failed or blocked with the conflicting evidence.

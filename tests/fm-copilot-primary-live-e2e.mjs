@@ -295,7 +295,7 @@ try {
     success: event.data.success, error: event.data.error?.message, result: event.data.result,
   }));
   const hookResults = events().filter(event => event.type === "hook.start" || event.type === "hook.end").slice(-12).map(event => ({
-    type: event.type, hook: event.data.hookType, success: event.data.success,
+    type: event.type, hook: event.data.hookType, success: event.data.success, error: event.data.error,
     notificationType: event.data.input?.notificationType || event.data.input?.notification_type,
     output: event.data.output,
   }));
