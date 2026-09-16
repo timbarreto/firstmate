@@ -11,17 +11,17 @@
 <h3 align="center">Talk to one agent. Ship with a crew.</h3>
 
 <p align="center">
-  <img alt="firstmate - talk to one agent, ship with a crew" src="assets/banner.png" width="100%" />
+  <img alt="Firstmate coordinates workers through Herdr sessions, each in its own git worktree across project repositories" src="assets/herdr.png" width="100%" />
 </p>
 
 ## GitHub Copilot CLI: why this fork?
 
-**This community fork of [kunchenguid/firstmate](https://github.com/kunchenguid/firstmate) adds GitHub Copilot CLI support for multi-agent orchestration.**
+**This community fork of [kunchenguid/firstmate](https://github.com/kunchenguid/firstmate) adds GitHub Copilot CLI support and a native Windows setup for multi-agent orchestration.**
 Run Copilot as your first mate and as the workers it coordinates, with isolated git worktrees, task supervision, and pull-request delivery.
 If your team standardizes on GitHub Copilot - including developers at Microsoft and organizations where Copilot is the approved coding assistant - this fork provides a Copilot entry point to Firstmate's crew workflow.
 
 - **Copilot primary and workers** - dedicated launch integration and tracked hooks handle session startup, worker activity, and asynchronous supervision.
-- **Windows setup** - a PowerShell installer and watcher bridge complement the macOS and Linux paths; see [Install and launch](#install-and-launch) and the [Copilot supervision protocol](docs/supervision-protocols/copilot.md).
+- **Windows with Herdr** - Herdr hosts the visible worker terminals without requiring tmux or WSL, while this fork's PowerShell installer and watcher bridge connect the workflow to Windows; start with [Windows: run the crew in Herdr](#windows-run-the-crew-in-herdr).
 - **Built on Firstmate** - this fork retains upstream's multi-harness architecture and credits its original author and contributors.
 
 See [harness configuration](docs/configuration.md#harness-support) and the [Copilot supervision protocol](docs/supervision-protocols/copilot.md) for supported behavior and operating requirements.
@@ -67,7 +67,7 @@ Full detail on every feature lives in [docs/architecture.md](docs/architecture.m
 - Linux, macOS, or Windows; Windows setup uses the PowerShell installer below.
 - A verified primary agent harness: Claude Code, GitHub Copilot CLI, Grok, Pi, `pi-signed`, Oh My Pi (`omp`), Codex, OpenCode, or Cursor Agent CLI.
 - Git and the GitHub CLI, authenticated through `gh auth login`.
-- The CLI and dependencies for your selected runtime backend; tmux is the reference default.
+- The CLI and dependencies for your selected runtime backend; tmux is the reference default, while the [Windows quick start uses Herdr](#windows-run-the-crew-in-herdr).
 
 The first mate detects and offers to install supported missing tools after you approve.
 Backend-specific setup is linked in [Documentation](#documentation).
@@ -101,8 +101,10 @@ On Windows, install Firstmate's required tools from PowerShell:
 ```
 
 The Windows installer also installs Git for Windows and Python 3.13, configures the AXI integration hooks, and disables this repository's Claude project hooks by renaming `.claude/settings.json` to `.claude/settings.json.disabled`.
+It does not install Herdr or your agent CLI.
+For the Windows launch sequence, continue with [Windows: run the crew in Herdr](#windows-run-the-crew-in-herdr).
 
-Then launch a verified primary harness; AGENTS.md takes over from there:
+Launch a verified primary harness from this repository, inside Herdr when following the Windows setup; AGENTS.md takes over from there:
 
 **Claude Code**
 
@@ -149,6 +151,50 @@ Those Calm-hidden operational inputs remain ordinary user-role messages with unc
 The preference persists for the effective Firstmate home, and toggling it off restores ordinary rendering.
 [Calm's current behavior and supported limits](docs/calm.md) are separate from its [version-scoped maintainer evidence](docs/calm-mode-feasibility.md).
 Pi's `/supervision-model` command pins a cheaper model and a shallower reasoning effort for the supervision branch alone, from the eligible models and thinking levels Pi itself reports, and with no pin the branch normally follows your own conversation's model and effort; see the [configuration schema](docs/configuration.md#pi-supervision-branch-model-and-effort-configsupervision-branch-model-configsupervision-branch-effort).
+
+### Windows: run the crew in Herdr
+
+**Herdr is the terminal layer, not another coding agent.**
+It keeps the first mate and its workers in visible terminal panes, tabs, and workspaces inside your terminal application.
+Firstmate coordinates the work, Copilot (or another supported harness) does the coding, and Treehouse supplies isolated git worktrees.
+Herdr is key to this fork's native Windows workflow: it provides the session management without tmux or WSL, while Firstmate's shell helpers still use Git for Windows' Bash.
+
+After running the Firstmate installer above, install Herdr separately using its [Windows installation instructions](https://herdr.dev/docs/install/).
+The [Firstmate Herdr setup guide](docs/herdr-backend.md#setup) owns the required protocol and dependencies.
+Open a fresh PowerShell window so the installed tools are on `PATH`, change to your Firstmate clone (adjust the example path), and start Herdr:
+
+```powershell
+Set-Location C:\src\firstmate
+herdr --version
+herdr
+```
+
+In a **PowerShell pane inside Herdr**, start the primary Firstmate session from the clone:
+
+```powershell
+Set-Location C:\src\firstmate
+$env:FM_BACKEND = "herdr"
+copilot
+```
+
+This explicitly selects Herdr for new workers launched by this session.
+For automatic detection or a persistent `config/backend` setting, see [backend selection](docs/configuration.md#runtime-backend-configbackend--fm_backend).
+Ask the first mate for work as usual; it creates the worker terminals, so there is no need to start a Copilot session manually for each task.
+Workers appear in task workspaces when [presentation spaces](docs/herdr-backend.md#presentation-spaces) are enabled, or in tabs alongside their launching first mate otherwise.
+
+Use the mouse to select workspaces and tabs, or use these default [Herdr shortcuts](https://herdr.dev/docs/keyboard/): press `Ctrl+B`, release it, then press the action key.
+
+| Action | Key after `Ctrl+B` |
+| ------ | ------------------ |
+| Navigate workspaces | `w` |
+| Next / previous tab | `n` / `p` |
+| Show active keybindings | `?` |
+| Detach without stopping the agents | `q` |
+
+Run `herdr` again to reconnect to the same default session rather than launching another first mate.
+Detaching leaves the agents running; stopping the Herdr server or rebooting Windows does not preserve those running processes.
+Let Firstmate manage task cleanup instead of closing worker panes or stopping the shared server to tidy the display.
+If `herdr` is not found, reopen PowerShell and check `PATH`; for other issues, see [Herdr's Windows support notes](https://herdr.dev/docs/windows-beta/), [client compatibility](docs/herdr-backend.md#client-selection), and [Firstmate's current Herdr limits](docs/herdr-backend.md#active-limits).
 
 ### Talk to it
 
