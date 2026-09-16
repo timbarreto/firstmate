@@ -1,0 +1,264 @@
+{
+  "family": "copilot",
+  "codeSHA": "8f5f494f08f454901054c465a80c1de08ad1819e",
+  "codeRoot": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+  "fixture": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8",
+  "traced": false,
+  "samples": 20,
+  "warmups": 3,
+  "started": "2026-09-16T18:47:51.870Z",
+  "node": "v24.19.0",
+  "platform": "win32",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpus": 16,
+  "cpuModel": "AMD EPYC 7763 64-Core Processor                ",
+  "totalMem": 68665831424,
+  "freeMem": 31425368064,
+  "bashResolution": [
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Windows\\System32\\bash.exe",
+    "C:\\Users\\<USER>\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"
+  ],
+  "manifest": [
+    {
+      "id": "control-bash",
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "control-powershell",
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "exit 0"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "copilot-command-allow",
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-ghcp-hook.ps1",
+        "pretool",
+        "arm"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "input": "{\"tool_name\":\"powershell\",\"tool_input\":{\"command\":\"printf fixture\"}}",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/projects",
+        "COPILOT_CLI": "1"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "copilot-command-deny",
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-ghcp-hook.ps1",
+        "pretool",
+        "arm"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "input": "{\"tool_name\":\"powershell\",\"tool_input\":{\"command\":\"bin/fm-watch-arm.sh &\"}}",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/unused-home/projects",
+        "COPILOT_CLI": "1"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "copilot-stop-healthy",
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/healthy/bin/fm-ghcp-hook.ps1",
+        "primary-stop"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "input": "{\"sessionId\":\"sess-copilot\",\"stop_hook_active\":false}",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/healthy",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/healthy",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/healthy/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/healthy/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/healthy/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/healthy/projects",
+        "COPILOT_CLI": "1",
+        "COPILOT_LOADER_PID": "876543",
+        "COPILOT_AGENT_SESSION_ID": "sess-copilot",
+        "FM_FAKE_COPILOT_HEALTHY": "1"
+      },
+      "pathEntries": 38,
+      "pathSHA256": "cbf650d2f5f17cc87a85e18d6d9d9347a297bf9ce9a242e17fb681569a889103"
+    },
+    {
+      "id": "copilot-stop-repair-owner",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/repair/bin/fm-ghcp-hook.sh",
+        "primary-stop"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "input": "{\"sessionId\":\"sess-copilot\",\"stop_hook_active\":false}",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\copilot\\fixture.y7r7q8\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/repair",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/repair",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/repair/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/repair/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/repair/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/copilot/fixture.y7r7q8/repair/projects",
+        "COPILOT_CLI": "1",
+        "COPILOT_LOADER_PID": "876543",
+        "COPILOT_AGENT_SESSION_ID": "sess-copilot",
+        "FM_FAKE_COPILOT_HEALTHY": "0"
+      },
+      "pathEntries": 38,
+      "pathSHA256": "3df4fcd6d12eb6640a168a1bde2d99c72a34758de9f7c7e139a20bc09b16c3dd"
+    }
+  ],
+  "finished": "2026-09-16T18:50:49.895Z",
+  "meanHostCpuBusyPercent": 41.26634025631666,
+  "summary": [
+    {
+      "scenario": "control-bash",
+      "n": 20,
+      "medianMs": 64.86914999999863,
+      "p95Ms": 347.51330000002054,
+      "maxMs": 371.5399000000034,
+      "firstHalfMedianMs": 65.58555000000342,
+      "secondHalfMedianMs": 64.16444999999658,
+      "meanCpuBusyPercent": 52.10322603720137
+    },
+    {
+      "scenario": "control-powershell",
+      "n": 20,
+      "medianMs": 266.6572499999893,
+      "p95Ms": 539.7703000000038,
+      "maxMs": 556.2527999999875,
+      "firstHalfMedianMs": 273.9298499999968,
+      "secondHalfMedianMs": 261.5286500000002,
+      "meanCpuBusyPercent": 46.07257809936171
+    },
+    {
+      "scenario": "copilot-command-allow",
+      "n": 20,
+      "medianMs": 715.0433000000012,
+      "p95Ms": 1183.1175000000076,
+      "maxMs": 1679.438399999999,
+      "firstHalfMedianMs": 799.7003499999992,
+      "secondHalfMedianMs": 617.4618999999948,
+      "meanCpuBusyPercent": 43.46727453065576
+    },
+    {
+      "scenario": "copilot-command-deny",
+      "n": 20,
+      "medianMs": 824.2078000000056,
+      "p95Ms": 1571.1783999999898,
+      "maxMs": 1711.5733000000037,
+      "firstHalfMedianMs": 840.1283499999972,
+      "secondHalfMedianMs": 800.8790000000154,
+      "meanCpuBusyPercent": 43.33991568529966
+    },
+    {
+      "scenario": "copilot-stop-healthy",
+      "n": 20,
+      "medianMs": 1603.8982999999862,
+      "p95Ms": 2239.453400000013,
+      "maxMs": 2920.8027,
+      "firstHalfMedianMs": 1702.444899999995,
+      "secondHalfMedianMs": 1511.7450499999832,
+      "meanCpuBusyPercent": 41.09456888857161
+    },
+    {
+      "scenario": "copilot-stop-repair-owner",
+      "n": 20,
+      "medianMs": 3909.8689000000013,
+      "p95Ms": 5124.281000000017,
+      "maxMs": 6435.633900000001,
+      "firstHalfMedianMs": 3734.7739,
+      "secondHalfMedianMs": 4089.283100000008,
+      "meanCpuBusyPercent": 39.534789627736544
+    }
+  ]
+}

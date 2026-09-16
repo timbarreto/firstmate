@@ -1,0 +1,4 @@
+{
+  "decision": "block",
+  "reason": "⁣FIRSTMATE_OP: v1 turn-end-guard: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n●  TURN WOULD END BLIND - SUPERVISION IS OFF\n●  1 task(s) in flight, but no live watcher holds this home lock (last beat: never).\n●  start watcher supervision as one Copilot-tracked asynchronous shell task\n●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}

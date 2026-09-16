@@ -1,0 +1,1 @@
+relaunched wfwin-298415-copilot harness=copilot from=copilot model=default effort=default backend=tmux endpoint=fmses:fm-wfwin-298415-copilot worktree=/c/src/.fm-wayfinder/baseline-runs/packet/timings/relaunch/fixture.khTx8t/tmp/fm-control-relaunch.FoG5JG/wfwin-298415-copilot-13477/wt

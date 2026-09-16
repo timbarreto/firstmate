@@ -1,0 +1,59 @@
+{
+  "schema": "fm-fleet-snapshot.v1",
+  "generated": "2026-09-16T19:13:55Z",
+  "fm_home": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty",
+  "roots": {
+    "fm_root": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+    "state": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/state",
+    "data": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/data",
+    "config": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/config",
+    "projects": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/projects"
+  },
+  "backlog": {
+    "path": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/data/backlog.md",
+    "present": true,
+    "records": []
+  },
+  "tasks": [],
+  "main_inventory": {
+    "valid": true,
+    "reason": null,
+    "orphan_in_flight": [],
+    "unstructured_current_count": 0
+  },
+  "scout_reports": [],
+  "secondmate_current": {
+    "registry": {
+      "present": false,
+      "available": true,
+      "complete": true,
+      "reason": null,
+      "provenance": "registered-table",
+      "path": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/data/secondmates.md",
+      "freshness": {
+        "status": "fresh",
+        "observed_at": "2026-09-16T19:13:55Z"
+      },
+      "records": [],
+      "input_truncated": false,
+      "records_truncated": false,
+      "reasons": [],
+      "lines_in_window": 0,
+      "records_in_window": 0
+    },
+    "records": [],
+    "total_registered": 0,
+    "total": 0,
+    "shown": 0,
+    "truncated": 0
+  },
+  "secondmate_landed": {
+    "records": [],
+    "truncated": [],
+    "unreadable": [],
+    "partial": []
+  },
+  "secondmate_guidance": {
+    "note": "For kind=secondmate, bearings selects validated structured state from that registered home; parent events and bounded terminal evidence are fallback-only supplements and never current-state authority."
+  }
+}

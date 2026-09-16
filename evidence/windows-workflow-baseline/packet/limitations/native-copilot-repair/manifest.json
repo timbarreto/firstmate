@@ -1,0 +1,204 @@
+{
+  "family": "copilot",
+  "codeSHA": "8f5f494f08f454901054c465a80c1de08ad1819e",
+  "codeRoot": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+  "fixture": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh",
+  "traced": false,
+  "samples": 1,
+  "warmups": 0,
+  "started": "2026-09-16T18:37:17.064Z",
+  "node": "v24.19.0",
+  "platform": "win32",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpus": 16,
+  "cpuModel": "AMD EPYC 7763 64-Core Processor                ",
+  "totalMem": 68665831424,
+  "freeMem": 31335919616,
+  "bashResolution": [
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Windows\\System32\\bash.exe",
+    "C:\\Users\\<USER>\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"
+  ],
+  "manifest": [
+    {
+      "id": "control-bash",
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "control-powershell",
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "exit 0"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "copilot-command-allow",
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-ghcp-hook.ps1",
+        "pretool",
+        "arm"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "input": "{\"tool_name\":\"powershell\",\"tool_input\":{\"command\":\"printf fixture\"}}",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/projects",
+        "COPILOT_CLI": "1"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "copilot-command-deny",
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-ghcp-hook.ps1",
+        "pretool",
+        "arm"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "input": "{\"tool_name\":\"powershell\",\"tool_input\":{\"command\":\"bin/fm-watch-arm.sh &\"}}",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/unused-home/projects",
+        "COPILOT_CLI": "1"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "copilot-stop-healthy",
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/healthy/bin/fm-ghcp-hook.ps1",
+        "primary-stop"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "input": "{\"sessionId\":\"sess-copilot\",\"stop_hook_active\":false}",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/healthy",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/healthy",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/healthy/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/healthy/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/healthy/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/healthy/projects",
+        "COPILOT_CLI": "1",
+        "COPILOT_LOADER_PID": "876543",
+        "COPILOT_AGENT_SESSION_ID": "sess-copilot",
+        "FM_FAKE_COPILOT_HEALTHY": "1"
+      },
+      "pathEntries": 38,
+      "pathSHA256": "435ad59cffe5284f5202bd9bc4a8cc1ec8d19b4e8a92b973e4a291319e513023"
+    },
+    {
+      "id": "copilot-stop-repair",
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/repair/bin/fm-ghcp-hook.ps1",
+        "primary-stop"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "input": "{\"sessionId\":\"sess-copilot\",\"stop_hook_active\":false}",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\smoke-copilot\\fixture.poNtmh\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/repair",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/repair",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/repair/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/repair/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/repair/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/smoke-copilot/fixture.poNtmh/repair/projects",
+        "COPILOT_CLI": "1",
+        "COPILOT_LOADER_PID": "876543",
+        "COPILOT_AGENT_SESSION_ID": "sess-copilot",
+        "FM_FAKE_COPILOT_HEALTHY": "0"
+      },
+      "pathEntries": 38,
+      "pathSHA256": "77f87492da5fbacec3eefb904146618ac6835d8e7088f53e2e58d8bca9d99e84"
+    }
+  ]
+}

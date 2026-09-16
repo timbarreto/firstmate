@@ -1,0 +1,27 @@
+Pre-publication verification
+
+- Both .mjs files passed node --check.
+- Each .sh file separately passed bash -n.
+- A fresh, one-sample control-bash run through the final fixture driver passed.
+  This smoke is not included in the accepted baseline statistics.
+- The raw timing samples independently reproduced every median, nearest-rank
+  p95, maximum, and sample count in the five successful summaries.
+- Every published representative stdout matched the SHA-256 recorded by its
+  final measured sample.
+- All accepted summaries name code base
+  8f5f494f08f454901054c465a80c1de08ad1819e.
+- Counts: 396 successful measured samples, 60 excluded warmups, 24 separately
+  traced cases; controls are included in these counts as the report specifies.
+- The populated-startup failure retains its truncation banner and is not in
+  the successful summaries.
+- Report-local file/directory links exist.
+- Published text and decompressed traces were scanned for credential patterns,
+  unredacted account names, and the original operational home's data/state paths.
+  No such matches remained.
+- packet/.gitattributes disables text conversion so captured evidence bytes,
+  including native stdout line endings, survive Git publication.
+- Production bin/, tests/, .pi/, .agents/, .github/, docs/, and AGENTS.md were
+  unchanged from the frozen base, and the original firstmate copy remained clean.
+
+These are evidence-integrity and fixture-result checks, not a broad regression
+suite, live-harness verification, or compatibility proof for a code change.

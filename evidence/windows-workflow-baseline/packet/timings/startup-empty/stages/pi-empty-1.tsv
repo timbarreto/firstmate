@@ -1,0 +1,9 @@
+v1	stage	lock	33	20941	
+v1	stage	bootstrap	21091	16416	
+v1	stage	wake-queue	37628	38431	
+v1	stage	supervision-instructions	76458	1213	
+v1	stage	read-once	78058	79	
+v1	stage	fleet-state	78245	1746	
+v1	stage	network-checks	80108	5059	
+v1	stage	context	85280	27	
+v1	stage	next-step	85720	660	

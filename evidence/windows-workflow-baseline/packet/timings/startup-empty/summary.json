@@ -1,0 +1,137 @@
+{
+  "family": "startup",
+  "codeSHA": "8f5f494f08f454901054c465a80c1de08ad1819e",
+  "codeRoot": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+  "fixture": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw",
+  "traced": false,
+  "samples": 6,
+  "warmups": 1,
+  "started": "2026-09-16T19:20:18.213Z",
+  "node": "v24.19.0",
+  "platform": "win32",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpus": 16,
+  "cpuModel": "AMD EPYC 7763 64-Core Processor                ",
+  "totalMem": 68665831424,
+  "freeMem": 30402215936,
+  "bashResolution": [
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Windows\\System32\\bash.exe",
+    "C:\\Users\\<USER>\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"
+  ],
+  "manifest": [
+    {
+      "id": "control-bash",
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup-empty\\fixture.PqXuHw\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup-empty\\fixture.PqXuHw\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/unused-home/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "startup-pi-empty",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-session-start.sh"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup-empty\\fixture.PqXuHw\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup-empty\\fixture.PqXuHw\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/pi-empty/home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/pi-empty/root",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/pi-empty/home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/pi-empty/home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/pi-empty/home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/pi-empty/home/projects",
+        "FM_PROC_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/pi-empty/home/no-proc",
+        "FM_FAKE_HARNESS": "pi",
+        "FM_FAKE_HARNESS_PID": "298417",
+        "PI_CODING_AGENT": "true",
+        "FM_PI_HARNESS": "pi"
+      },
+      "pathEntries": 9,
+      "pathSHA256": "7a65effc6be0ff544c3e8d14fe65b07038307ce4a8da081f47a975b2795abcd6"
+    },
+    {
+      "id": "startup-copilot-empty",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-session-start.sh"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup-empty\\fixture.PqXuHw\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup-empty\\fixture.PqXuHw\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/copilot-empty/home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/copilot-empty/root",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/copilot-empty/home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/copilot-empty/home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/copilot-empty/home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/copilot-empty/home/projects",
+        "FM_PROC_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/copilot-empty/home/no-proc",
+        "FM_FAKE_HARNESS": "copilot",
+        "FM_FAKE_HARNESS_PID": "298417"
+      },
+      "pathEntries": 9,
+      "pathSHA256": "0eae9fdfd55e680f895d401fae201a1d7fadaf16e74d3b9655f6e4668380915c"
+    }
+  ],
+  "finished": "2026-09-16T19:38:30.316Z",
+  "meanHostCpuBusyPercent": 57.120877764959,
+  "summary": [
+    {
+      "scenario": "control-bash",
+      "n": 6,
+      "medianMs": 81.53325000003679,
+      "p95Ms": 769.7486000000499,
+      "maxMs": 769.7486000000499,
+      "firstHalfMedianMs": 63.88900000002468,
+      "secondHalfMedianMs": 96.16730000008829,
+      "meanCpuBusyPercent": 47.059919421813994
+    },
+    {
+      "scenario": "startup-pi-empty",
+      "n": 6,
+      "medianMs": 82728.49099999998,
+      "p95Ms": 90401.44429999997,
+      "maxMs": 90401.44429999997,
+      "firstHalfMedianMs": 76717.74910000002,
+      "secondHalfMedianMs": 87140.60329999996,
+      "meanCpuBusyPercent": 56.78664537273102
+    },
+    {
+      "scenario": "startup-copilot-empty",
+      "n": 6,
+      "medianMs": 71309.45769999997,
+      "p95Ms": 78497.55119999999,
+      "maxMs": 78497.55119999999,
+      "firstHalfMedianMs": 71100.34519999998,
+      "secondHalfMedianMs": 71518.57019999996,
+      "meanCpuBusyPercent": 57.7614838535751
+    }
+  ]
+}

@@ -1,0 +1,236 @@
+{
+  "family": "reporting",
+  "codeSHA": "8f5f494f08f454901054c465a80c1de08ad1819e",
+  "codeRoot": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+  "fixture": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS",
+  "traced": false,
+  "samples": 20,
+  "warmups": 3,
+  "started": "2026-09-16T18:55:22.674Z",
+  "node": "v24.19.0",
+  "platform": "win32",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpus": 16,
+  "cpuModel": "AMD EPYC 7763 64-Core Processor                ",
+  "totalMem": 68665831424,
+  "freeMem": 31543193600,
+  "bashResolution": [
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Windows\\System32\\bash.exe",
+    "C:\\Users\\<USER>\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"
+  ],
+  "manifest": [
+    {
+      "id": "control-bash",
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "status-201",
+      "file": "bash",
+      "args": [
+        "-c",
+        ". \"$1\"; status_open_decisions \"$2\"",
+        "_",
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-classify-lib.sh",
+        "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/routine.status"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/unused-home/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "snapshot-empty",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "bearings-empty",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/empty/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "snapshot-small",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "bearings-small",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\reporting\\fixture.BfhesS\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/reporting/fixture.BfhesS/small/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    }
+  ],
+  "finished": "2026-09-16T19:14:06.133Z",
+  "meanHostCpuBusyPercent": 54.90958990248376,
+  "summary": [
+    {
+      "scenario": "control-bash",
+      "n": 20,
+      "medianMs": 71.37994999997318,
+      "p95Ms": 342.9392999999691,
+      "maxMs": 884.1219999999739,
+      "firstHalfMedianMs": 72.57394999999087,
+      "secondHalfMedianMs": 71.37994999997318,
+      "meanCpuBusyPercent": 56.51838938593227
+    },
+    {
+      "scenario": "status-201",
+      "n": 20,
+      "medianMs": 616.147649999999,
+      "p95Ms": 1879.5579999999609,
+      "maxMs": 2138.342399999965,
+      "firstHalfMedianMs": 595.737850000005,
+      "secondHalfMedianMs": 638.9729499999667,
+      "meanCpuBusyPercent": 54.58469147148717
+    },
+    {
+      "scenario": "snapshot-empty",
+      "n": 20,
+      "medianMs": 4984.9504000000015,
+      "p95Ms": 8191.76370000001,
+      "maxMs": 11551.746100000106,
+      "firstHalfMedianMs": 4846.16545,
+      "secondHalfMedianMs": 6332.40465000004,
+      "meanCpuBusyPercent": 55.04985583751242
+    },
+    {
+      "scenario": "bearings-empty",
+      "n": 20,
+      "medianMs": 7765.934049999982,
+      "p95Ms": 10762.508499999996,
+      "maxMs": 10909.010199999902,
+      "firstHalfMedianMs": 7354.878800000006,
+      "secondHalfMedianMs": 7855.5779999999795,
+      "meanCpuBusyPercent": 56.33912137162781
+    },
+    {
+      "scenario": "snapshot-small",
+      "n": 20,
+      "medianMs": 16011.060549999995,
+      "p95Ms": 19080.81390000001,
+      "maxMs": 22699.357899999974,
+      "firstHalfMedianMs": 15812.931349999999,
+      "secondHalfMedianMs": 16183.075849999965,
+      "meanCpuBusyPercent": 55.936041134789114
+    },
+    {
+      "scenario": "bearings-small",
+      "n": 20,
+      "medianMs": 18650.562349999993,
+      "p95Ms": 25549.747399999993,
+      "maxMs": 32231.361800000013,
+      "firstHalfMedianMs": 20191.96139999997,
+      "secondHalfMedianMs": 17912.141649999947,
+      "meanCpuBusyPercent": 54.98565502362292
+    }
+  ]
+}

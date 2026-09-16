@@ -1,0 +1,46 @@
+
+================================================================================
+SESSION START - C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/home
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 291864
+
+BOOTSTRAP
+--------------------------------------------------------------------------------
+MISSING: tasks-axi (install: npm install -g tasks-axi)
+MISSING: quota-axi (install: npm install -g quota-axi)
+
+WAKE QUEUE
+--------------------------------------------------------------------------------
+UNREAD STATUS (new since last drain, not re-printed after this presentation):
+task-1 note: synthetic context
+task-2 note: synthetic context
+task-3 note: synthetic context
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  3 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/root/.pi/extensions/fm-primary-turnend-guard.ts -e C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/root/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PI_WATCH_EXTENSION: not loaded - approve Pi project trust once per clone, then restart plain pi so C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/root/.pi/extensions/fm-primary-turnend-guard.ts and C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/root/.pi/extensions/fm-primary-pi-watch.ts auto-load for turn-end guard and background wake coverage; use -e C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/root/.pi/extensions/fm-primary-turnend-guard.ts -e C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/root/.pi/extensions/fm-primary-pi-watch.ts only if project hooks are not trusted
+
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  STARTUP TRUNCATED - SESSION START HIT ITS 120s RUNTIME BOUND
+●  The cumulative deadline expired while the "supervision-instructions" stage was current,
+●  so everything above is COMPLETE only up to that point.
+●  The named stage is the current breadcrumb, not a measured bottleneck.
+●  RECONCILE these stages before acting on anything they would have shown:
+●    supervision-instructions read-once fleet-state network-checks context next-step
+●  Inspect the recorded stage timings before another attempt:
+●    C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/home/state/.session-start.timings
+●  Diagnose the unfinished work instead of repeatedly rerunning or widening the bound.
+●  After fixing the cause, rerun bin/fm-session-start.sh to reconcile the missing stages.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TIMINGS - session-start stages completed before the bound (ms):
+  stage       lock                                       start=+25      elapsed=22685
+  stage       bootstrap                                  start=+23572   elapsed=24515
+  stage       wake-queue                                 start=+48219   elapsed=70090
+  slowest: stage wake-queue 70090ms, stage bootstrap 24515ms, stage lock 22685ms

@@ -1,0 +1,157 @@
+{
+  "family": "startup",
+  "codeSHA": "8f5f494f08f454901054c465a80c1de08ad1819e",
+  "codeRoot": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+  "fixture": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C",
+  "traced": false,
+  "samples": 6,
+  "warmups": 1,
+  "started": "2026-09-16T19:14:50.779Z",
+  "node": "v24.19.0",
+  "platform": "win32",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpus": 16,
+  "cpuModel": "AMD EPYC 7763 64-Core Processor                ",
+  "totalMem": 68665831424,
+  "freeMem": 30588895232,
+  "bashResolution": [
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Windows\\System32\\bash.exe",
+    "C:\\Users\\<USER>\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"
+  ],
+  "manifest": [
+    {
+      "id": "control-bash",
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/unused-home/projects"
+      },
+      "pathEntries": 37,
+      "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+    },
+    {
+      "id": "startup-pi-empty",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-session-start.sh"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-empty/home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-empty/root",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-empty/home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-empty/home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-empty/home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-empty/home/projects",
+        "FM_PROC_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-empty/home/no-proc",
+        "FM_FAKE_HARNESS": "pi",
+        "FM_FAKE_HARNESS_PID": "291864",
+        "PI_CODING_AGENT": "true",
+        "FM_PI_HARNESS": "pi"
+      },
+      "pathEntries": 9,
+      "pathSHA256": "721c3c432cfcc34999ee4fe5e3e2c22e3abedfc8207ea24a676e29b8a248b510"
+    },
+    {
+      "id": "startup-pi-small",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-session-start.sh"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/root",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/home/projects",
+        "FM_PROC_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/pi-small/home/no-proc",
+        "FM_FAKE_HARNESS": "pi",
+        "FM_FAKE_HARNESS_PID": "291864",
+        "PI_CODING_AGENT": "true",
+        "FM_PI_HARNESS": "pi"
+      },
+      "pathEntries": 9,
+      "pathSHA256": "feda6073d470db67afbf945e8b337f8b821652b4db1893083a034c9627f7e0df"
+    },
+    {
+      "id": "startup-copilot-empty",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-session-start.sh"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-empty/home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-empty/root",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-empty/home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-empty/home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-empty/home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-empty/home/projects",
+        "FM_PROC_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-empty/home/no-proc",
+        "FM_FAKE_HARNESS": "copilot",
+        "FM_FAKE_HARNESS_PID": "291864"
+      },
+      "pathEntries": 9,
+      "pathSHA256": "ccfcfe487f7962548c206242b43a1b16b1397c1a74173f60b871400beb2b8c34"
+    },
+    {
+      "id": "startup-copilot-small",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-wayfinder/windows-workflow-baseline/bin/fm-session-start.sh"
+      ],
+      "cwd": "C:/src/.fm-wayfinder/windows-workflow-baseline",
+      "env": {
+        "HOME": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-wayfinder\\baseline-runs\\packet\\timings\\startup\\fixture.5WU28C\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-small/home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-small/root",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-small/home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-small/home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-small/home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-small/home/projects",
+        "FM_PROC_ROOT_OVERRIDE": "C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup/fixture.5WU28C/tmp/fm-session-start-tests.L3rwvt/copilot-small/home/no-proc",
+        "FM_FAKE_HARNESS": "copilot",
+        "FM_FAKE_HARNESS_PID": "291864"
+      },
+      "pathEntries": 9,
+      "pathSHA256": "71c93a085562ffdaa102c3f241119684411f11eb11ff08679b43ac9f22f1fece"
+    }
+  ]
+}

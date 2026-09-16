@@ -1,0 +1,1 @@
+{"block":true,"reason":"{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\"},\"systemMessage\":\"[watcher-background] a protected watcher command cannot run in an asynchronous shell list or through nohup/disown\"}"}

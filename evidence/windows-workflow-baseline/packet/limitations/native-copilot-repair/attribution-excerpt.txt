@@ -1,0 +1,11 @@
+Excerpt from a separate failed native-bridge diagnostic trace.
+Not a latency sample or a live vendor observation.
+Native ancestor command lines are intentionally not published.
+
+WFTRACE|246979|0|C:\src\.fm-wayfinder\baseline-runs\smoke-copilot-repair-trace\fixture.uSxmVI\repair\bin\fm-copilot-stop.sh|147| GUARD_RC=2
+WWWFTRACE|247024|2|/c/src/.fm-wayfinder/baseline-runs/smoke-copilot-repair-trace/fixture.uSxmVI/repair/bin/fm-platform-process-lib.sh|169| image='INFO: No tasks are running which match the specified criteria.'
+WWWFTRACE|247024|2|/c/src/.fm-wayfinder/baseline-runs/smoke-copilot-repair-trace/fixture.uSxmVI/repair/bin/fm-platform-process-lib.sh|178| image=
+WWWFTRACE|247024|2|/c/src/.fm-wayfinder/baseline-runs/smoke-copilot-repair-trace/fixture.uSxmVI/repair/bin/fm-platform-process-lib.sh|182| return 1
+WFTRACE|246979|0|/c/src/.fm-wayfinder/baseline-runs/smoke-copilot-repair-trace/fixture.uSxmVI/repair/bin/fm-session-lock-lib.sh|278| pids=
+WFTRACE|246979|0|/c/src/.fm-wayfinder/baseline-runs/smoke-copilot-repair-trace/fixture.uSxmVI/repair/bin/fm-session-lock-lib.sh|278| return 1
+WFTRACE|246979|0|C:\src\.fm-wayfinder\baseline-runs\smoke-copilot-repair-trace\fixture.uSxmVI\repair\bin\fm-copilot-stop.sh|167| exit 0

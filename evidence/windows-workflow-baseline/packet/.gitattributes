@@ -1,0 +1,2 @@
+# Preserve captured evidence bytes, including native stdout line endings.
+* -text

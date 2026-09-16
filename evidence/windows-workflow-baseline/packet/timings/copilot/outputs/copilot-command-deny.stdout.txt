@@ -1,0 +1,1 @@
+{"permissionDecision":"deny","permissionDecisionReason":"[watcher-background] a protected watcher command cannot run in an asynchronous shell list or through nohup/disown"}

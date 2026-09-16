@@ -1,0 +1,90 @@
+{
+  "message": "SyntaxError: Unexpected end of JSON input",
+  "stack": "SyntaxError: Unexpected end of JSON input\n    at JSON.parse (<anonymous>)\n    at command.input [as verify] (file:///C:/src/.fm-wayfinder/windows-workflow-baseline/evidence/windows-workflow-baseline/measure.mjs:169:29)\n    at file:///C:/src/.fm-wayfinder/windows-workflow-baseline/evidence/windows-workflow-baseline/measure.mjs:319:24\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
+  "rows": [
+    {
+      "scenario": "control-bash",
+      "round": 0,
+      "warmup": false,
+      "traced": false,
+      "startedAt": "2026-09-16T18:37:17.457Z",
+      "ms": 74.91579999999999,
+      "cpuBusyPercent": 64.94208494208495,
+      "status": 0,
+      "signal": null,
+      "stdoutBytes": 0,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pid": 45464
+    },
+    {
+      "scenario": "control-powershell",
+      "round": 0,
+      "warmup": false,
+      "traced": false,
+      "startedAt": "2026-09-16T18:37:17.540Z",
+      "ms": 370.00329999999997,
+      "cpuBusyPercent": 62.04068241469815,
+      "status": 0,
+      "signal": null,
+      "stdoutBytes": 0,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pid": 6496
+    },
+    {
+      "scenario": "copilot-command-allow",
+      "round": 0,
+      "warmup": false,
+      "traced": false,
+      "startedAt": "2026-09-16T18:37:17.915Z",
+      "ms": 3428.4210000000003,
+      "cpuBusyPercent": 42.41207673303299,
+      "status": 0,
+      "signal": null,
+      "stdoutBytes": 0,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pid": 15824
+    },
+    {
+      "scenario": "copilot-command-deny",
+      "round": 0,
+      "warmup": false,
+      "traced": false,
+      "startedAt": "2026-09-16T18:37:21.348Z",
+      "ms": 1436.9303,
+      "cpuBusyPercent": 76.67756366139022,
+      "status": 0,
+      "signal": null,
+      "stdoutBytes": 173,
+      "stdoutSHA256": "ed3b0671f9bb66056a0b1604cc27d3fd9f86aead4c17eff542ed5d3646950937",
+      "pid": 41332
+    },
+    {
+      "scenario": "copilot-stop-healthy",
+      "round": 0,
+      "warmup": false,
+      "traced": false,
+      "startedAt": "2026-09-16T18:37:22.789Z",
+      "ms": 2365.476599999999,
+      "cpuBusyPercent": 66.50290308173292,
+      "status": 0,
+      "signal": null,
+      "stdoutBytes": 0,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pid": 16756
+    },
+    {
+      "scenario": "copilot-stop-repair",
+      "round": 0,
+      "warmup": false,
+      "traced": false,
+      "startedAt": "2026-09-16T18:37:25.160Z",
+      "ms": 23503.179299999996,
+      "cpuBusyPercent": 44.79273832323008,
+      "status": 0,
+      "signal": null,
+      "stdoutBytes": 0,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pid": 8340
+    }
+  ]
+}

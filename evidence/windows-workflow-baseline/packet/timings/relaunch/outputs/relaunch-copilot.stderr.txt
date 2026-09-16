@@ -1,0 +1,1 @@
+warning: /c/src/.fm-wayfinder/baseline-runs/packet/timings/relaunch/fixture.khTx8t/tmp/fm-control-relaunch.FoG5JG/wfwin-298415-copilot-13477/home/data/wfwin-298415-copilot/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches

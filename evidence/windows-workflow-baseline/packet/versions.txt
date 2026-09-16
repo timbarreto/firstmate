@@ -1,0 +1,53 @@
+Observed on 2026-09-16, before or after the separately identified timing intervals.
+Only interpreters actually used by the packet are listed as native measurements.
+Vendor executables in startup/relaunch were fixture stubs, not live version probes.
+
+$ node --version
+v24.19.0
+
+$ bash --version
+GNU bash, version 5.3.15(2)-release (x86_64-pc-cygwin)
+
+$ git --version
+git version 2.55.0.windows.5
+
+$ perl -e 'printf "Perl %vd\n", $^V'
+Perl 5.42.3
+
+$ awk --version
+GNU Awk 5.4.1, API 4.1, PMA Avon 8-g1, (GNU MPFR 4.2.2, GNU MP 6.3.0)
+
+$ jq --version
+jq-1.8.2
+
+$ cygpath --version
+cygpath (cygwin) 3.6.10
+
+$ strace --version
+strace (cygwin) 3.6.10
+
+$ powershell.exe -NoLogo -NoProfile -NonInteractive -Command '$PSVersionTable | ConvertTo-Json -Compress'
+Relevant fields from the returned object:
+PSVersion: 5.1.26100.9444
+PSEdition: Desktop
+BuildVersion: 10.0.26100.9444
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+
+$ where.exe bash
+C:\Program Files\Git\usr\bin\bash.exe
+C:\Windows\System32\bash.exe
+C:\Users\<USER>\AppData\Local\Microsoft\WindowsApps\bash.exe
+
+Native Node host facts (os.release/os.cpus/os.totalmem):
+platform: win32
+arch: x64
+release: 10.0.26200
+logical CPUs: 16
+CPU model: AMD EPYC 7763 64-Core Processor
+RAM bytes: 68665831424
+
+Each sample manifest retains the code SHA, actual operation command and explicit
+fixture environment, plus the measured process PATH count and fingerprint.

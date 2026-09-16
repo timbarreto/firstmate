@@ -1,0 +1,151 @@
+
+================================================================================
+SESSION START - C:/src/.fm-wayfinder/baseline-runs/packet/timings/startup-empty/fixture.PqXuHw/tmp/fm-session-start-tests.LWDwja/copilot-empty/home
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 298417
+
+BOOTSTRAP
+--------------------------------------------------------------------------------
+MISSING: tasks-axi (install: npm install -g tasks-axi)
+MISSING: quota-axi (install: npm install -g quota-axi)
+
+WAKE QUEUE
+--------------------------------------------------------------------------------
+(no queued wakes)
+================================================================================
+SUPERVISION OPERATING INSTRUCTIONS - primary harness: copilot
+================================================================================
+Current state:
+- Lock: held by this session; this session owns normal supervision unless away mode says otherwise.
+- Away/quiet mode: inactive.
+- X mode: inactive; use the default watcher cadence.
+- Ordinary wake: the completed asynchronous watcher task delivered this turn; drain and handle the wake, then start the next tracked asynchronous watcher task if supervision is still needed.
+
+Mode: GitHub Copilot CLI tracked asynchronous shell supervision.
+
+When this session owns supervision and away mode is not active:
+1. Drain first with `bin/fm-wake-drain.sh`.
+   After handling all emitted wakes and reconciling open decisions and unread status lines, run the exact `--ack-through` command printed as `WAKE_ACK_REQUIRED`; until then the work remains durable for idempotent re-handling after interruption.
+2. Start exactly one standalone watcher command with Copilot's shell tool in its native asynchronous mode.
+   On macOS and Linux, run `bin/fm-watch-arm.sh`.
+   On Windows, run `./bin/fm-watch-arm.ps1`.
+   Never append a shell ampersand, use `nohup`, add a pipeline, or bundle another command into the same tool call.
+3. The asynchronous tool call must return immediately with its tracked task identifier.
+   Use the native task-output reader (`read_powershell` on Windows) to confirm the arm wrapper's `started` or `attached` result, or handle its explicit failure, before reporting monitoring restored.
+   This is a bounded startup confirmation, not a wait for the watcher to finish.
+   Make this short confirmation its own tool call before starting a long management command; Copilot can withhold a short read's result until the other tools in its batch finish.
+   End the response after confirmation when there is nothing else to tell the captain, so captain prompts remain available while the watcher runs.
+4. Copilot emits a native shell-completion notice and a `shell_completed` or `shell_detached_completed` hook event when the watcher task ends.
+   The tracked `notification` hook adds typed handling context only when supervision still needs attention and no healthy watcher remains.
+   The native notice can arrive before that context; read the completed task's output and follow step 5 rather than waiting for a second notice.
+5. On a watcher notification, read the completed shell task output when it is not already included, run `bin/fm-wake-drain.sh` first, handle the event, acknowledge it, and start the next asynchronous watcher task if supervision is still needed.
+6. The `agentStop` hook is a short backstop only.
+   It never runs or waits for the watcher.
+   When a turn would end without a healthy watcher, it forces one bounded continuation instructing Firstmate to start the asynchronous task.
+7. Copilot CLI overrides an eighth consecutive blocked stop.
+   Firstmate stops at seven, using the last continuation to report the ceiling; queued events remain durable, and a real captain prompt resets the sequence.
+8. Waiting on a healthy asynchronous watcher task is silent.
+
+## Long management operations
+
+Run long lifecycle and PR-registration commands as separate native tracked asynchronous shell tasks, while retaining the one existing supervision cycle.
+Keep each task identifier and observe that original task until it completes; a foreground wait expiring means the command may still be running, not that another restart or registration is needed.
+Use bounded, separate output reads for useful progress rather than pairing a short monitoring confirmation with a long command or long output wait.
+When work can continue asynchronously, end the response with the operation explicitly still in progress so a new user prompt remains possible.
+Report completion only after the original task exits successfully and its operation-specific postcondition is verified.
+For an interrupted lifecycle operation, use `bin/fm-control.sh`'s read-only inspection before deciding whether another action is needed; its header owns recovery planning and approved replay.
+
+The watcher remains `bin/fm-watch.sh`, and `bin/fm-watch-arm.sh` remains its verified arm wrapper.
+`bin/fm-watch-arm.ps1` is the Windows shell-tool bridge to that same wrapper.
+The private bounded-continuation record is `state/.turnend-copilot-continuations`.
+
+
+================================================================================
+READ-ONCE CONTRACT
+================================================================================
+Everything below is printed in full for this session start: every state/*.meta,
+a compact data/backlog.md listing, a bounded tail of every state/*.status,
+data/projects.md, data/secondmates.md, data/captain.md, data/captain-shared.md,
+and data/learnings.md.
+Do NOT re-read any of them after reading this digest, and do NOT bulk-read
+data/backlog.md or state/*.status: re-reading everything defeats the entire
+point of this command.
+
+Go to a source directly only when:
+  - this digest flagged it ABSENT (then rebuild or create it per AGENTS.md),
+  - its contents looked unparseable or corrupt,
+  - an individual full status log is needed for older wake-event history, or a
+    status line was capped and its tail matters (each task's full log path is
+    printed with its tail),
+  - a full task body is needed (bin/fm-tasks-axi.sh show <id> --full, or data/backlog.md),
+  - the backlog listing disclosed omitted queued items and this turn needs them,
+  - the NETWORK CHECKS section reported its checks still IN PROGRESS and this
+    turn needs their verdict (bin/fm-startup-network.sh report),
+  - or a STARTUP TRUNCATED banner named the stage that would have printed it, in
+    which case that stage's sources were never emitted and must be reconciled.
+
+================================================================================
+FLEET STATE
+================================================================================
+
+data/backlog.md
+--------------------------------------------------------------------------------
+compact backlog listing (manual backend; done rows omitted; every in-flight, held, and blocked title line kept; other queued bounded to 20; indented task bodies omitted)
+## In flight
+## Queued
+(no backlog item title lines found)
+Full task bodies remain available on demand: bin/fm-tasks-axi.sh show <id> --full when compatible tasks-axi is available, or data/backlog.md.
+
+Work under way (state/*.meta)
+--------------------------------------------------------------------------------
+(none)
+
+Orphan status logs (state/*.status without matching .meta)
+--------------------------------------------------------------------------------
+(none)
+
+AFK
+--------------------------------------------------------------------------------
+absent
+
+================================================================================
+NETWORK CHECKS
+================================================================================
+completed off the startup path in 33s: GitHub authentication, dead-secondmate relaunch, secondmate convergence, pending handoff delivery, project clone refresh with its drift reporting, and inactive terminal-outcome reconciliation.
+(silent - no problems found)
+
+================================================================================
+CONTEXT
+================================================================================
+
+data/projects.md
+--------------------------------------------------------------------------------
+ABSENT
+
+data/secondmates.md
+--------------------------------------------------------------------------------
+ABSENT
+
+data/captain.md
+--------------------------------------------------------------------------------
+ABSENT
+
+data/captain-shared.md (shared, main-authoritative, read-only in secondmate homes)
+--------------------------------------------------------------------------------
+ABSENT
+
+data/learnings.md
+--------------------------------------------------------------------------------
+ABSENT
+
+================================================================================
+NEXT STEP
+================================================================================
+Follow the supervision operating instructions block above for harness 'copilot'.
+This script never starts supervision itself.
+
+The digest above is complete for this session start. The READ-ONCE CONTRACT
+section near the top of it governs what may still be read from disk.
