@@ -256,13 +256,24 @@ extension_lifecycle_lock_release() {
 }
 
 run_extension_invocation_cleanup() {  # [cleanup selector...]
-  [ -x "$EXTENSION_HOST" ] && [ ! -L "$EXTENSION_HOST" ] || return 1
-  if [ -n "${FM_STATE_OVERRIDE:-}" ]; then
-    FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
-      "$EXTENSION_HOST" cleanup-invocations "$@" >/dev/null 2>&1
-  else
-    FM_HOME="$FM_HOME" "$EXTENSION_HOST" cleanup-invocations "$@" >/dev/null 2>&1
+  local cleanup_error status=0
+  if [ ! -x "$EXTENSION_HOST" ] || [ -L "$EXTENSION_HOST" ]; then
+    printf 'error: extension invocation cleanup host is unavailable\n' >&2
+    return 1
   fi
+  if [ -n "${FM_STATE_OVERRIDE:-}" ]; then
+    cleanup_error=$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+      "$EXTENSION_HOST" cleanup-invocations "$@" 2>&1 >/dev/null) || status=$?
+  else
+    cleanup_error=$(FM_HOME="$FM_HOME" "$EXTENSION_HOST" cleanup-invocations "$@" \
+      2>&1 >/dev/null) || status=$?
+  fi
+  if [ "$status" -ne 0 ]; then
+    # Operator diagnostics only, never a wake payload or authoritative record.
+    printf 'error: extension invocation cleanup failed (exit %s): %s\n' \
+      "$status" "${cleanup_error:0:1000}" >&2
+  fi
+  return "$status"
 }
 
 cleanup_extension_binding_invocations() {  # <binding-digest>
