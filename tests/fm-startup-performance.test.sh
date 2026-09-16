@@ -150,16 +150,42 @@ test_lock_pid_reads_stay_in_process_and_preserve_ownership() (
   IFS= read -r recorded < "$lock/pid" || fail "lock did not publish an owner"
   [ "$recorded" = "$current" ] || fail "lock belongs to a different process"
   fm_lock_set_role "$lock" terminal-check || fail "owner could not set its lock role"
+  printf '%s\n\n' "$current" > "$lock/pid"
+  fm_lock_set_role "$lock" autoarm || fail "trailing newlines changed the recorded owner"
   (fm_lock_release "$lock") || fail "non-owner release failed unexpectedly"
   [ -e "$lock" ] || fail "a subshell released its parent's lock"
   printf '%s\nforeign-trailer\n' "$current" > "$lock/pid"
   fm_lock_release "$lock"
   [ -e "$lock" ] || fail "release accepted only the first line of a malformed owner"
-  printf '%s\n' "$current" > "$lock/pid"
+  printf '%s\000foreign-trailer\n' "$current" > "$lock/pid"
+  fm_lock_release "$lock"
+  [ -e "$lock" ] || fail "release accepted a NUL-terminated prefix as its owner"
+  printf '%s' "$current" > "$lock/pid"
   fm_lock_release "$lock"
   [ ! -e "$lock" ] && [ ! -L "$lock" ] || fail "owner could not release its lock"
   [ ! -s "$calls" ] || fail "lock ownership checks still launch cat for tiny local records"
   pass "in-process lock reads retain whole-record and parent/subshell ownership checks"
+)
+
+test_lock_release_survives_removed_records_under_errexit() (
+  local home="$TMP_ROOT/removed-owner" out
+  mkdir -p "$home/state"
+  # The child must enable errexit: Bash 5.2 aborts on a missing $(<file) even
+  # when that assignment has an || fallback, unlike newer Bash versions.
+  # shellcheck disable=SC2016
+  out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$home" FM_STATE_OVERRIDE="$home/state" \
+    bash -euc '
+      . "$1"
+      fm_lock_release "$STATE/absent.lock"
+      fm_lock_try_acquire "$STATE/retiring.lock"
+      rm -rf "$STATE"
+      fm_lock_release "$STATE/retiring.lock"
+      printf "removed-owner-ok\n"
+    ' _ "$ROOT/bin/fm-wake-lib.sh" 2>&1) \
+    || fail "missing lock-owner records aborted an errexit cleanup: $out"
+  [ "$out" = removed-owner-ok ] \
+    || fail "idempotent release emitted an error after its home was removed: $out"
+  pass "errexit cleanup quietly releases already-removed owner records and homes"
 )
 
 test_status_snapshot_batches_fresh_file_facts() (
@@ -383,6 +409,7 @@ fm_test_run_cases \
   test_record_guards_use_fast_resolution_and_keep_fallback \
   test_recorded_herdr_presentations_skip_orphan_discovery \
   test_lock_pid_reads_stay_in_process_and_preserve_ownership \
+  test_lock_release_survives_removed_records_under_errexit \
   test_status_snapshot_batches_fresh_file_facts \
   test_status_event_rechecks_identity_after_its_span_read \
   test_backlog_path_validation_avoids_interpreter_launches \

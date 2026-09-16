@@ -44,6 +44,7 @@ The exit-to-shell fixture waits for Pi's `session_start` readiness marker as wel
 Run `bin/fm-test-run.sh tests/fm-startup-performance.test.sh` for in-process metadata, lock-owner, and status reads; fresh native and portable path validation; bounded routine and transition-history scans; and snapshot JSON invocation counts with field-preservation assertions.
 The same suite checks batched file-fact queries against replacement and append, including a replacement between an event reader's pre/post checks.
 Its Herdr cleanup case verifies the all-recorded no-op, conservative handling of dangling metadata, and fresh discovery after a record disappears; the cleanup suites retain the actual retirement and ambiguity checks.
+Lock-reader regressions include literal whole-record validation and quiet, idempotent release after an owning home disappears under `errexit`, including older Bash behavior.
 These checks run in the Windows reconciliation core job, the stock macOS Bash job, and portable CI.
 `FM_TEST_ONLY=test_bootstrap_diagnostics_stream_before_probe_completion bin/fm-test-run.sh tests/fm-session-start.test.sh` verifies that a completed bootstrap diagnostic reaches the session while a later probe is still blocked; the Windows core job also selects this case.
 The full startup suite retains truncation, cancellation, lock-refusal, and recovery coverage.

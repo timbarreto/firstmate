@@ -447,6 +447,27 @@ fm_lock_clean_known_files() {
     2>/dev/null || true
 }
 
+# Read one complete owner/role record into a caller scalar without a process.
+# Missing paths remain a quiet failure even under Bash 5.2 errexit: its optimized
+# $(<missing) expansion can abort the shell before an || fallback runs.
+# Redirect the builtin's descriptor instead, preserving literal bytes and cat
+# capture's trailing-newline trimming. NUL-bearing records are not identities.
+fm_lock_read_record() {  # <path> <destination>
+  local _fm_lock_record_value='' _fm_lock_record_rc=0
+  case "${2:-}" in ''|[0-9]*|*[!A-Za-z0-9_]*) return 2 ;; esac
+  printf -v "$2" '%s' ''
+  {
+    IFS= read -r -d '' _fm_lock_record_value
+    _fm_lock_record_rc=$?
+  } 2>/dev/null < "$1" || return 1
+  # EOF (1) captures the whole file; success (0) means a NUL delimiter was seen.
+  [ "$_fm_lock_record_rc" -eq 1 ] || return 1
+  while [[ "$_fm_lock_record_value" == *$'\n' ]]; do
+    _fm_lock_record_value=${_fm_lock_record_value%$'\n'}
+  done
+  printf -v "$2" '%s' "$_fm_lock_record_value"
+}
+
 fm_lock_set_role() {
   local lockdir=$1 role=$2 current pid back
   case "$role" in
@@ -454,10 +475,10 @@ fm_lock_set_role() {
     *) return 1 ;;
   esac
   fm_current_pid current || return 1
-  pid=$(< "$lockdir/pid") 2>/dev/null || pid=
+  fm_lock_read_record "$lockdir/pid" pid || pid=
   [ "$pid" = "$current" ] || return 1
   printf '%s\n' "$role" > "$lockdir/role" 2>/dev/null || return 1
-  back=$(< "$lockdir/role") 2>/dev/null || back=
+  fm_lock_read_record "$lockdir/role" back || back=
   [ "$back" = "$role" ]
 }
 
@@ -495,9 +516,7 @@ fm_lock_prepare_owner() {
   local ownerdir=$1 mypid back
   fm_current_pid mypid || return 1
   printf '%s\n' "$mypid" > "$ownerdir/pid" 2>/dev/null || return 1
-  # Bash's whole-file substitution preserves cat's trailing-newline semantics
-  # without launching another process for each tiny ownership readback.
-  back=$(< "$ownerdir/pid") 2>/dev/null || back=
+  fm_lock_read_record "$ownerdir/pid" back || back=
   [ "$back" = "$mypid" ]
 }
 
@@ -563,7 +582,7 @@ fm_lock_claim() {
     fm_lock_discard_owner "$ownerdir"
     return 1
   fi
-  back=$(< "$ownerdir/pid") 2>/dev/null || back=
+  fm_lock_read_record "$ownerdir/pid" back || back=
   if [ "$back" != "$mypid" ]; then
     fm_lock_discard_owner "$ownerdir"
     return 1
@@ -1276,14 +1295,14 @@ fm_lock_release() {
   if [ -L "$lockdir" ]; then
     ownerdir=$(fm_lock_link_owner "$lockdir" 2>/dev/null || true)
     [ -n "$ownerdir" ] || return 0
-    pid=$(< "$ownerdir/pid") 2>/dev/null || pid=
+    fm_lock_read_record "$ownerdir/pid" pid || pid=
     [ "$pid" = "$current" ] || return 0
     fm_lock_points_to_owner "$lockdir" "$ownerdir" || return 0
     rm -f "$lockdir" 2>/dev/null || return 0
     fm_lock_discard_owner "$ownerdir"
     return 0
   fi
-  pid=$(< "$lockdir/pid") 2>/dev/null || pid=
+  fm_lock_read_record "$lockdir/pid" pid || pid=
   [ "$pid" = "$current" ] || return 0
   fm_lock_clean_known_files "$lockdir"
   rmdir "$lockdir" 2>/dev/null || true
