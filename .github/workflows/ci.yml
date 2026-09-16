@@ -445,7 +445,7 @@ jobs:
           }
 
           # The same status/lock readers feed startup and snapshot consumers.
-          /bin/bash bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+          PATH="/bin:/usr/bin:$PATH" /bin/bash bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
             tests/fm-startup-performance.test.sh
 
           # The full public-followup suite is not a stock-bash snapshot; run only
