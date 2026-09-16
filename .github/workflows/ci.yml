@@ -444,6 +444,10 @@ jobs:
             exit 1
           }
 
+          # The same status/lock readers feed startup and snapshot consumers.
+          PATH="/bin:/usr/bin:$PATH" /bin/bash bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+            tests/fm-startup-performance.test.sh
+
           # The full public-followup suite is not a stock-bash snapshot; run only
           # the empty-lock register regression under real /bin/bash 3.2.
           pf_output=$(FM_TEST_ONLY=test_first_register_succeeds_with_empty_lock_list_under_bash32 \

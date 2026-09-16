@@ -190,6 +190,13 @@ assert_contains "$out" "published=0 started=0" "reconcile is a no-op with nothin
 [ -z "$(ls -A "$IDLE/state" 2>/dev/null)" ] || fail "an unconfigured home generated state: $(ls -A "$IDLE/state")"
 pass "no configured source means no generated state and no process"
 
+# Built-in retirement still invokes the extension cleanup host. Check that
+# dependency before the longer lifecycle cases, with its real failure visible.
+extension_cleanup=$(FM_HOME="$IDLE" "$ROOT/bin/fm-extension.mjs" cleanup-invocations 2>&1) \
+  || fail "built-in extension cleanup is unavailable: $extension_cleanup"
+assert_contains "$extension_cleanup" "cleaned-invocations: 0" "absent extension cleanup is a no-op"
+[ -z "$(ls -A "$IDLE/state" 2>/dev/null)" ] || fail "absent extension cleanup generated state"
+
 sup=$(PATH="${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}" bash -c \
   '. "$1/bin/fm-supervision-lib.sh"; fm_supervision_needed "$2" && echo yes || echo no' _ "$ROOT" "$IDLE/state")
 assert_contains "$sup" no "an unconfigured home does not need supervision"
@@ -1904,11 +1911,20 @@ kill -0 "$sweep_pid_two" 2>/dev/null \
 assert_present "$FM_PROCEVENT_CLAIM_ROOT/sweep-two.claim" \
   "a killed runner leaves its owned claim behind for the sweep"
 rm -f "$HM/state/procevent/sweep-two.source"
-out=$(pe "$HM" sweep-home --preflight)
+out=$(pe "$HM" sweep-home --preflight 2>&1) \
+  || fail "home sweep preflight failed: $out"
 assert_contains "$out" "sweep preflight: ready" "home sweep preflight validates the full bounded snapshot"
 assert_present "$HM/state/procevent/sweep-one.source" "home sweep preflight does not remove registrations"
 assert_present "$FM_PROCEVENT_CLAIM_ROOT/sweep-one.claim" "home sweep preflight does not release claims"
-out=$(pe "$HM" sweep-home)
+if out=$(pe "$HM" sweep-home 2>&1); then
+  :
+else
+  printf 'home sweep diagnostics:\n%s\n' "$out" >&2
+  # This fixture has no extension bindings. The direct no-op probe exposes a
+  # suppressed host/runtime failure without changing the original verdict.
+  FM_HOME="$HM" "$ROOT/bin/fm-extension.mjs" cleanup-invocations >&2 || true
+  fail "home sweep did not retire both locally owned sources"
+fi
 assert_contains "$out" "swept: attempted=2" "home sweep retires registrations and owned claim-only sources"
 for sweep_pid in "$sweep_pid_one" "$sweep_pid_two"; do
   for _ in $(seq 1 40); do kill -0 "$sweep_pid" 2>/dev/null || break; sleep 0.1; done

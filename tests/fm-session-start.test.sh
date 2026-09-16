@@ -2056,6 +2056,51 @@ SH
   chmod +x "$fakebin/timeout"
 }
 
+test_bootstrap_diagnostics_stream_before_probe_completion() {
+  local rec root home fakebin out entered release pid deadline visible=0 status=0
+  rec=$(new_world streaming-bootstrap)
+  IFS='|' read -r root home fakebin <<EOF
+$rec
+EOF
+  make_fake_toolchain "$fakebin"
+  make_fake_ps_claude "$fakebin"
+  rm -f "$fakebin/chrome-devtools-axi"
+  out="$home/startup.out"
+  entered="$home/probe.entered"
+  release="$home/probe.release"
+  cat > "$fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = --version ]; then
+  : > "$FM_TEST_STREAM_ENTERED"
+  while [ ! -e "$FM_TEST_STREAM_RELEASE" ]; do sleep 0.1; done
+  printf '%s\n' 'no-mistakes version v1.46.0 (fake)'
+fi
+SH
+  chmod +x "$fakebin/no-mistakes"
+
+  # Gate the later probe rather than guessing how long native lock acquisition
+  # takes. The missing-tool diagnostic must arrive while this gate is closed.
+  FM_TEST_STREAM_ENTERED="$entered" FM_TEST_STREAM_RELEASE="$release" \
+    run_session_start "$home" "$root" "$fakebin:$BASE_PATH" > "$out" 2>&1 &
+  pid=$!
+  deadline=$((SECONDS + 120))
+  while [ ! -e "$entered" ] && [ "$SECONDS" -lt "$deadline" ]; do sleep 0.1; done
+  if [ -e "$entered" ]; then
+    deadline=$((SECONDS + 5))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+      if grep -F 'MISSING: chrome-devtools-axi' "$out" >/dev/null; then visible=1; break; fi
+      sleep 0.1
+    done
+  fi
+  : > "$release"
+  wait "$pid" || status=$?
+  [ -e "$entered" ] || fail "streaming fixture never reached the gated bootstrap probe"
+  [ "$visible" -eq 1 ] || fail "completed bootstrap diagnostics stayed hidden behind a later probe"
+  expect_code 0 "$status" "streaming session start"
+  assert_grep 'NEXT STEP' "$out" "released startup did not finish its digest"
+  pass "bootstrap diagnostics reach the session before a later probe finishes"
+}
+
 test_runtime_bound_truncates_loudly_and_exits_zero() {
   local rec root home fakebin out status=0 stray mechanism
   rec=$(new_world runtime-bound)
@@ -2088,6 +2133,8 @@ EOF
   assert_not_contains "$out" "slow stage" "the truncation banner called the breadcrumb the slow stage"
   assert_not_contains "$out" "stopped during the" "the truncation banner still used the old stopped-during wording"
   assert_contains "$out" "RECONCILE these stages" "the truncation banner did not tell the agent what to reconcile"
+  assert_not_contains "$out" "raise FM_SESSION_START_TIMEOUT" \
+    "repeated truncation still recommends widening the deadline instead of diagnosing it"
   assert_contains "$out" "wake-queue supervision-instructions read-once fleet-state network-checks context next-step" \
     "the truncation banner did not list every stage that never ran"
   assert_not_contains "$out" "NEXT STEP" "a truncated digest claimed to have reached its closing reminder"
@@ -2872,6 +2919,7 @@ EOF
   pass "session start rejects Pi loaded markers from previous sessions"
 }
 
+session_start_cases=(
 test_context_digest_absent_empty_present
 test_lock_refusal_read_only_path
 test_lock_write_failure_read_only_path
@@ -2916,6 +2964,7 @@ test_omp_supervision_block_and_diagnostic
 test_omp_diagnostic_accepts_prelock_loaded_marker
 test_pi_diagnostic_rejects_missing_turnend_guard_marker
 test_pi_diagnostic_rejects_previous_session_loaded_marker
+test_bootstrap_diagnostics_stream_before_probe_completion
 test_runtime_bound_truncates_loudly_and_exits_zero
 test_portable_timeout_escalates_term_resistant_process
 test_runtime_bound_leaves_a_healthy_digest_untouched
@@ -2926,5 +2975,7 @@ test_read_only_pi_compact_refreshes_against_its_own_session_identity
 test_codex_unreachable_reset_sources_do_not_claim_instruction_refresh
 test_agents_baseline_requires_sha256_and_successful_completion
 test_reemit_keeps_repair_ownership_with_the_lock_holder
+)
+fm_test_run_cases "${session_start_cases[@]}"
 
-echo "# fm-session-start.test.sh: all assertions passed"
+echo "# fm-session-start.test.sh: selected assertions passed"

@@ -113,7 +113,9 @@ Git Bash callers retain their inexpensive PATH/cygpath lookup, while existing Po
 The startup and reporting cost guarantees are intentional fork behavior, including optimizations in files still shared with upstream.
 They limit repeated command launches and filesystem reads on Windows rather than merely preserving the report's output.
 `bin/fm-backend.sh` owns metadata access, while `bin/fm-backlog-transition-lib.sh` owns path validation and the in-flight lookup consumed by `bin/fm-bootstrap.sh`.
-`bin/fm-classify-lib.sh` owns decision folding; `bin/fm-crew-state.sh` and `bin/fm-fleet-snapshot.sh` retain current-state and captured-generation semantics.
+`bin/fm-classify-lib.sh` owns in-process status parsing and fresh file-fact snapshots; `bin/fm-crew-state.sh` and `bin/fm-fleet-snapshot.sh` retain current-state and captured-generation semantics.
+`bin/fm-wake-lib.sh` owns lock and recovery-record checks, while `bin/fm-session-start.sh` owns streaming completed diagnostics without treating an unfinished stage as ready.
+`bin/fm-herdr-session-cleanup.sh` owns the conservative orphan-candidate filter and retains full cleanup validation for any remaining candidate.
 Their headers own the exact access, fallback, and composition mechanics.
 
 Retire or replace these optimizations only with evidence of equivalent outputs, freshness, safety refusals, and equivalent or better cost on comparable Windows inputs.

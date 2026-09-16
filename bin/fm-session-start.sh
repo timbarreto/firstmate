@@ -13,7 +13,9 @@
 #
 # COMPOSITION, NOT DUPLICATION: this script calls fm-lock.sh, fm-bootstrap.sh,
 # fm-wake-drain.sh, and fm-startup-network.sh as real subprocesses and prints
-# their real output. It never re-implements their logic; all
+# their real output. Bootstrap and wake-drain output are forwarded as produced,
+# rather than discarding buffered diagnostics or status when a later call hangs.
+# It never re-implements their logic; all
 # sequencing/formatting logic added here stays local to this file. Those four
 # scripts remain fully working
 # standalone with unchanged default behavior - other flows (fm-bootstrap.sh
@@ -344,9 +346,10 @@ if [ -z "${FM_SESSION_START_STAGE_FILE:-}" ]; then
     printf '●  The named stage is the current breadcrumb, not a measured bottleneck.\n'
     printf '●  RECONCILE these stages before acting on anything they would have shown:\n'
     printf '●    %s\n' "${SESSION_START_PENDING% }"
-    printf '●  Rerun bin/fm-session-start.sh now to finish taking the helm. If it truncates\n'
-    printf '●  again, raise FM_SESSION_START_TIMEOUT and inspect the recorded stage timings at\n'
+    printf '●  Inspect the recorded stage timings before another attempt:\n'
     printf '●    %s\n' "$SESSION_START_TIMINGS"
+    printf '●  Diagnose the unfinished work instead of repeatedly rerunning or widening the bound.\n'
+    printf '●  After fixing the cause, rerun bin/fm-session-start.sh to reconcile the missing stages.\n'
     printf '%s\n' "$BAR"
     if [ -s "$SESSION_START_TIMINGS" ]; then
       fm_timing_render "$SESSION_START_TIMINGS" \
@@ -392,6 +395,27 @@ SUBRULE='-----------------------------------------------------------------------
 
 section() { printf '\n%s\n%s\n%s\n' "$RULE" "$1" "$RULE"; }
 subsection() { printf '\n%s\n%s\n' "$1" "$SUBRULE"; }
+
+# Forward complete lines immediately rather than hiding a whole stage in $().
+# Hold only empty lines so the old trailing-newline and empty-stage rendering
+# stay intact. A deadline still leaves the stage incomplete; forwarding avoids
+# deliberately withholding already-produced output until the child exits.
+stream_output_or_empty() {  # <empty-stage-label>; consumes stdin
+  local line pending_empty=0 emitted=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ -z "$line" ]; then
+      pending_empty=$((pending_empty + 1))
+      continue
+    fi
+    while [ "$pending_empty" -gt 0 ]; do
+      printf '\n' || return 1
+      pending_empty=$((pending_empty - 1))
+    done
+    printf '%s\n' "$line" || return 1
+    emitted=1
+  done
+  [ "$emitted" -eq 1 ] || printf '%s\n' "$1"
+}
 
 # print_file_or_absent <path> <label>: full contents under a labeled
 # subsection, or an explicit ABSENT marker. Absence is semantically
@@ -736,24 +760,19 @@ fi
 enter_stage bootstrap
 if fm_tasks_axi_compatible; then TASKS_AXI_COMPATIBLE=1; else TASKS_AXI_COMPATIBLE=0; fi
 subsection "BOOTSTRAP"
-if [ "$READ_ONLY" -eq 1 ]; then
-  BOOT_OUT=$(FM_BOOTSTRAP_DETECT_ONLY=1 FM_BOOTSTRAP_NETWORK=skip \
-    FM_TASKS_AXI_COMPATIBLE="$TASKS_AXI_COMPATIBLE" "$SCRIPT_DIR/fm-bootstrap.sh" 2>&1)
-elif [ "$REEMIT" -eq 1 ]; then
-  BOOT_OUT=$(FM_BOOTSTRAP_DETECT_ONLY=1 FM_BOOTSTRAP_LOCKED=1 FM_BOOTSTRAP_NETWORK=skip \
-    FM_TASKS_AXI_COMPATIBLE="$TASKS_AXI_COMPATIBLE" "$SCRIPT_DIR/fm-bootstrap.sh" 2>&1)
-else
-  BOOT_OUT=$(
+{
+  if [ "$READ_ONLY" -eq 1 ]; then
+    FM_BOOTSTRAP_DETECT_ONLY=1 FM_BOOTSTRAP_NETWORK=skip \
+      FM_TASKS_AXI_COMPATIBLE="$TASKS_AXI_COMPATIBLE" "$SCRIPT_DIR/fm-bootstrap.sh" 2>&1
+  elif [ "$REEMIT" -eq 1 ]; then
+    FM_BOOTSTRAP_DETECT_ONLY=1 FM_BOOTSTRAP_LOCKED=1 FM_BOOTSTRAP_NETWORK=skip \
+      FM_TASKS_AXI_COMPATIBLE="$TASKS_AXI_COMPATIBLE" "$SCRIPT_DIR/fm-bootstrap.sh" 2>&1
+  else
     "$SCRIPT_DIR/fm-herdr-session-cleanup.sh" 2>&1 || true
     FM_BOOTSTRAP_NETWORK=skip FM_TASKS_AXI_COMPATIBLE="$TASKS_AXI_COMPATIBLE" \
       "$SCRIPT_DIR/fm-bootstrap.sh" 2>&1
-  )
-fi
-if [ -n "$BOOT_OUT" ]; then
-  printf '%s\n' "$BOOT_OUT"
-else
-  printf '(silent - all good)\n'
-fi
+  fi
+} | stream_output_or_empty '(silent - all good)'
 
 # --- 3. wake-drain ---------------------------------------------------------
 # The inactive-outcome startup scan runs in the deferred worker launched above,
@@ -791,12 +810,7 @@ else
       printf '%s\n' "$BRANCH_REPLAY_OUT"
     fi
   fi
-  DRAIN_OUT=$("$SCRIPT_DIR/fm-wake-drain.sh" 2>&1)
-  if [ -n "$DRAIN_OUT" ]; then
-    printf '%s\n' "$DRAIN_OUT"
-  else
-    printf '(no queued wakes)\n'
-  fi
+  "$SCRIPT_DIR/fm-wake-drain.sh" 2>&1 | stream_output_or_empty '(no queued wakes)'
 fi
 
 # --- 4. supervision operating instructions ----------------------------------
