@@ -5,6 +5,10 @@
 #   Read FM_PROC_ROOT_OVERRIDE (default /proc), then the existing POSIX ps field.
 # fm_platform_windows_parent_processes <shell-pid>
 #   Bridge an MSYS/Cygwin PID through winpid to fresh native parent rows.
+# fm_platform_windows_descendant_processes <native-pid>
+#   Read PID<TAB>UTC-creation-ticks<TAB>comm<TAB>args for the native root and
+#   birth-verified descendants in one fresh snapshot. Never map that PID through
+#   the POSIX namespace or truncate an absence proof.
 # fm_platform_windows_process_info <native-pid>
 #   Query a native PID without treating it as an MSYS PID or using kill -0.
 #   Both return PID<TAB>comm<TAB>args rows from platform/windows-process.ps1;
@@ -95,17 +99,21 @@ fm_platform_process_ppid() {
   ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' '
 }
 
-fm_platform_windows_process_supported() {
+fm_platform_windows_host() {
   case "$(uname -s 2>/dev/null)" in
-    MINGW*|MSYS*|CYGWIN*) ;;
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+fm_platform_windows_process_supported() {
+  fm_platform_windows_host || return 1
   [ -z "${FM_PROC_ROOT_OVERRIDE:-}" ] || [ -r "$FM_PROC_ROOT_OVERRIDE/$$/winpid" ]
 }
 
 _fm_platform_windows_process_query() {  # <operation> <native-pid>
   local operation=$1 pid=$2 script output rc
-  case "$operation" in parent-processes|process-info) ;; *) return 2 ;; esac
+  case "$operation" in parent-processes|process-info|descendant-processes) ;; *) return 2 ;; esac
   case "$pid" in ''|*[!0-9]*|0|1) return 2 ;; esac
   script="$(dirname "${BASH_SOURCE[0]}")/platform/windows-process.ps1"
   [ -r "$script" ] || return 2
@@ -145,6 +153,11 @@ fm_platform_windows_parent_processes() {  # <shell-pid>
 fm_platform_windows_process_info() {  # <native-pid>
   fm_platform_windows_process_supported || return 1
   _fm_platform_windows_process_query process-info "$1"
+}
+
+fm_platform_windows_descendant_processes() {  # <native-pid>
+  fm_platform_windows_process_supported || return 1
+  _fm_platform_windows_process_query descendant-processes "$1"
 }
 
 fm_platform_windows_pid_matches() {

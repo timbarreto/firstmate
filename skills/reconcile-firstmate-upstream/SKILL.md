@@ -141,8 +141,8 @@ For each upstream change touching behavior extracted into a fork module, trace t
 Apply the upstream intent at that owner and its consumers, preserving the documented compatibility and lifecycle boundaries rather than restoring an obsolete inline implementation.
 Account for retained legacy and integrity exceptions through the architecture guide's owner/removal conditions.
 
-For startup, backlog/status-reading, or reporting changes, apply the target checkout's "Startup and reporting cost" conditions in `docs/fork/architecture.md` even when Git reports no conflict.
-Use "Startup and Bearings" in `docs/fork/verification.md` to route the associated cost and safety checks through Step 5.
+For startup, backlog/status-reading, reporting, or Windows management changes, apply the target checkout's cost-preservation conditions and relevant owners in `docs/fork/architecture.md` even when Git reports no conflict.
+Use "Startup and Bearings" and "Windows management" in `docs/fork/verification.md` to route the associated cost, freshness, and safety checks through Step 5.
 
 Treat both `.github/workflows/ci.yml` and `.github/workflows/fork-ci.yml`, the test catalogs and loader, `bin/fm-test-run.sh`, and `bin/fm-test-isolation-proof.sh` as a coupled verification surface.
 Compare shared paths with frozen upstream and fork-only owners with the frozen fork; upstream's absence of a fork module is not evidence that it can be discarded.

@@ -271,11 +271,10 @@ test_enabled_records_and_injects_identical_carrier_before_launch() {
   expect_code 0 "$status" "enabled trace-context spawn should succeed"
   assert_contains "$out" "spawned $CASE_ID" "enabled spawn should report success"
   meta="$HOME_DIR/state/$CASE_ID.meta"
-  jq -e --arg id "$CASE_ID" '
-    .schema == "fm-secondmate-home-summary.v1"
-    and any(.endpoints[]; .id == $id)
-  ' "$HOME_DIR/state/home-summary.json" >/dev/null \
-    || fail "successful task spawn did not publish the task in the home summary ledger"
+  [ -d "$HOME_DIR/state/.home-summary-refresh.request" ] \
+    || fail "successful task spawn did not request its side-band summary refresh"
+  [ ! -e "$HOME_DIR/state/home-summary.json" ] \
+    || fail "task delivery waited for an inline home-summary publication"
 
   mtp=$(meta_traceparent "$meta")
   fm_trace_context_valid "$mtp" || fail "enabled spawn must record a valid traceparent= in meta (got '$mtp')"
@@ -594,17 +593,18 @@ test_secondmate_carrier_and_snapshot_share_one_decision() {
   pass "secondmate carrier and FM_TRACE_CONTEXT snapshot always agree, both derived from one frozen decision (file-decided path)"
 }
 
-test_enabled_records_and_injects_identical_carrier_before_launch
-test_disabled_writes_and_injects_neither
-test_failed_delivery_omits_metadata_and_still_launches
-test_unsafe_delivery_refuses_to_append_launch
-test_failed_metadata_append_unsets_carrier_and_still_launches
-test_duplicate_secondmate_spawn_does_not_converge_trace_context
-test_relaunch_reuses_recorded_carrier
-test_session_start_freezes_env_override_and_ignores_later_edits
-test_secondmate_env_on_file_absent_keeps_nested_worker_enabled
-test_secondmate_env_off_file_present_keeps_nested_worker_disabled
-test_two_routed_tasks_through_one_secondmate_root_distinct_traces
-test_secondmate_carrier_and_snapshot_share_one_decision
+fm_test_run_cases \
+  test_enabled_records_and_injects_identical_carrier_before_launch \
+  test_disabled_writes_and_injects_neither \
+  test_failed_delivery_omits_metadata_and_still_launches \
+  test_unsafe_delivery_refuses_to_append_launch \
+  test_failed_metadata_append_unsets_carrier_and_still_launches \
+  test_duplicate_secondmate_spawn_does_not_converge_trace_context \
+  test_relaunch_reuses_recorded_carrier \
+  test_session_start_freezes_env_override_and_ignores_later_edits \
+  test_secondmate_env_on_file_absent_keeps_nested_worker_enabled \
+  test_secondmate_env_off_file_present_keeps_nested_worker_disabled \
+  test_two_routed_tasks_through_one_secondmate_root_distinct_traces \
+  test_secondmate_carrier_and_snapshot_share_one_decision
 
 echo "# all fm-trace-context-spawn tests passed"

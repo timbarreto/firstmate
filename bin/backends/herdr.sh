@@ -96,7 +96,8 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 # Shared, backend-neutral harness-process identity (bin/fm-agent-process-lib.sh):
 # the same agent|shell|other vocabulary the tmux adapter proves liveness with,
 # so a Herdr registration is verified against the pane's real processes by the
-# same rule (fm_backend_herdr_pane_process_state).
+# same rule (fm_backend_herdr_pane_process_state). Native Windows descendants
+# are sampled once through the platform owner, not inferred from MSYS ps.
 # shellcheck source=bin/fm-agent-process-lib.sh
 . "$FM_BACKEND_HERDR_ROOT/bin/fm-agent-process-lib.sh" || return 2
 
@@ -2250,7 +2251,7 @@ fm_backend_herdr_pane_process_state() {  # <session> <pane_id>
 # the settle retry.
 fm_backend_herdr_pane_process_state_sample() {  # <session> <pane_id>
   local session=$1 pane_id=$2 info shell_pid count i pid name argv0 args verdict
-  local others=0 ps_bin rows
+  local others=0 ps_bin rows birth
   info=$(fm_backend_herdr_cli "$session" pane process-info --pane "$pane_id" 2>/dev/null) \
     || { printf 'unreadable'; return 0; }
   printf '%s' "$info" | jq -e --arg pane "$pane_id" '
@@ -2289,6 +2290,26 @@ fm_backend_herdr_pane_process_state_sample() {  # <session> <pane_id>
   # shells-only foreground a shell-only PANE, look for a harness that is still a
   # descendant of the pane shell outside the foreground group; only its
   # absence, read from the real process table, is proof of an agent-free pane.
+  if [ -z "${FM_HERDR_PS_BIN:-}" ] && fm_platform_windows_host; then
+    # Herdr supplies a NATIVE shell PID. MSYS ps cannot prove the absence of
+    # its native descendants, and a missing Herdr registration proves nothing
+    # about Copilot processes under the pane's PowerShell/Bash launch chain.
+    rows=$(fm_platform_windows_descendant_processes "$shell_pid") \
+      || { printf 'unreadable'; return 0; }
+    [ "${rows%%$'\t'*}" = "$shell_pid" ] || { printf 'unreadable'; return 0; }
+    while IFS=$'\t' read -r pid birth name args; do
+      [ -n "$pid" ] && [ -n "$birth" ] && [ -n "$name" ] || { printf 'unreadable'; return 0; }
+      # No native PID is ever handed to a /proc/POSIX identity fallback.
+      verdict=$(fm_agent_process_classify "$name" "$name" "$args")
+      case "$verdict" in
+        agent) printf 'agent'; return 0 ;;
+        shell) ;;
+        *) others=$((others + 1)) ;;
+      esac
+    done <<< "$rows"
+    [ "$others" -eq 0 ] && printf 'shell' || printf 'other'
+    return 0
+  fi
   [ "$others" -eq 0 ] || { printf 'other'; return 0; }
   ps_bin=${FM_HERDR_PS_BIN:-ps}
   command -v "$ps_bin" >/dev/null 2>&1 || { printf 'unreadable'; return 0; }
@@ -2344,7 +2365,10 @@ EOF
 #                 and its tab from `pane get`/`tab list`).
 #   no-agent    - `pane get` succeeds (the pane structurally exists) but `agent
 #                 get` responds with error code agent_not_found: nothing is
-#                 registered in it - exactly what a herdr session-layout restore
+#                 registered in it. Native Windows additionally requires a
+#                 fresh shell-only process proof: registration can miss a
+#                 running native Copilot child. On POSIX this retains the
+#                 verified shell-only state a herdr session-layout restore
 #                 produces (verified empirically: `session stop` + fresh `herdr
 #                 server` restart leaves the pane alive, agent_status "unknown",
 #                 agent get -> agent_not_found - docs/herdr-backend.md "ID
@@ -2362,7 +2386,8 @@ EOF
 #                 running agent. No registered status outranks the process
 #                 view, because a killed mid-turn agent leaves `working`
 #                 behind just as a quit one leaves `idle`.
-#   live        - `agent get` succeeds with a registered agent_status and the
+#   live        - an unregistered native Windows pane has a verified harness process, or
+#                 `agent get` succeeds with a registered agent_status and the
 #                 process-level view is `agent` or `other`: a harness process
 #                 is running, or something that is not a bare shell is, so the
 #                 registration keeps its authority. An idle or blocked agent
@@ -2390,7 +2415,20 @@ fm_backend_herdr_pane_agent_state() {  # <session> <pane_id>
   out=$(fm_backend_herdr_cli "$session" agent get "$pane_id" 2>&1)
   code=$(printf '%s' "$out" | jq -r '.error.code // empty' 2>/dev/null)
   if [ -n "$code" ]; then
-    [ "$code" = "agent_not_found" ] && printf 'no-agent' || printf 'unknown'
+    if [ "$code" = agent_not_found ] && fm_platform_windows_host; then
+      # Native Windows can retain a real Copilot descendant that Herdr's
+      # registration does not see. Keep the empirically verified POSIX restore
+      # contract unchanged; only this native observation needs the extra proof.
+      case "$(fm_backend_herdr_pane_process_state "$session" "$pane_id")" in
+        agent) printf 'live' ;;
+        shell) printf 'no-agent' ;;
+        *) printf 'unknown' ;;
+      esac
+    elif [ "$code" = agent_not_found ]; then
+      printf 'no-agent'
+    else
+      printf 'unknown'
+    fi
     return 0
   fi
   status=$(printf '%s' "$out" | jq -r '.result.agent.agent_status // empty' 2>/dev/null)

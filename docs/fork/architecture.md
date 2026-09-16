@@ -123,6 +123,25 @@ Use [Startup and Bearings verification](verification.md#startup-and-bearings) to
 Compare matched workloads in isolated fixtures; output equality alone or increased deadlines do not establish cost preservation.
 Record replacement evidence in the reconciliation PR rather than treating a conflict-free merge as proof.
 
+## Windows management cost
+
+The startup/reporting replacement conditions above also apply to Windows management optimizations, with the checks routed through [Windows management verification](verification.md#windows-management).
+`bin/fm-home-summary-refresh.sh` owns coalesced publication requests; spawn requests that work without waiting while the existing watcher owns execution and retry.
+A pending request never certifies fresh summary data, and publication retains atomic replacement and the prior document's original timestamp until success.
+
+`bin/fm-ghcp-hook.ps1` routes native command checks through `bin/fm-copilot-command-check.mjs`, which imports the existing arm/cd policies rather than duplicating their parser or decisions.
+The Copilot Stop owner parses and binds its event once, shares the read-only supervision predicate in process, and applies one late ownership-checked continuation transaction only when a record must change.
+Short Windows continuation locks may use the batched owner-link mechanics in `bin/fm-lock-fast.pl` through `bin/fm-wake-lib.sh`; their publication, ownership, stale recovery, and cross-version lock protocol remain unchanged.
+The Git Bash resolver preserves candidate precedence while returning before unused fallbacks are enumerated.
+Removing repeated work is not permission to disable a check or enlarge its deadline.
+`bin/fm-pr-lib.sh` owns invocation-local reuse of pure Azure URL parsing and fresh single-query file facts; ACL setup batches only one private staging cohort before payload is written.
+Neither optimization caches permissions, filesystem authorization, or remote PR observations across operations or publication phases.
+
+`bin/fm-control.sh` retains lifecycle authority, with read-only inspection and approved record-recovery mechanics in `bin/fm-control-recovery-lib.sh`.
+The recovery plan binds exact native process birth identities and task-held leases, preserves both copies, and enters the existing relaunch transaction only after fresh approval verification.
+`bin/platform/windows-process.ps1` owns native descendant facts; the Herdr adapter interprets them and refuses to equate a missing Windows registration with an exited process.
+The verified POSIX restore path remains unchanged.
+
 ## PR identity and observation seam
 
 `bin/fm-pr-poll.sh` owns Azure URL and response validation as well as the explicit-organization native read.
@@ -168,7 +187,7 @@ The removal conditions below are design boundaries, not authorization to revert 
 | Pilot calls and source-error propagation | Detection, bootstrap, spawn, control, sending, busy/supervision, restart, and teardown retain orchestration while calling the closed interface | Upstream supplies equivalent pilot capabilities and failure semantics across those callers |
 | Pi/OpenCode import compatibility | The existing extension/plugin import paths re-export their original public sets from the canonical process module | Consumers and supported package layouts adopt an equivalent shared import contract |
 | Native policy and transport calls | PR, X-mode, runner-worker, Herdr, and spawn callers preserve their public helpers and transaction-specific policy | Upstream provides equivalent native mechanics without changing ownership, privacy, or subprocess bounds |
-| Startup and reporting cost | The [startup/reporting owners](#startup-and-reporting-cost) retain the fork's cost guarantees alongside its output and safety contracts | A replacement satisfies that section's cost-preservation conditions |
+| Startup, reporting, and Windows management cost | The [startup/reporting owners](#startup-and-reporting-cost) and [management owners](#windows-management-cost) retain cost guarantees alongside output, freshness, and safety contracts | A replacement satisfies the cost-preservation conditions and preserves approved recovery identity and replay safeguards |
 | Catalog and proof integration | Runner compatibility functions delegate metadata queries; reference expansion and execution remain in the runner, while proof lists remain independent | Upstream supports compatible metadata loading, reference selection, and proof-owned admission |
 | Module discovery and fixture closure | Lint and changed-reference discovery include new directories and file types; copied fixtures install complete dependencies | Equivalent upstream discovery and fixture layouts include the owning modules |
 | Fork workflow and shared-CI compatibility | The dedicated workflow owns fork checks; shared CI retains its prerequisite, compiler, action, and artifact integration | Equivalent upstream checks preserve every required subject, gate, and producer |

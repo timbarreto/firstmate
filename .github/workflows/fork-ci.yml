@@ -118,6 +118,43 @@ jobs:
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
               tests/fm-review-diff.test.sh
 
+  windows-management:
+    name: Windows Copilot management
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Run native management contracts without a live fleet
+        shell: bash
+        env:
+          FM_LIVE: "0"
+        run: |
+          set -eu
+          bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+            tests/fm-home-summary-request.test.sh \
+            tests/fm-lock-fast.test.sh \
+            tests/fm-pr-local-cost.test.sh \
+            tests/fm-herdr-unregistered-agent.test.sh
+          for test_case in \
+            test_windows_powershell_pretool_transport \
+            test_windows_command_hooks_do_not_load_git_bash \
+            test_windows_git_resolver_stops_after_preferred_installation \
+            test_stop_repair_uses_its_known_harness \
+            test_stop_uses_one_late_authorized_counter_transaction; do
+            FM_TEST_ONLY="$test_case" \
+              bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+                tests/fm-copilot-harness.test.sh
+          done
+          FM_TEST_ONLY=test_recovery_approved_and_idempotent \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
+              tests/fm-control-recovery.test.sh
+          FM_TEST_ONLY=test_control_inspect_is_read_only_during_another_action \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+              tests/fm-control-relaunch.test.sh
+
   harness-package-compatibility:
     name: Harness package compatibility
     runs-on: ubuntu-latest

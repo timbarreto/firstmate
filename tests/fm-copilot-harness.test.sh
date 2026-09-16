@@ -53,6 +53,7 @@ install_primary_fixture() {
   cat > "$dir/bin/fm-wake-lib.sh" <<'SH'
 #!/usr/bin/env bash
 fm_lock_try_acquire() {
+  [ -z "${FM_TEST_LOCK_LOG:-}" ] || printf '%s\n' "$1" >> "$FM_TEST_LOCK_LOG"
   mkdir "$1" 2>/dev/null || return 1
   printf '%s\n' "$$" > "$1/pid"
   FM_LOCK_OWNER_DIR=$1
@@ -291,6 +292,50 @@ test_primary_session_start_returns_additional_context() {
   pass "Copilot sessionStart injects the authoritative Firstmate digest and stays inert off-host"
 }
 
+test_stop_uses_one_late_authorized_counter_transaction() {
+  local dir="$TMP_ROOT/stop-counter-transaction" fakebin out before
+  fakebin=$(make_fakebin "$dir")
+  install_primary_fixture "$dir"
+  : > "$dir/state/task.meta"
+  out=$(printf '{"sessionId":"sess-copilot","stop_hook_active":false}' \
+    | FM_TEST_LOCK_LOG="$dir/locks" run_hook "$dir" "$fakebin" primary-stop)
+  [ "$(printf '%s' "$out" | jq -r '.decision')" = block ] || fail "missing monitoring did not block"
+  [ "$(wc -l < "$dir/locks")" -eq 1 ] || fail "Stop acquired its continuation transaction more than once"
+  printf 'session=sess-copilot\ncount=6\n' > "$dir/state/.turnend-copilot-continuations"
+  before=$(cat "$dir/state/.turnend-copilot-continuations")
+  cat > "$dir/bin/fm-supervision-instructions.sh" <<'SH'
+#!/usr/bin/env bash
+printf '876544\n' > "$FM_HOME/state/.lock"
+printf 'fixture repair\n'
+SH
+  out=$(printf '{"sessionId":"sess-copilot","stop_hook_active":false}' \
+    | run_hook "$dir" "$fakebin" primary-stop)
+  [ -z "$out" ] || fail "Stop emitted a continuation after ownership changed"
+  [ "$(cat "$dir/state/.turnend-copilot-continuations")" = "$before" ] \
+    || fail "Stop changed the continuation ledger before its late ownership verification"
+  pass "Copilot Stop uses one late ownership-checked continuation transaction"
+}
+
+test_stop_repair_uses_its_known_harness() {
+  local dir="$TMP_ROOT/known-stop-harness" fakebin out
+  fakebin=$(make_fakebin "$dir")
+  install_primary_fixture "$dir"
+  cp "$ROOT/bin/fm-supervision-instructions.sh" "$dir/bin/"
+  cat > "$dir/bin/fm-harness.sh" <<'SH'
+#!/usr/bin/env bash
+: > "$FM_HOME/state/unexpected-harness-detection"
+exit 1
+SH
+  chmod +x "$dir/bin/fm-harness.sh"
+  : > "$dir/state/task.meta"
+  out=$(printf '{"sessionId":"sess-copilot","stop_hook_active":false}' \
+    | run_hook "$dir" "$fakebin" primary-stop) || fail "Copilot stop failed"
+  [ "$(printf '%s' "$out" | jq -r '.decision')" = block ] || fail "missing monitoring did not require repair"
+  assert_absent "$dir/state/unexpected-harness-detection" "Copilot repair rediscovered an already-known native harness"
+  assert_contains "$(printf '%s' "$out" | decision_reason)" 'Copilot-tracked asynchronous' "repair lost the verified native protocol"
+  pass "Copilot Stop repair reuses its known harness without another ancestry discovery"
+}
+
 test_windows_powershell_pretool_transport() {
   local payload out rc script
   case "${OS:-}" in Windows_NT) ;; *) return 0 ;; esac
@@ -306,6 +351,64 @@ test_windows_powershell_pretool_transport() {
   assert_contains "$(printf '%s' "$out" | jq -r '.permissionDecisionReason')" \
     "[watcher-background]" "PowerShell transport lost the watcher policy reason"
   pass "Copilot PowerShell transport preserves native watcher-policy decisions"
+}
+
+test_native_command_payload_parity() {
+  local payload legacy native
+  for payload in \
+    '{"tool_input":{"command":"printf fixture"}}' \
+    '{"tool_input":{"command":"bin/fm-watch-arm.sh &"}}' \
+    '{"toolInput":{"command":"bin/fm-watch.sh"}}' \
+    '{"tool_input":{"command":"printf \"bin/fm-watch-arm.sh &\""}}' \
+    '{"tool_input":{"command":"printf \"\\u00e9 \\u4e2d\""}}' \
+    '{"cursor_version":"fixture","tool_input":{"command":"bin/fm-watch-arm.sh &"}}' \
+    '{}' '{bad'; do
+    legacy=$(printf '%s' "$payload" | COPILOT_CLI=1 FM_HOME="$ROOT" \
+      "$ROOT/bin/fm-ghcp-hook.sh" pretool arm) || fail "legacy command transport failed"
+    native=$(printf '%s' "$payload" | COPILOT_CLI=1 FM_HOME="$ROOT" \
+      node "$ROOT/bin/fm-copilot-command-check.mjs" arm) || fail "native command transport failed"
+    [ "$(printf '%s' "$legacy" | jq -cS .)" = "$(printf '%s' "$native" | jq -cS .)" ] \
+      || fail "native transport changed a command-policy or malformed-input verdict"
+  done
+  pass "native command transport preserves policy, UTF-8 data, foreign delivery, and malformed-input behavior"
+}
+
+test_windows_command_hooks_do_not_load_git_bash() {
+  local dir="$TMP_ROOT/native-command-hook" file script out
+  case "${OS:-}" in Windows_NT) ;; *) return 0 ;; esac
+  mkdir -p "$dir/bin"
+  for file in fm-ghcp-hook.ps1 fm-copilot-command-check.mjs fm-arm-command-policy.mjs fm-cd-command-policy.mjs; do
+    [ ! -f "$ROOT/bin/$file" ] || cp "$ROOT/bin/$file" "$dir/bin/$file"
+  done
+  printf '%s\n' 'throw "the command hook must not load a Git Bash transport"' \
+    > "$dir/bin/fm-windows-git-bash.ps1"
+  script=$(cygpath -w "$dir/bin/fm-ghcp-hook.ps1")
+  out=$(printf '%s' '{"tool_name":"powershell","tool_input":{"command":"bin/fm-watch-arm.sh &"}}' \
+    | COPILOT_CLI=1 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$script" pretool arm 2>/dev/null) \
+    || fail "Windows command policy still depends on a Git Bash transport"
+  [ "$(printf '%s' "$out" | jq -r '.permissionDecision')" = deny ] \
+    || fail "removing the command hook's Bash bridge lost the real policy refusal"
+  pass "Copilot Windows command checks retain policy without launching Git Bash"
+}
+
+test_windows_git_resolver_stops_after_preferred_installation() {
+  local dir="$TMP_ROOT/short-resolver" native_root native_dir
+  case "${OS:-}" in Windows_NT) ;; *) return 0 ;; esac
+  mkdir -p "$dir/git/cmd" "$dir/git/bin"
+  : > "$dir/git/cmd/git.exe"
+  : > "$dir/git/bin/bash.exe"
+  native_root=$(cygpath -w "$ROOT")
+  native_dir=$(cygpath -w "$dir")
+  # shellcheck disable=SC2016 # PowerShell reads the literal fixture roots.
+  FM_TEST_RESOLVER_ROOT="$native_root" FM_TEST_RESOLVER_DIR="$native_dir" \
+    powershell.exe -NoProfile -NonInteractive -Command '
+      . (Join-Path $env:FM_TEST_RESOLVER_ROOT "bin/fm-windows-git-bash.ps1")
+      function Get-Command { [pscustomobject]@{ Source=(Join-Path $env:FM_TEST_RESOLVER_DIR "git/cmd/git.exe") } }
+      function Get-ItemProperty { throw "unnecessary registry enumeration" }
+      $resolved = Resolve-FirstmateGitBash
+      if ($resolved -ne (Join-Path $env:FM_TEST_RESOLVER_DIR "git/bin/bash.exe")) { throw "preferred installation changed" }
+    ' || fail "Git Bash resolution enumerated fallback installations after a valid preferred one"
+  pass "Windows Git Bash resolution preserves preference without enumerating unused fallbacks"
 }
 
 test_windows_bearings_transport_avoids_ambient_bash() {
@@ -577,6 +680,11 @@ fm_test_run_cases \
   test_pretool_binds_payload_session_and_preserves_input \
   test_primary_session_start_returns_additional_context \
   test_windows_powershell_pretool_transport \
+  test_stop_repair_uses_its_known_harness \
+  test_stop_uses_one_late_authorized_counter_transaction \
+  test_windows_command_hooks_do_not_load_git_bash \
+  test_windows_git_resolver_stops_after_preferred_installation \
+  test_native_command_payload_parity \
   test_windows_bearings_transport_avoids_ambient_bash \
   test_primary_stop_requests_async_arm_and_bounds_forced_continuations \
   test_primary_stop_allows_healthy_async_watcher \

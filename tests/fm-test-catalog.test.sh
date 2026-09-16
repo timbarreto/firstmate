@@ -72,6 +72,33 @@ test_catalog_preserves_existing_gate_classes() {
   pass "every existing family retains its pre-extraction gate class"
 }
 
+test_management_routes_preserve_existing_owners() {
+  local pair path wanted mapped
+  fm_test_catalog_load "$ROOT" || fail "real catalogs must load"
+  for pair in \
+    'bin/fm-spawn.sh|backend-dispatch' \
+    'bin/fm-home-summary-refresh.sh|snapshot-bearings' \
+    'bin/fm-home-summary-refresh.sh|__script__:fm-home-summary-request.test.sh' \
+    'bin/fm-watch.sh|watcher-wake-lock' \
+    'bin/fm-wake-lib.sh|watcher-wake-lock' \
+    'bin/fm-wake-lib.sh|__script__:fm-lock-fast.test.sh' \
+    'bin/fm-pr-lib.sh|pr-forge' \
+    'bin/fm-pr-lib.sh|__script__:fm-pr-local-cost.test.sh' \
+    'bin/fm-pr-poll.sh|pr-forge' \
+    'bin/backends/herdr.sh|real-herdr-gated' \
+    'bin/fm-agent-process-lib.sh|backend-dispatch' \
+    'bin/fm-control-lib.sh|session-bootstrap' \
+    'bin/fm-control-lib.sh|__script__:fm-control-recovery.test.sh' \
+    'bin/fm-ghcp-hook.ps1|__script__:fm-update-windows.test.sh'; do
+    path=${pair%%|*}
+    wanted=${pair#*|}
+    mapped=$(fm_test_catalog_maps "$path") || fail "management source lost routing: $path"
+    printf '%s\n' "$mapped" | grep -Fxq "$wanted" \
+      || fail "$path lost existing or supplementary consumer $wanted"
+  done
+  pass "management cost regressions supplement rather than shadow existing source owners"
+}
+
 test_catalog_lookup_cost_is_bounded() {
   local started elapsed iteration
   fm_test_catalog_load "$ROOT" || fail "real catalogs must load"
@@ -318,6 +345,7 @@ test_catalog_module_reference_and_lint_membership() {
 
 fm_test_run_cases \
   test_catalog_preserves_existing_gate_classes \
+  test_management_routes_preserve_existing_owners \
   test_catalog_lookup_cost_is_bounded \
   test_catalog_cache_keys_and_reload \
   test_catalog_overrides_and_ordering \

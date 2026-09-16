@@ -69,7 +69,7 @@ fm_pid_identity() {
   # Git Bash/MSYS exposes these compatible files but its Cygwin ps rejects the
   # portable fallback's -o fields, so capability detection must not key on uname.
   if [ -r "$proc_root/$pid/stat" ] && [ -r "$proc_root/$pid/cmdline" ]; then
-    stat_line=$(cat "$proc_root/$pid/stat" 2>/dev/null) || return 1
+    fm_lock_read_record "$proc_root/$pid/stat" stat_line || return 1
     # After the final comm delimiter, array index 19 is proc stat field 22.
     read -r -a stat_fields <<< "${stat_line##*)}"
     [ "${#stat_fields[@]}" -ge 20 ] || return 1
@@ -77,7 +77,8 @@ fm_pid_identity() {
     case "$starttime" in
       ''|*[!0-9]*) return 1 ;;
     esac
-    cmdline_hex=$(od -An -v -tx1 "$proc_root/$pid/cmdline" 2>/dev/null | tr -d '[:space:]') || return 1
+    cmdline_hex=$(od -An -v -tx1 "$proc_root/$pid/cmdline" 2>/dev/null) || return 1
+    cmdline_hex=${cmdline_hex//[[:space:]]/}
     [ -n "$cmdline_hex" ] || return 1
     identity_key=proc-starttime
     [ "$_FM_UNAME" != Linux ] || identity_key=linux-starttime
@@ -138,7 +139,7 @@ fm_watcher_lock_unheld() {
   lockdir="$state/.watch.lock"
   [ ! -e "$lockdir" ] && return 0
   [ ! -e "$lockdir/pid" ] && return 0
-  pid=$(cat "$lockdir/pid" 2>/dev/null) || return 1
+  fm_lock_read_record "$lockdir/pid" pid || return 1
   [ -z "$pid" ]
 }
 
@@ -147,9 +148,9 @@ fm_watcher_lock_matches_pid() {
   local state=$1 watch_path=$2 pid=$3 home=${4:-$FM_HOME} lockdir lock_home lock_path lock_identity current_identity
   FM_WATCHER_MATCHED_IDENTITY=
   lockdir="$state/.watch.lock"
-  lock_home=$(cat "$lockdir/fm-home" 2>/dev/null || true)
-  lock_path=$(cat "$lockdir/watcher-path" 2>/dev/null || true)
-  lock_identity=$(cat "$lockdir/pid-identity" 2>/dev/null || true)
+  fm_lock_read_record "$lockdir/fm-home" lock_home || lock_home=
+  fm_lock_read_record "$lockdir/watcher-path" lock_path || lock_path=
+  fm_lock_read_record "$lockdir/pid-identity" lock_identity || lock_identity=
   [ "$lock_home" = "$home" ] || return 1
   [ "$lock_path" = "$watch_path" ] || return 1
   [ -n "$lock_identity" ] || return 1
@@ -166,7 +167,7 @@ fm_watcher_healthy() {
   FM_WATCHER_HEALTHY_IDENTITY=
   lockdir="$state/.watch.lock"
   beat="$state/.last-watcher-beat"
-  pid=$(cat "$lockdir/pid" 2>/dev/null || true)
+  fm_lock_read_record "$lockdir/pid" pid || pid=
   fm_pid_alive "$pid" || return 1
   fm_watcher_lock_matches_pid "$state" "$watch_path" "$pid" "$home" || return 1
   identity=$FM_WATCHER_MATCHED_IDENTITY
@@ -1082,6 +1083,45 @@ fm_lock_try_acquire_recovery() {
   FM_LOCK_HELD_PID=$(cat "$lockdir/pid" 2>/dev/null || true)
   FM_LOCK_OWNER_DIR=
   return 1
+}
+
+# Short native-hook transactions can batch the uncontended owner-link mechanics
+# through a batched helper. The protocol and stale/recovery policy are unchanged. Missing
+# Perl uses the portable path; a missing tracked helper is an explicit refusal.
+fm_lock_try_acquire_fast() {
+  local lockdir=$1 current owner helper="$FM_WAKE_LIB_DIR/fm-lock-fast.pl"
+  case "$_FM_UNAME" in
+    MSYS*|MINGW*|CYGWIN*) ;;
+    *) fm_lock_try_acquire "$lockdir"; return ;;
+  esac
+  if [ -e "$lockdir" ] || [ -L "$lockdir" ] || ! command -v perl >/dev/null 2>&1; then
+    fm_lock_try_acquire "$lockdir"
+    return
+  fi
+  [ -r "$helper" ] || return 1
+  lockdir=$(fm_lock_abs_path "$lockdir") || return 1
+  fm_current_pid current || return 1
+  if owner=$(MSYS=winsymlinks:sys perl "$helper" acquire "$lockdir" "$current" 2>/dev/null); then
+    FM_LOCK_OWNER_DIR=$owner
+    FM_LOCK_HELD_PID=
+    FM_LOCK_RECOVERED_PID=
+    return 0
+  fi
+  fm_lock_try_acquire "$lockdir"
+}
+
+fm_lock_release_fast() {
+  local lockdir=$1 current helper="$FM_WAKE_LIB_DIR/fm-lock-fast.pl"
+  case "$_FM_UNAME" in
+    MSYS*|MINGW*|CYGWIN*) ;;
+    *) fm_lock_release "$lockdir"; return ;;
+  esac
+  if [ -r "$helper" ] && command -v perl >/dev/null 2>&1; then
+    lockdir=$(fm_lock_abs_path "$lockdir") || return 1
+    fm_current_pid current || return 1
+    MSYS=winsymlinks:sys perl "$helper" release "$lockdir" "$current" 2>/dev/null && return 0
+  fi
+  fm_lock_release "$lockdir"
 }
 
 fm_lock_try_acquire() {

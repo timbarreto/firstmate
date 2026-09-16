@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ "${COPILOT_CLI:-}" = 1 ] || exit 0
 
 case "${1:-}" in
-  session-start|primary-stop|notification|pretool)
+  session-start|notification|pretool)
     PAYLOAD=$(cat 2>/dev/null || true)
     if command -v jq >/dev/null 2>&1; then
       HOOK_SESSION_ID=$(printf '%s' "$PAYLOAD" | jq -er '
@@ -36,7 +36,9 @@ case "${1:-}" in
     jq -n --arg c "$DIGEST" '{additionalContext:$c}' 2>/dev/null || true
     ;;
   primary-stop)
-    exec "$SCRIPT_DIR/fm-copilot-stop.sh" <<< "$PAYLOAD"
+    # The stop owner parses and binds this payload once, immediately before its
+    # own policy. Re-reading it in the transport costs another jq/shell tree.
+    exec "$SCRIPT_DIR/fm-copilot-stop.sh"
     ;;
   notification)
     [ -n "$PAYLOAD" ] || exit 0
@@ -52,23 +54,26 @@ case "${1:-}" in
     FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
     STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
     GRACE=${FM_GUARD_GRACE:-300}
-    # shellcheck source=bin/fm-operational-input.sh
-    . "$SCRIPT_DIR/fm-operational-input.sh"
     # shellcheck source=bin/fm-primary-scope-lib.sh
     . "$SCRIPT_DIR/fm-primary-scope-lib.sh"
-    # shellcheck source=bin/fm-session-lock-lib.sh
-    . "$SCRIPT_DIR/fm-session-lock-lib.sh" || exit 2
     # shellcheck source=bin/fm-supervision-lib.sh
     . "$SCRIPT_DIR/fm-supervision-lib.sh"
     # shellcheck source=bin/fm-wake-lib.sh
     . "$SCRIPT_DIR/fm-wake-lib.sh"
 
     fm_primary_scope_matches "$FM_ROOT" "$STATE" || exit 0
-    fm_session_lock_owned_by_self "$STATE" || exit 0
     [ -e "$STATE/.afk" ] && exit 0
     fm_supervision_status "$STATE" "$GRACE"
     [ "$FM_SUP_NEEDED" = true ] || exit 0
     fm_watcher_healthy "$STATE" "$SCRIPT_DIR/fm-watch.sh" "$GRACE" "$FM_HOME" && exit 0
+    # A read-only no-op needs no identity walk. Verify ownership only when this
+    # callback is about to deliver operational context to its owning session.
+    # shellcheck source=bin/fm-session-lock-lib.sh
+    . "$SCRIPT_DIR/fm-session-lock-lib.sh" || exit 2
+    fm_session_lock_owned_by_self "$STATE" || exit 0
+    [ -e "$STATE/.afk" ] && exit 0
+    # shellcheck source=bin/fm-operational-input.sh
+    . "$SCRIPT_DIR/fm-operational-input.sh"
 
     if [ "$FM_SUP_QUEUE_PENDING" = true ]; then
       BODY='A tracked asynchronous watcher task completed and durable supervision input is waiting. Run bin/fm-wake-drain.sh first, handle every presented event, and run its exact WAKE_ACK_REQUIRED command. If supervision is still needed afterward, start the next watcher as one native asynchronous shell task.'

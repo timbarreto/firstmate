@@ -9,6 +9,31 @@ set -u
 
 TMP_ROOT=$(fm_test_tmproot fm-startup-performance)
 
+test_watcher_health_reads_records_without_subprocesses() (
+  local state="$TMP_ROOT/watcher-health" home="$TMP_ROOT/health-home" watch="$ROOT/bin/fm-watch.sh"
+  mkdir -p "$state/.watch.lock" "$home"
+  FM_STATE_OVERRIDE="$state"
+  # shellcheck source=bin/fm-wake-lib.sh
+  . "$ROOT/bin/fm-wake-lib.sh"
+  printf '43210\n' > "$state/.watch.lock/pid"
+  printf '%s\n' "$home" > "$state/.watch.lock/fm-home"
+  printf '%s\n' "$watch" > "$state/.watch.lock/watcher-path"
+  printf 'fixture-birth\n' > "$state/.watch.lock/pid-identity"
+  touch "$state/.last-watcher-beat"
+  fm_pid_alive() { [ "$1" = 43210 ]; }
+  fm_pid_identity() { printf 'fixture-birth\n'; }
+  # shellcheck disable=SC2329 # A forbidden tool launch is detected through the real reader.
+  cat() { return 91; }
+  fm_watcher_healthy "$state" "$watch" 300 "$home" \
+    || fail "watcher health still launches a process to read its ownership records"
+  printf 'replaced-birth\n' > "$state/.watch.lock/pid-identity"
+  if fm_watcher_healthy "$state" "$watch" 300 "$home"; then fail "watcher health reused an earlier identity"; fi
+  printf 'fixture-birth\n' > "$state/.watch.lock/pid-identity"
+  printf 'another-home\n' > "$state/.watch.lock/fm-home"
+  if fm_watcher_healthy "$state" "$watch" 300 "$home"; then fail "watcher health accepted another home"; fi
+  pass "watcher health reads whole records in-process and rechecks identity and home"
+)
+
 # Parent-shell destinations avoid a command-substitution process for every field.
 test_metadata_reads_support_in_process_results() (
   # shellcheck source=bin/fm-backend.sh
@@ -406,6 +431,7 @@ test_snapshot_projection_bounds_json_tool_launches() (
 
 fm_test_run_cases \
   test_metadata_reads_support_in_process_results \
+  test_watcher_health_reads_records_without_subprocesses \
   test_record_guards_use_fast_resolution_and_keep_fallback \
   test_recorded_herdr_presentations_skip_orphan_discovery \
   test_lock_pid_reads_stay_in_process_and_preserve_ownership \

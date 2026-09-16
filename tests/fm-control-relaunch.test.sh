@@ -331,6 +331,43 @@ test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint() {
   pass "fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree"
 }
 
+test_control_inspect_is_read_only_during_another_action() {
+  local dir out before
+  dir=$(new_case inspect rl46)
+  add_ship_task "$dir" rl46 claude
+  mkdir "$dir/home/state/.control-rl46.lock"
+  printf '%s\n' "$$" > "$dir/home/state/.control-rl46.lock/pid"
+  before=$(cat "$dir/home/state/rl46.meta")
+  out=$(run_control "$dir" rl46 inspect) || fail "read-only inspection was refused during another action: $out"
+  printf '%s' "$out" | jq -e '.schema == "fm-control-inspection.v1" and .task == "rl46" and .agent_state == "alive" and .action_in_progress == true' >/dev/null \
+    || fail "inspection did not report structured current evidence"
+  [ "$(cat "$dir/home/state/rl46.meta")" = "$before" ] || fail "inspection changed the task record"
+  [ "$(cat "$dir/home/state/.control-rl46.lock/pid")" = "$$" ] || fail "inspection changed another action's lock"
+  [ ! -e "$dir/home/state/rl46.control-relaunch" ] || fail "inspection created a lifecycle transaction"
+  [ ! -s "$dir/fake/literal" ] && [ ! -s "$dir/fake/keys" ] || fail "inspection delivered lifecycle input"
+  pass "fm-control inspect: structured observation never acquires lifecycle authority"
+}
+
+test_relaunch_defers_home_summary_until_after_delivery() {
+  local dir out rc
+  dir=$(new_case deferred-summary rl45)
+  add_ship_task "$dir" rl45 claude
+  cat > "$dir/fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+printf 'summary probe\n' >> "$FM_FAKE_DIR/summary-probe"
+exit 0
+SH
+  chmod +x "$dir/fakebin/no-mistakes"
+  out=$(run_control "$dir" rl45 relaunch --note "continue without a fleet-report wait"); rc=$?
+  expect_code 0 "$rc" "relaunch should deliver without waiting for its side-band report"$'\n'"$out"
+  [ ! -e "$dir/fake/summary-probe" ] || fail "relaunch computed the fleet report inline"
+  [ -d "$dir/home/state/.home-summary-refresh.request" ] \
+    || fail "relaunch did not leave a durable summary refresh request"
+  [ "$(journal_field "$dir" rl45 phase)" = complete ] || fail "relaunch did not complete delivery"
+  assert_grep "encode launch-brief" "$dir/fake/literal" "the replacement must actually launch"
+  pass "fm-control relaunch: report refresh is deferred without changing delivery or identity"
+}
+
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text() {
   local dir out rc
   dir=$(new_case pending-exit rl43)
@@ -1676,6 +1713,8 @@ test_relaunch_moves_a_drifted_item_back_in_flight() {
 
 fm_test_run_cases \
   test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint \
+  test_relaunch_defers_home_summary_until_after_delivery \
+  test_control_inspect_is_read_only_during_another_action \
   test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text \
   test_relaunch_refuses_before_exit_when_the_composer_state_is_unproven \
   test_relaunch_from_linked_home_preserves_recorded_worktree \

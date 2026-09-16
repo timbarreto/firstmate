@@ -1,9 +1,13 @@
 # windows-process.ps1 - native process facts and owned watch-arm termination.
 #
 # Usage: powershell.exe -NoProfile -ExecutionPolicy Bypass -File <this-script>
-#        parent-processes|process-info|find-watch-arm-roots|stop-watch-arm-tree
+#        parent-processes|process-info|descendant-processes|find-watch-arm-roots|stop-watch-arm-tree
 # Facts: FM_PROCESS_NATIVE_PID selects a native PID. process-info prints its row;
 # parent-processes prints up to 16 ancestors, nearest first, excluding that PID.
+# descendant-processes includes the native root and its birth-verified descendants
+# from one snapshot, with at most 4096 rows. Its rows add UTC creation ticks
+# after the PID: PID<TAB>birth<TAB>executable<TAB>arguments. Incomplete/ambiguous
+# proof returns 2, never a truncated absence claim. It performs no termination.
 # Rows are PID<TAB>executable-path-or-name<TAB>command-line. Paths use /; embedded
 # tabs/newlines are flattened so command-line data cannot introduce another row.
 # Facts return 0 on a successful query, 3 for an absent process-info PID, and 2
@@ -17,11 +21,11 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet("parent-processes", "process-info", "find-watch-arm-roots", "stop-watch-arm-tree")]
+    [ValidateSet("parent-processes", "process-info", "descendant-processes", "find-watch-arm-roots", "stop-watch-arm-tree")]
     [string] $Operation
 )
 
-if ($Operation -eq "parent-processes" -or $Operation -eq "process-info") {
+if ($Operation -in @("parent-processes", "process-info", "descendant-processes")) {
     $ErrorActionPreference = "Stop"
     [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
     $nativePid = 0
@@ -50,9 +54,41 @@ if ($Operation -eq "parent-processes" -or $Operation -eq "process-info") {
 
         $byPid = @{}
         foreach ($process in @(Get-CimInstance Win32_Process -OperationTimeoutSec 5)) {
+            if ($byPid.ContainsKey([int]$process.ProcessId)) { exit 2 }
             $byPid[[int]$process.ProcessId] = $process
         }
         if (-not $byPid.ContainsKey($nativePid)) { exit 2 }
+        if ($Operation -eq "descendant-processes") {
+            $children = @{}
+            foreach ($process in $byPid.Values) {
+                $parentId = [int]$process.ParentProcessId
+                if (-not $children.ContainsKey($parentId)) {
+                    $children[$parentId] = [System.Collections.Generic.List[object]]::new()
+                }
+                $children[$parentId].Add($process)
+            }
+            $pending = [System.Collections.Generic.Queue[object]]::new()
+            $pending.Enqueue($byPid[$nativePid])
+            $visited = [System.Collections.Generic.HashSet[int]]::new()
+            $resultRows = [System.Collections.Generic.List[string]]::new()
+            while ($pending.Count -gt 0) {
+                $parent = $pending.Dequeue()
+                if (-not $visited.Add([int]$parent.ProcessId) -or $visited.Count -gt 4096) { exit 2 }
+                if (-not $parent.CreationDate) { exit 2 }
+                $row = Format-ProcessRow $parent
+                $firstTab = $row.IndexOf("`t")
+                $resultRows.Add($row.Substring(0, $firstTab) + "`t" +
+                    $parent.CreationDate.ToUniversalTime().Ticks + $row.Substring($firstTab))
+                foreach ($child in $children[[int]$parent.ProcessId]) {
+                    if (-not $child.CreationDate) { exit 2 }
+                    # A retained numeric parent ID may now belong to a younger
+                    # process. Such an old child is not this root's descendant.
+                    if ($child.CreationDate -ge $parent.CreationDate) { $pending.Enqueue($child) }
+                }
+            }
+            $resultRows | ForEach-Object { Write-Output $_ }
+            exit 0
+        }
         $child = $byPid[$nativePid]
         $seen = [System.Collections.Generic.HashSet[int]]::new()
         [void]$seen.Add($nativePid)

@@ -164,6 +164,26 @@ test_private_native_revalidation_and_inheritance() {
   pass "native securing preserves inheritance and every validation rechecks mutation and reparse points"
 }
 
+test_private_native_batch_secure() {
+  local tmp path
+  case "$(uname -s)" in
+    MSYS*|MINGW*|CYGWIN*) ;;
+    *) printf 'skip - native batch securing requires Windows\n'; return ;;
+  esac
+  tmp=$(fm_test_tmproot fm-private-batch-secure)
+  for path in "$tmp/one" "$tmp/two" "$tmp/three"; do
+    : > "$path"
+    private_native_fixture "$path" allow
+  done
+  private_expect 1 fm_pr_native_windows_private_paths_valid "$tmp/one" "$tmp/two" "$tmp/three"
+  private_expect 0 fm_pr_private_files_secure 600 "$tmp/one" "$tmp/two" "$tmp/three"
+  private_expect 0 fm_pr_native_windows_private_paths_valid "$tmp/one" "$tmp/two" "$tmp/three"
+  private_native_fixture "$tmp/two" allow
+  private_expect 1 fm_pr_native_windows_private_paths_valid "$tmp/one" "$tmp/two" "$tmp/three"
+  private_expect 1 fm_pr_private_files_secure 600 "$tmp/one" "$tmp/two" "$tmp/three" "$tmp/one"
+  pass "native secure batches enforce every file and subsequent ACL drift remains visible"
+}
+
 test_private_structural_policies() {
   local tmp file device
   tmp=$(fm_test_tmproot fm-private-structure)
@@ -189,6 +209,9 @@ test_private_transport_bounds() (
   : >"$file"
   : >"$tmp/calls"
   uname() { printf 'MSYS_NT\n'; }
+  # Platform selection is immutable within a loaded module; select the fixture
+  # platform before loading its callers rather than changing the live platform.
+  . "$ROOT/bin/fm-pr-lib.sh"
   _FM_X_UNAME=MSYS_NT
   cygpath() { printf '%s\n' "$2"; }
   powershell.exe() {
@@ -205,6 +228,10 @@ test_private_transport_bounds() (
   cmp "$tmp/expected" "$tmp/paths" || fail "native path transport changed data bytes"
   assert_grep '-File' "$tmp/argv" "native implementation is loaded from the tracked file"
   assert_no_grep '-Command' "$tmp/argv" "paths must not become interpolated PowerShell commands"
+  before=$(wc -l <"$tmp/calls")
+  private_expect 0 fm_private_path_native pr secure file "$file" "$file" "$file"
+  after=$(wc -l <"$tmp/calls")
+  assert_equals 1 "$((after - before))" "three staged PR files use one secure invocation"
   native_exit=1
   for policy in pr x worker herdr; do
     before=$(wc -l <"$tmp/calls")
@@ -326,6 +353,7 @@ test_private_tracked_layouts() {
 fm_test_run_cases \
   test_private_native_policy_variants \
   test_private_native_revalidation_and_inheritance \
+  test_private_native_batch_secure \
   test_private_structural_policies \
   test_private_transport_bounds \
   test_private_missing_dependencies \
