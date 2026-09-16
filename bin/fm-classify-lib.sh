@@ -45,6 +45,8 @@
 # Resolved at source time from BASH_SOURCE so it works whether sourced by a
 # bin/ script (which sets its own SCRIPT_DIR) or directly by a test.
 _FM_CLASSIFY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)" || _FM_CLASSIFY_LIB_DIR="."
+# Platform identity is stable for this process; file facts below are never cached.
+_FM_CLASSIFY_UNAME=$(uname -s 2>/dev/null) || _FM_CLASSIFY_UNAME=
 
 # The crew current-state reader used for the "provably working" decision.
 # Overridable so tests can stub the run-step/pane verdict without a real worktree
@@ -141,7 +143,7 @@ last_status_line() {
 status_is_terminal_verb() {
   local line=$1 verb
   [ -n "$line" ] || return 1
-  verb=$(status_line_verb "$line")
+  status_line_verb "$line" verb
   case "$verb" in
     done|needs-decision|blocked|failed) return 0 ;;
     *) return 1 ;;
@@ -157,7 +159,7 @@ status_is_captain_relevant() {
   local line=$1 verb
   [ -n "$line" ] || return 1
   status_is_paused "$line" && return 1
-  verb=$(status_line_verb "$line")
+  status_line_verb "$line" verb
   case "$verb" in
     working|resolved|captain-held|"${FM_CLASSIFY_PAUSED_VERB:-$FM_CLASSIFY_PAUSED_VERB_DEFAULT}")
       return 1
@@ -178,7 +180,7 @@ status_is_captain_relevant() {
 status_is_paused() {  # <status-line>
   local line=$1 verb
   [ -n "$line" ] || return 1
-  verb=$(status_line_verb "$line")
+  status_line_verb "$line" verb
   [ "$verb" = "${FM_CLASSIFY_PAUSED_VERB:-$FM_CLASSIFY_PAUSED_VERB_DEFAULT}" ]
 }
 
@@ -191,7 +193,7 @@ status_is_paused() {  # <status-line>
 status_is_captain_held() {  # <status-line>
   local line=$1 verb
   [ -n "$line" ] || return 1
-  verb=$(status_line_verb "$line")
+  status_line_verb "$line" verb
   [ "$verb" = "${FM_CLASSIFY_CAPTAIN_HELD_VERB:-$FM_CLASSIFY_CAPTAIN_HELD_VERB_DEFAULT}" ]
 }
 
@@ -312,32 +314,44 @@ _fm_classify_is_corr_token() {  # <word>
   return 1
 }
 
-status_line_verb() {  # <status-line> -> leading verb word
-  local v=${1%%:*} out='' word
-  v=${v%%\[*}
-  v=${v#"${v%%[![:space:]]*}"}
-  v=${v%"${v##*[![:space:]]}"}
-  # Fast path, and the whole no-regression guarantee: a prefix that cannot
-  # contain a correlation token is returned byte-for-byte as before, so every
-  # line without one keeps its exact historical verb, spacing included.
-  case "$v" in
+# The text readers below accept an optional caller-owned scalar destination.
+# Capturing in process trims trailing newlines exactly like $(reader ...),
+# while the original stdout interface preserves its bytes. Parser locals use
+# private _fm_* prefixes; callers use their own destination names.
+_fm_classify_result() {  # <value> [<destination>]
+  if [ -z "${2:-}" ]; then
+    printf '%s' "$1"
+    return
+  fi
+  case "$2" in [0-9]*|*[!A-Za-z0-9_]*) return 2 ;; esac
+  while [[ "$1" == *$'\n' ]]; do set -- "${1%$'\n'}" "$2"; done
+  printf -v "$2" '%s' "$1"
+}
+
+status_line_verb() {  # <status-line> [<destination>] -> leading verb word
+  local _fm_verb_v=${1%%:*} _fm_verb_out='' _fm_verb_word
+  _fm_verb_v=${_fm_verb_v%%\[*}
+  _fm_verb_v=${_fm_verb_v#"${_fm_verb_v%%[![:space:]]*}"}
+  _fm_verb_v=${_fm_verb_v%"${_fm_verb_v##*[![:space:]]}"}
+  # A prefix without correlation metadata retains its historical bytes.
+  case "$_fm_verb_v" in
     *corr=*) ;;
-    *) printf '%s' "$v"; return 0 ;;
+    *) _fm_classify_result "$_fm_verb_v" "${2:-}"; return ;;
   esac
   # Retain the first word, then drop only recognised tokens from the remaining
   # whole words. Anything unrecognised stays, so prose still matches no verb.
-  word=${v%%[[:space:]]*}
-  out=$word
-  v=${v#"$word"}
-  v=${v#"${v%%[![:space:]]*}"}
-  while [ -n "$v" ]; do
-    word=${v%%[[:space:]]*}
-    v=${v#"$word"}
-    v=${v#"${v%%[![:space:]]*}"}
-    _fm_classify_is_corr_token "$word" && continue
-    out="$out $word"
+  _fm_verb_word=${_fm_verb_v%%[[:space:]]*}
+  _fm_verb_out=$_fm_verb_word
+  _fm_verb_v=${_fm_verb_v#"$_fm_verb_word"}
+  _fm_verb_v=${_fm_verb_v#"${_fm_verb_v%%[![:space:]]*}"}
+  while [ -n "$_fm_verb_v" ]; do
+    _fm_verb_word=${_fm_verb_v%%[[:space:]]*}
+    _fm_verb_v=${_fm_verb_v#"$_fm_verb_word"}
+    _fm_verb_v=${_fm_verb_v#"${_fm_verb_v%%[![:space:]]*}"}
+    _fm_classify_is_corr_token "$_fm_verb_word" && continue
+    _fm_verb_out="$_fm_verb_out $_fm_verb_word"
   done
-  printf '%s' "$out"
+  _fm_classify_result "$_fm_verb_out" "${2:-}"
 }
 # 0 when a complete "[key=...]" token sits in the documented position before
 # the line's first colon (or anywhere on a line that has no colon at all).
@@ -352,15 +366,18 @@ _fm_key_before_colon() {  # <status-line>
 # the line has no colon or no complete token there; slug charset validity is
 # the caller's check via _fm_decision_slug_ok, exactly as for the before-colon
 # position.
-_fm_key_at_note_head() {  # <status-line> -> raw slug
-  local rest
+_fm_key_at_note_head() {  # <status-line> [<destination>] -> raw slug
+  local _fm_head_rest
   case "$1" in
-    *:*) rest=${1#*:} ;;
+    *:*) _fm_head_rest=${1#*:} ;;
     *) return 1 ;;
   esac
-  rest=${rest#"${rest%%[![:space:]]*}"}
-  case "$rest" in
-    \[key=*\]*) rest=${rest#\[key=}; printf '%s' "${rest%%\]*}" ;;
+  _fm_head_rest=${_fm_head_rest#"${_fm_head_rest%%[![:space:]]*}"}
+  case "$_fm_head_rest" in
+    \[key=*\]*)
+      _fm_head_rest=${_fm_head_rest#\[key=}
+      _fm_classify_result "${_fm_head_rest%%\]*}" "${2:-}"
+      ;;
     *) return 1 ;;
   esac
 }
@@ -371,48 +388,48 @@ _fm_decision_slug_ok() {  # <slug>
     *) return 0 ;;
   esac
 }
-status_line_note() {  # <status-line> -> text after the first colon, trimmed
-  local n k
+status_line_note() {  # <status-line> [<destination>] -> trimmed note
+  local _fm_note_n _fm_note_k
   case "$1" in
-    *:*) n=${1#*:}; n=${n#"${n%%[![:space:]]*}"} ;;
-    *) printf '%s' "$1"; return 0 ;;
+    *:*) _fm_note_n=${1#*:}; _fm_note_n=${_fm_note_n#"${_fm_note_n%%[![:space:]]*}"} ;;
+    *) _fm_classify_result "$1" "${2:-}"; return ;;
   esac
   # A note-head token that states this line's key (no before-colon token, valid
   # slug) is key metadata, not note text: strip it so both stated-key positions
   # yield the same note.
-  if ! _fm_key_before_colon "$1" && k=$(_fm_key_at_note_head "$1") \
-    && _fm_decision_slug_ok "$k"; then
-    n=${n#"[key=$k]"}
-    n=${n#"${n%%[![:space:]]*}"}
+  if ! _fm_key_before_colon "$1" && _fm_key_at_note_head "$1" _fm_note_k \
+    && _fm_decision_slug_ok "$_fm_note_k"; then
+    _fm_note_n=${_fm_note_n#"[key=$_fm_note_k]"}
+    _fm_note_n=${_fm_note_n#"${_fm_note_n%%[![:space:]]*}"}
   fi
-  printf '%s' "$n"
+  _fm_classify_result "$_fm_note_n" "${2:-}"
 }
-_fm_decision_key() {  # <status-line> -> key slug, or "default" when no token
-  local k
+_fm_decision_key() {  # <status-line> [<destination>] -> key, or default
+  local _fm_key_k
   if _fm_key_before_colon "$1"; then
-    k=${1%%:*}
-    k=${k#*\[key=}
-    k=${k%%\]*}
+    _fm_key_k=${1%%:*}
+    _fm_key_k=${_fm_key_k#*\[key=}
+    _fm_key_k=${_fm_key_k%%\]*}
   else
-    k=$(_fm_key_at_note_head "$1") || { printf 'default'; return 0; }
+    _fm_key_at_note_head "$1" _fm_key_k || { _fm_classify_result default "${2:-}"; return; }
   fi
-  _fm_decision_slug_ok "$k" || return 1
-  printf '%s' "$k"
+  _fm_decision_slug_ok "$_fm_key_k" || return 1
+  _fm_classify_result "$_fm_key_k" "${2:-}"
 }
 # Drop the record for <key> from a newline-terminated "<key>\t<verb>\t<note>" set.
 # Portable (no associative arrays) so the fold runs on bash 3.2 as well as 4+.
-_fm_decision_drop() {  # <open-set> <key>
-  local set=$1 key=$2 line out=''
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    case "$line" in
-      "$key"$'\t'*) : ;;
-      *) out="${out}${line}"$'\n' ;;
+_fm_decision_drop() {  # <open-set> <key> [<destination>]
+  local _fm_drop_set=$1 _fm_drop_key=$2 _fm_drop_line _fm_drop_out=''
+  while IFS= read -r _fm_drop_line; do
+    [ -n "$_fm_drop_line" ] || continue
+    case "$_fm_drop_line" in
+      "$_fm_drop_key"$'\t'*) : ;;
+      *) _fm_drop_out="${_fm_drop_out}${_fm_drop_line}"$'\n' ;;
     esac
   done <<EOF
-$set
+$_fm_drop_set
 EOF
-  printf '%s' "$out"
+  _fm_classify_result "$_fm_drop_out" "${3:-}"
 }
 # Fold ONE status line into an existing "<key>\t<verb>\t<note>\n"-per-line open
 # set, applying the same needs-decision/blocked-opens, resolved/captain-held-closes
@@ -466,7 +483,7 @@ _fm_is_pending_reply_escalation() {  # <key> <note>
 }
 
 # Cheap negative filter for bulk scans. Only a possible transition prefix pays
-# for the full fold's command substitutions; ordinary progress events cannot
+# for the full correlation/key parse; ordinary progress events cannot
 # alter the open set. Prefix matches are deliberately conservative: exact verb,
 # correlation, key, and reserved-namespace semantics still belong to the fold.
 _fm_decision_line_may_transition() {  # <status-line> <resolve-verb> <held-verb>
@@ -478,34 +495,32 @@ _fm_decision_line_may_transition() {  # <status-line> <resolve-verb> <held-verb>
   esac
 }
 
-_fm_decision_fold_line() {  # <open-set> <status-line> <resolve-verb> <held-verb>
-  local open=$1 line=$2 resolve=$3 held=$4 verb key note
-  # Blank-line guard. A `case` glob answers "does this line hold any non-space
-  # character" in one pattern match; the equivalent ${line//[[:space:]]/} costs
-  # tens of milliseconds per line under bash 3.2's global bracket-class
-  # substitution, which is the whole per-line cost of both folds on a status log
-  # of ordinary width. Same verdict, bounded cost.
-  case "$line" in
+_fm_decision_fold_line() {  # <open-set> <line> <resolve> <held> [<destination>]
+  local _fm_fold_open=$1 _fm_fold_line=$2 _fm_fold_resolve=$3 _fm_fold_held=$4
+  local _fm_fold_verb _fm_fold_key _fm_fold_note
+  # Keep the Bash 3.2-friendly blank-line glob rather than a global substitution.
+  case "$_fm_fold_line" in
     *[![:space:]]*) ;;
-    *) printf '%s' "$open"; return 0 ;;
+    *) _fm_classify_result "$_fm_fold_open" "${5:-}"; return ;;
   esac
-  verb=$(status_line_verb "$line")
-  key=$(_fm_decision_key "$line") || { printf '%s' "$open"; return 0; }
-  _fm_decision_key_transition_allowed "$key" "$(status_line_note "$line")" \
-    || { printf '%s' "$open"; return 0; }
-  case "$verb" in
+  status_line_verb "$_fm_fold_line" _fm_fold_verb
+  _fm_decision_key "$_fm_fold_line" _fm_fold_key \
+    || { _fm_classify_result "$_fm_fold_open" "${5:-}"; return; }
+  status_line_note "$_fm_fold_line" _fm_fold_note
+  _fm_decision_key_transition_allowed "$_fm_fold_key" "$_fm_fold_note" \
+    || { _fm_classify_result "$_fm_fold_open" "${5:-}"; return; }
+  case "$_fm_fold_verb" in
     needs-decision|blocked)
-      note=$(status_line_note "$line")
-      open=$(_fm_decision_drop "$open" "$key")
-      [ -n "$open" ] && open="${open}"$'\n'
-      open="${open}${key}"$'\t'"${verb}"$'\t'"${note}"$'\n'
+      _fm_decision_drop "$_fm_fold_open" "$_fm_fold_key" _fm_fold_open
+      [ -n "$_fm_fold_open" ] && _fm_fold_open="${_fm_fold_open}"$'\n'
+      _fm_fold_open="${_fm_fold_open}${_fm_fold_key}"$'\t'"${_fm_fold_verb}"$'\t'"${_fm_fold_note}"$'\n'
       ;;
-    "$resolve"|"$held")
-      open=$(_fm_decision_drop "$open" "$key")
-      [ -n "$open" ] && open="${open}"$'\n'
+    "$_fm_fold_resolve"|"$_fm_fold_held")
+      _fm_decision_drop "$_fm_fold_open" "$_fm_fold_key" _fm_fold_open
+      [ -n "$_fm_fold_open" ] && _fm_fold_open="${_fm_fold_open}"$'\n'
       ;;
   esac
-  printf '%s' "$open"
+  _fm_classify_result "$_fm_fold_open" "${5:-}"
 }
 
 # Fold the WHOLE status stream into the set of decisions still open. Prints one
@@ -527,7 +542,7 @@ status_open_decisions() {  # <status-file>
   held=${FM_CLASSIFY_CAPTAIN_HELD_VERB:-$FM_CLASSIFY_CAPTAIN_HELD_VERB_DEFAULT}
   while IFS= read -r line || [ -n "$line" ]; do
     _fm_decision_line_may_transition "$line" "$resolve" "$held" || continue
-    open=$(_fm_decision_fold_line "$open" "$line" "$resolve" "$held")
+    _fm_decision_fold_line "$open" "$line" "$resolve" "$held" open
   done < "$f"
   printf '%s' "$open"
 }
@@ -587,7 +602,7 @@ status_key_closing_verb() {  # <status-file> <key>
   while IFS= read -r line || [ -n "$line" ]; do
     was=0
     _fm_open_set_has "$open" "$want" && was=1
-    open=$(_fm_decision_fold_line "$open" "$line" "$resolve" "$held")
+    _fm_decision_fold_line "$open" "$line" "$resolve" "$held" open
     if [ "$was" = 1 ] && ! _fm_open_set_has "$open" "$want"; then
       verb=$(status_line_verb "$line")
     fi
@@ -682,8 +697,10 @@ EOF
 # re-derives from whatever offset actually landed on disk.
 _fm_open_decisions_cursor_path() {  # <status-file>
   local f=$1 dir base
-  dir=$(dirname "$f")
-  base=$(basename "$f")
+  dir=${f%/*}
+  [ "$dir" != "$f" ] || dir=.
+  [ -n "$dir" ] || dir=/
+  base=${f##*/}
   printf '%s/.%s.open-decisions-cursor' "$dir" "${base%.status}"
 }
 
@@ -697,24 +714,58 @@ _fm_open_decisions_cursor_path() {  # <status-file>
 # discarded and rebuilt from byte 0 under the new reading.
 FM_OPEN_DECISIONS_FOLD_VERSION=5
 
-# Portable device:inode identity for the rotation/recreation check below.
-_fm_open_decisions_file_ident() {  # <file> -> strongest available identity
-  local f=$1 epoch birth ident
-  if [ -n "${FM_STATUS_IDENTITY_READER:-}" ]; then
-    "$FM_STATUS_IDENTITY_READER" "$f"
+# One fresh native observation supplies the identity, byte size, and mtime that
+# a presentation check needs together. The birth component retains the existing
+# strong/weak identity wire format. These outputs belong only to this call:
+# every pre/post-read and commit check still obtains its own fresh observation.
+FM_STATUS_FILE_IDENT=
+FM_STATUS_FILE_SIZE=
+FM_STATUS_FILE_MTIME=
+_fm_status_native_file_facts() {  # <file>; sets FM_STATUS_FILE_{IDENT,SIZE,MTIME}
+  local f=$1 record ident epoch birth size mtime extra
+  FM_STATUS_FILE_IDENT=
+  FM_STATUS_FILE_SIZE=
+  FM_STATUS_FILE_MTIME=
+  if [ "$_FM_CLASSIFY_UNAME" = Darwin ]; then
+    record=$(LC_ALL=C /usr/bin/stat -f $'%d:%i\t%B\t%FB\t%z\t%m' "$f" 2>/dev/null) || return 1
+  else
+    record=$(LC_ALL=C stat -c $'%d:%i\t%W\t%w\t%s\t%Y' "$f" 2>/dev/null) || return 1
+  fi
+  IFS=$'\t' read -r ident epoch birth size mtime extra <<< "$record"
+  [ -n "$ident" ] && [ -n "$epoch" ] && [ -n "$mtime" ] && [ -z "$extra" ] || return 1
+  case "$size" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$epoch" != 0 ] || birth=
+  case "$ident$birth" in *$'\t'*|*$'\n'*|'') return 1 ;; esac
+  if [ -n "$birth" ]; then FM_STATUS_FILE_IDENT="strong:$ident:$birth"; else FM_STATUS_FILE_IDENT="weak:$ident"; fi
+  FM_STATUS_FILE_SIZE=$size
+  FM_STATUS_FILE_MTIME=$mtime
+}
+
+_fm_status_file_facts() {  # <file>; honors the existing independent reader seams
+  local ident size mtime
+  FM_STATUS_FILE_IDENT=
+  FM_STATUS_FILE_SIZE=
+  FM_STATUS_FILE_MTIME=
+  if [ -z "${FM_STATUS_IDENTITY_READER:-}${FM_STATUS_SIZE_READER:-}" ]; then
+    _fm_status_native_file_facts "$1"
     return
   fi
-  if [ "$(uname -s 2>/dev/null)" = Darwin ]; then
-    ident=$(LC_ALL=C /usr/bin/stat -f '%d:%i' "$f" 2>/dev/null) || return 1
-    epoch=$(LC_ALL=C /usr/bin/stat -f '%B' "$f" 2>/dev/null) || epoch=0
-    if [ "$epoch" != 0 ]; then birth=$(LC_ALL=C /usr/bin/stat -f '%FB' "$f" 2>/dev/null) || birth=''; else birth=''; fi
-  else
-    ident=$(LC_ALL=C stat -c '%d:%i' "$f" 2>/dev/null) || return 1
-    epoch=$(LC_ALL=C stat -c '%W' "$f" 2>/dev/null) || epoch=0
-    if [ "$epoch" != 0 ]; then birth=$(LC_ALL=C stat -c '%w' "$f" 2>/dev/null) || birth=''; else birth=''; fi
+  ident=$(_fm_open_decisions_file_ident "$1") || return 1
+  size=$(_fm_status_file_size "$1") || return 1
+  mtime=$(_fm_status_file_mtime "$1") || return 1
+  FM_STATUS_FILE_IDENT=$ident
+  FM_STATUS_FILE_SIZE=$size
+  FM_STATUS_FILE_MTIME=$mtime
+}
+
+# Portable device:inode identity for the rotation/recreation check below.
+_fm_open_decisions_file_ident() {  # <file> -> strongest available identity
+  if [ -n "${FM_STATUS_IDENTITY_READER:-}" ]; then
+    "$FM_STATUS_IDENTITY_READER" "$1"
+    return
   fi
-  case "$ident$birth" in *$'\t'*|*$'\n'*|'') return 1 ;; esac
-  if [ -n "$birth" ]; then printf 'strong:%s:%s' "$ident" "$birth"; else printf 'weak:%s' "$ident"; fi
+  _fm_status_native_file_facts "$1" || return 1
+  printf '%s' "$FM_STATUS_FILE_IDENT"
 }
 
 _fm_status_file_size() {  # <status-file>
@@ -723,7 +774,7 @@ _fm_status_file_size() {  # <status-file>
     "$FM_STATUS_SIZE_READER" "$f"
     return
   fi
-  if [ "$(uname -s 2>/dev/null)" = Darwin ]; then
+  if [ "$_FM_CLASSIFY_UNAME" = Darwin ]; then
     LC_ALL=C /usr/bin/stat -f '%z' "$f" 2>/dev/null
   else
     LC_ALL=C stat -c '%s' "$f" 2>/dev/null
@@ -732,7 +783,7 @@ _fm_status_file_size() {  # <status-file>
 
 _fm_status_file_mtime() {  # <status-file>
   local f=$1
-  if [ "$(uname -s 2>/dev/null)" = Darwin ]; then
+  if [ "$_FM_CLASSIFY_UNAME" = Darwin ]; then
     LC_ALL=C /usr/bin/stat -f '%m' "$f" 2>/dev/null
   else
     LC_ALL=C stat -c '%Y' "$f" 2>/dev/null
@@ -819,11 +870,10 @@ status_open_decisions_incremental() {  # <status-file> [<captured-end-offset>]
   # A stat/size-read failure is a genuine I/O error, not "the file is empty" -
   # report the already-trusted persisted set unchanged rather than risking a
   # silent invalidation that would wipe it.
-  cur_ident=$(_fm_open_decisions_file_ident "$f") || { printf '%s' "$trusted_open"; return 0; }
+  _fm_status_file_facts "$f" || { printf '%s' "$trusted_open"; return 0; }
+  cur_ident=$FM_STATUS_FILE_IDENT
   [ -n "$cur_ident" ] || { printf '%s' "$trusted_open"; return 0; }
-  actual_size=$(_fm_status_file_size "$f") \
-    || { printf '%s' "$trusted_open"; return 0; }
-  actual_size=${actual_size//[[:space:]]/}
+  actual_size=${FM_STATUS_FILE_SIZE//[[:space:]]/}
   case "$actual_size" in ''|*[!0-9]*) printf '%s' "$trusted_open"; return 0 ;; esac
   if [ -n "$captured_end" ]; then
     case "$captured_end" in
@@ -862,7 +912,7 @@ status_open_decisions_incremental() {  # <status-file> [<captured-end-offset>]
     held=${FM_CLASSIFY_CAPTAIN_HELD_VERB:-$FM_CLASSIFY_CAPTAIN_HELD_VERB_DEFAULT}
     while IFS= read -r line || [ -n "$line" ]; do
       _fm_decision_line_may_transition "$line" "$resolve" "$held" || continue
-      open=$(_fm_decision_fold_line "$open" "$line" "$resolve" "$held")
+      _fm_decision_fold_line "$open" "$line" "$resolve" "$held" open
     done < "$chunk_file"
     rm -f "$chunk_file"
     offset=$size
@@ -908,10 +958,10 @@ status_presentation_snapshot() {  # <state>
   for f in "$state"/*.status; do
     [ -e "$f" ] || continue
     [ -f "$f" ] && [ -r "$f" ] && [ ! -L "$f" ] || continue
-    task=$(basename "$f"); task="${task%.status}"
-    size=$(_fm_status_file_size "$f") || return 1
-    size=${size//[[:space:]]/}
-    ident=$(_fm_open_decisions_file_ident "$f") || return 1
+    task=${f##*/}; task=${task%.status}
+    _fm_status_file_facts "$f" || return 1
+    size=${FM_STATUS_FILE_SIZE//[[:space:]]/}
+    ident=$FM_STATUS_FILE_IDENT
     case "$size" in ''|*[!0-9]*) return 1 ;; esac
     [ -n "$ident" ] || return 1
     printf '%s\t%s\t%s\n' "$task" "$size" "$ident" || return 1
@@ -939,10 +989,10 @@ status_snapshot_latest_event() {  # <status-file> <captured-endpoint> <captured-
   case "$endpoint" in ''|*[!0-9]*|0) return 1 ;; esac
   [ -n "$expected_ident" ] || return 1
 
-  before_mtime=$(_fm_status_file_mtime "$f") || return 1
-  before_size=$(_fm_status_file_size "$f") || return 1
-  before_size=${before_size//[[:space:]]/}
-  before_ident=$(_fm_open_decisions_file_ident "$f") || return 1
+  _fm_status_file_facts "$f" || return 1
+  before_mtime=$FM_STATUS_FILE_MTIME
+  before_size=${FM_STATUS_FILE_SIZE//[[:space:]]/}
+  before_ident=$FM_STATUS_FILE_IDENT
   case "$before_mtime:$before_size" in *[!0-9:]*) return 1 ;; esac
   [ "$before_size" -eq "$endpoint" ] && [ "$before_ident" = "$expected_ident" ] || return 1
 
@@ -976,10 +1026,10 @@ status_snapshot_latest_event() {  # <status-file> <captured-endpoint> <captured-
   case "$event_endpoint" in ''|*[!0-9]*) return 1 ;; esac
   [ -n "$line" ] || return 1
 
-  after_mtime=$(_fm_status_file_mtime "$f") || return 1
-  after_size=$(_fm_status_file_size "$f") || return 1
-  after_size=${after_size//[[:space:]]/}
-  after_ident=$(_fm_open_decisions_file_ident "$f") || return 1
+  _fm_status_file_facts "$f" || return 1
+  after_mtime=$FM_STATUS_FILE_MTIME
+  after_size=${FM_STATUS_FILE_SIZE//[[:space:]]/}
+  after_ident=$FM_STATUS_FILE_IDENT
   case "$after_mtime:$after_size" in *[!0-9:]*) return 1 ;; esac
   [ "$after_mtime" = "$before_mtime" ] \
     && [ "$after_size" -eq "$endpoint" ] \
@@ -1001,7 +1051,7 @@ status_presentation_cursor_offset() {  # <status-file>
     [ -f "$manifest" ] && [ -r "$manifest" ] && [ ! -L "$manifest" ] || return 1
     data=$(LC_ALL=C command cat "$manifest" 2>/dev/null) || return 1
     offset=
-    while IFS=$(printf '\t') read -r row_task ident legacy backstop extra; do
+    while IFS=$'\t' read -r row_task ident legacy backstop extra; do
       [ -n "$row_task" ] || continue
       [ -z "$extra" ] || return 1
       case "$legacy:$backstop" in *[!0-9:]*) return 1 ;; esac
@@ -1028,9 +1078,9 @@ EOF
     offset=0
     ident=$(_fm_open_decisions_file_ident "$f") || return 1
   fi
-  cur_ident=$(_fm_open_decisions_file_ident "$f") || return 1
-  size=$(_fm_status_file_size "$f") || return 1
-  size=${size//[[:space:]]/}
+  _fm_status_file_facts "$f" || return 1
+  cur_ident=$FM_STATUS_FILE_IDENT
+  size=${FM_STATUS_FILE_SIZE//[[:space:]]/}
   case "$size:$offset" in *[!0-9:]*) return 1 ;; esac
   if [ "$ident" != "$cur_ident" ] || [ "$offset" -gt "$size" ]; then offset=0; fi
   printf '%s' "$offset"
@@ -1046,15 +1096,15 @@ status_outcome_backstop_cursor_offset() {  # <status-file>
   [ -f "$manifest" ] && [ -r "$manifest" ] && [ ! -L "$manifest" ] || return 1
   data=$(LC_ALL=C command cat "$manifest" 2>/dev/null) || return 1
   backstop=0
-  while IFS=$(printf '\t') read -r row_task ident presented row_backstop extra; do
+  while IFS=$'\t' read -r row_task ident presented row_backstop extra; do
     [ -n "$row_task" ] || continue
     [ -z "$extra" ] || return 1
     case "$presented:$row_backstop" in *[!0-9:]*) return 1 ;; esac
     [ -n "$presented" ] && [ -n "$ident" ] || return 1
     if [ "$row_task" = "$task" ]; then
-      current=$(_fm_open_decisions_file_ident "$f") || return 1
-      size=$(_fm_status_file_size "$f") || return 1
-      size=${size//[[:space:]]/}
+      _fm_status_file_facts "$f" || return 1
+      current=$FM_STATUS_FILE_IDENT
+      size=${FM_STATUS_FILE_SIZE//[[:space:]]/}
       case "$size" in ''|*[!0-9]*) return 1 ;; esac
       [ "$ident" = "$current" ] || { printf '0'; return 0; }
       backstop=${row_backstop:-0}
@@ -1124,7 +1174,7 @@ status_presentation_marker_parse() {
 }
 
 _status_observed_path_state() {
-  if [ "$(uname -s 2>/dev/null)" = Darwin ]; then
+  if [ "$_FM_CLASSIFY_UNAME" = Darwin ]; then
     LC_ALL=C /usr/bin/stat -f '%HT:%p' "$1" 2>/dev/null
   else
     LC_ALL=C stat -c '%F:%f' "$1" 2>/dev/null
@@ -1226,7 +1276,7 @@ status_retire_presentation_task() {  # <state> <task-id>
     fi
     if [ -f "$manifest" ] && [ -r "$manifest" ] && [ ! -L "$manifest" ] \
       && data=$(LC_ALL=C command cat "$manifest" 2>/dev/null); then
-      while IFS=$(printf '\t') read -r row_task ident offset backstop extra; do
+      while IFS=$'\t' read -r row_task ident offset backstop extra; do
         [ -n "$row_task" ] || continue
         if [ -n "$extra" ] || [ -z "$ident" ]; then rc=1; break; fi
         case "$offset:$backstop" in *[!0-9:]*) rc=1; break ;; esac
@@ -1249,7 +1299,7 @@ EOF
     elif ! : > "$tmp"; then
       rc=1
     else
-      while IFS=$(printf '\t') read -r row_task ident offset backstop extra; do
+      while IFS=$'\t' read -r row_task ident offset backstop extra; do
         [ -n "$row_task" ] || continue
         if [ -n "$extra" ] || [ -z "$ident" ]; then rc=1; break; fi
         case "$offset:$backstop" in *[!0-9:]*) rc=1; break ;; esac
@@ -1275,7 +1325,7 @@ EOF
 
 status_acknowledge_presented_snapshot() {  # <state> <snapshot> [<fully-presented-task-ids>]
   local state=$1 snapshot=$2 fully_presented=${3:-} task endpoint ident f offset lines line safe
-  while IFS=$(printf '\t') read -r task endpoint ident; do
+  while IFS=$'\t' read -r task endpoint ident; do
     [ -n "$task" ] || continue
     safe=false
     case "
@@ -1311,20 +1361,20 @@ status_commit_presentation_snapshot() {  # <state> <snapshot>
   local state=$1 snapshot=$2 task endpoint ident f cur_ident size tmp backstop acknowledged_task acknowledged_endpoint
   tmp="$state/.status-presentation-cursor.tmp.$$"
   : > "$tmp" || return 1
-  while IFS=$(printf '\t') read -r task endpoint ident; do
+  while IFS=$'\t' read -r task endpoint ident; do
     [ -n "$task" ] || continue
     case "$endpoint" in ''|*[!0-9]*) rm -f "$tmp"; return 1 ;; esac
     [ -n "$ident" ] || { rm -f "$tmp"; return 1; }
     f="$state/$task.status"
     [ -f "$f" ] && [ -r "$f" ] && [ ! -L "$f" ] || { rm -f "$tmp"; return 1; }
-    cur_ident=$(_fm_open_decisions_file_ident "$f") || { rm -f "$tmp"; return 1; }
-    size=$(_fm_status_file_size "$f") || { rm -f "$tmp"; return 1; }
-    size=${size//[[:space:]]/}
+    _fm_status_file_facts "$f" || { rm -f "$tmp"; return 1; }
+    cur_ident=$FM_STATUS_FILE_IDENT
+    size=${FM_STATUS_FILE_SIZE//[[:space:]]/}
     case "$size" in ''|*[!0-9]*) rm -f "$tmp"; return 1 ;; esac
     [ "$cur_ident" = "$ident" ] && [ "$endpoint" -le "$size" ] \
       || { rm -f "$tmp"; return 1; }
     backstop=$(status_outcome_backstop_cursor_offset "$f") || { rm -f "$tmp"; return 1; }
-    while IFS=$(printf '\t') read -r acknowledged_task acknowledged_endpoint; do
+    while IFS=$'\t' read -r acknowledged_task acknowledged_endpoint; do
       if [ "$acknowledged_task" = "$task" ]; then backstop=$acknowledged_endpoint; fi
     done <<EOF
 ${STATUS_OUTCOME_BACKSTOP_ACKNOWLEDGED:-}
@@ -1341,7 +1391,7 @@ EOF
 
 scan_open_decisions_snapshot() {  # <state> <task-and-endpoint-snapshot>
   local state=$1 snapshot=$2 task endpoint ident f open line
-  while IFS=$(printf '\t') read -r task endpoint ident; do
+  while IFS=$'\t' read -r task endpoint ident; do
     [ -n "$task" ] || continue
     f="$state/$task.status"
     open=$(status_open_decisions_incremental "$f" "$endpoint") || return 1
@@ -1426,10 +1476,10 @@ status_open_decisions_cursor_offset() {  # <status-file>
       return 1
     fi
   fi
-  cur_ident=$(_fm_open_decisions_file_ident "$f") || return 1
+  _fm_status_file_facts "$f" || return 1
+  cur_ident=$FM_STATUS_FILE_IDENT
   [ -n "$cur_ident" ] || return 1
-  size=$(_fm_status_file_size "$f") || return 1
-  size=${size//[[:space:]]/}
+  size=${FM_STATUS_FILE_SIZE//[[:space:]]/}
   case "$size" in ''|*[!0-9]*) return 1 ;; esac
   if [ -z "$version" ] || [ -z "$ident" ] || [ "$ident" != "$cur_ident" ] || [ "$offset" -gt "$size" ]; then
     offset=0
@@ -1486,7 +1536,7 @@ status_new_lines_since_cursor() {  # <status-file> [<captured-end-offset>]
 status_line_is_unread_surface() {  # <status-line>
   local line=$1 verb key note resolve held prefix
   [ -n "$line" ] || return 1
-  verb=$(status_line_verb "$line")
+  status_line_verb "$line" verb
   [ "$verb" = note ] && return 0
   resolve=${FM_CLASSIFY_RESOLVE_VERB:-$FM_CLASSIFY_RESOLVE_VERB_DEFAULT}
   held=${FM_CLASSIFY_CAPTAIN_HELD_VERB:-$FM_CLASSIFY_CAPTAIN_HELD_VERB_DEFAULT}
@@ -1494,8 +1544,8 @@ status_line_is_unread_surface() {  # <status-line>
     "$resolve"|"$held") ;;
     *) return 1 ;;
   esac
-  key=$(_fm_decision_key "$line") || return 1
-  note=$(status_line_note "$line")
+  _fm_decision_key "$line" key || return 1
+  status_line_note "$line" note
   for prefix in ${FM_CLASSIFY_RESERVED_KEY_PREFIXES:-$FM_CLASSIFY_RESERVED_KEY_PREFIXES_DEFAULT}; do
     case "$key" in
       "$prefix"*)
@@ -1531,7 +1581,7 @@ EOF
 
 scan_unread_surface_snapshot() {  # <state> <task-and-endpoint-snapshot>
   local state=$1 snapshot=$2 task endpoint ident f lines line
-  while IFS=$(printf '\t') read -r task endpoint ident; do
+  while IFS=$'\t' read -r task endpoint ident; do
     [ -n "$task" ] || continue
     f="$state/$task.status"
     lines=$(status_new_lines_since_cursor "$f" "$endpoint") || return 1
@@ -1749,7 +1799,7 @@ status_span_first_actionable_record() {  # <status-file> <start-offset> [record-
           origins=$(_fm_status_open_decision_origins "$full_file") || { failed=1; break; }
           folded=1
         fi
-        live_line=$(while IFS=$(printf '\t') read -r _key _line; do
+        live_line=$(while IFS=$'\t' read -r _key _line; do
           [ "$_key" = "$key" ] && { printf '%s' "$_line"; break; }
         done <<EOF
 $origins

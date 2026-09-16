@@ -95,6 +95,168 @@ test_record_guards_use_fast_resolution_and_keep_fallback() (
   pass "fresh record guards retain confinement and symlink checks on native and portable paths"
 )
 
+test_recorded_herdr_presentations_skip_orphan_discovery() (
+  local home="$TMP_ROOT/current-presentations" fakebin calls i=1 out
+  mkdir -p "$home/state" "$home/data" "$home/config"
+  fakebin=$(fm_fakebin "$home")
+  calls="$home/herdr-calls"
+  : > "$calls"
+  command cat > "$fakebin/herdr" <<'SH'
+#!/usr/bin/env bash
+printf 'call\n' >> "$FM_TEST_HERDR_CALLS"
+printf '%s\n' '{"result":{"workspaces":[]}}'
+SH
+  chmod +x "$fakebin/herdr"
+  while [ "$i" -le 9 ]; do
+    printf 'kind=ship\nbackend=herdr\n' > "$home/state/task-$i.meta"
+    printf 'version=1\ntask_id=task-%s\nprojection_id=abcdefghijklmnopqrstuv\n' "$i" \
+      > "$home/state/task-$i.herdr-presentation"
+    i=$((i + 1))
+  done
+  out=$(PATH="$fakebin:$PATH" FM_TEST_HERDR_CALLS="$calls" \
+    FM_HOME="$home" FM_ROOT_OVERRIDE="$home" FM_STATE_OVERRIDE="$home/state" \
+    "$ROOT/bin/fm-herdr-session-cleanup.sh" 2>&1) || fail "current-presentation cleanup failed"
+  [ ! -s "$calls" ] || fail "orphan cleanup queried Herdr even though every journal still has a task record"
+  [ -z "$out" ] || fail "current task presentations produced cleanup diagnostics: $out"
+  rm -f "$home/state/task-2.meta"
+  fm_test_make_symlink ../missing.meta "$home/state/task-2.meta" || fail "metadata symlink fixture failed"
+  PATH="$fakebin:$PATH" FM_TEST_HERDR_CALLS="$calls" \
+    FM_HOME="$home" FM_ROOT_OVERRIDE="$home" FM_STATE_OVERRIDE="$home/state" \
+    "$ROOT/bin/fm-herdr-session-cleanup.sh" >/dev/null 2>&1 || fail "symlinked-record cleanup failed"
+  [ ! -s "$calls" ] || fail "cleanup treated dangling metadata as absence"
+  rm -f "$home/state/task-1.meta"
+  PATH="$fakebin:$PATH" FM_TEST_HERDR_CALLS="$calls" \
+    FM_HOME="$home" FM_ROOT_OVERRIDE="$home" FM_STATE_OVERRIDE="$home/state" \
+    "$ROOT/bin/fm-herdr-session-cleanup.sh" >/dev/null 2>&1 || fail "orphan discovery failed"
+  [ -s "$calls" ] || fail "cleanup cached the earlier all-recorded result after a task disappeared"
+  [ -f "$home/state/task-1.herdr-presentation" ] \
+    || fail "discovery alone authorized retiring an unverified journal"
+  pass "current Herdr presentations skip discovery while a newly orphaned journal is rechecked"
+)
+
+test_lock_pid_reads_stay_in_process_and_preserve_ownership() (
+  local home="$TMP_ROOT/lock-home" lock calls current recorded
+  # shellcheck disable=SC2030 # Each subshell owns an independent synthetic home.
+  local FM_HOME=$home FM_ROOT_OVERRIDE=$home FM_STATE_OVERRIDE="$home/state"
+  mkdir -p "$home/state"
+  # shellcheck source=bin/fm-wake-lib.sh
+  . "$ROOT/bin/fm-wake-lib.sh"
+  lock="$home/state/fixture.lock"
+  calls="$home/cat-calls"
+  : > "$calls"
+  cat() { printf 'call\n' >> "$calls"; command cat "$@"; }
+  fm_lock_try_acquire "$lock" || fail "fresh lock was refused"
+  fm_current_pid current || fail "current process could not be identified"
+  IFS= read -r recorded < "$lock/pid" || fail "lock did not publish an owner"
+  [ "$recorded" = "$current" ] || fail "lock belongs to a different process"
+  fm_lock_set_role "$lock" terminal-check || fail "owner could not set its lock role"
+  (fm_lock_release "$lock") || fail "non-owner release failed unexpectedly"
+  [ -e "$lock" ] || fail "a subshell released its parent's lock"
+  printf '%s\nforeign-trailer\n' "$current" > "$lock/pid"
+  fm_lock_release "$lock"
+  [ -e "$lock" ] || fail "release accepted only the first line of a malformed owner"
+  printf '%s\n' "$current" > "$lock/pid"
+  fm_lock_release "$lock"
+  [ ! -e "$lock" ] && [ ! -L "$lock" ] || fail "owner could not release its lock"
+  [ ! -s "$calls" ] || fail "lock ownership checks still launch cat for tiny local records"
+  pass "in-process lock reads retain whole-record and parent/subshell ownership checks"
+)
+
+test_status_snapshot_batches_fresh_file_facts() (
+  # shellcheck source=bin/fm-classify-lib.sh
+  . "$ROOT/bin/fm-classify-lib.sh"
+  local state="$TMP_ROOT/status-facts" calls os_calls os out task size ident old_ident count
+  mkdir -p "$state"
+  printf 'note: context\n' > "$state/task.status"
+  calls="$state/stat-calls"
+  os_calls="$state/uname-calls"
+  : > "$calls"
+  : > "$os_calls"
+  os=$(command uname -s)
+  stat() { printf 'call\n' >> "$calls"; command stat "$@"; }
+  # shellcheck disable=SC2329 # A regression sentinel: no hot-path call is expected.
+  uname() { printf 'call\n' >> "$os_calls"; command uname "$@"; }
+  out=$(status_presentation_snapshot "$state") || fail "status snapshot failed"
+  IFS=$'\t' read -r task size ident <<< "$out"
+  [ "$task" = task ] && [ "$size" = 14 ] && [ -n "$ident" ] \
+    || fail "status snapshot lost its captured task, byte size, or identity"
+  old_ident=$ident
+  # BSD stat is intentionally addressed by absolute path; native Windows and
+  # Linux exercise the command-count guard, and all platforms exercise facts.
+  if [ "$os" != Darwin ]; then
+    count=$(wc -l < "$calls")
+    [ "$count" -eq 1 ] || fail "one status snapshot launched stat $count times (budget 1)"
+  fi
+  [ ! -s "$os_calls" ] || fail "status reads repeatedly rediscover the same operating system"
+  printf 'note: replaced\n' > "$state/replacement"
+  mv -f "$state/replacement" "$state/task.status"
+  out=$(status_presentation_snapshot "$state") || fail "replacement snapshot failed"
+  IFS=$'\t' read -r task size ident <<< "$out"
+  [ "$size" = 15 ] && [ "$ident" != "$old_ident" ] \
+    || fail "snapshot reused file facts after a status replacement"
+  printf 'note: appended\n' >> "$state/task.status"
+  out=$(status_presentation_snapshot "$state") || fail "append snapshot failed"
+  IFS=$'\t' read -r task size ident <<< "$out"
+  [ "$size" = 30 ] || fail "snapshot reused a size after an append"
+  pass "status snapshots batch native file facts without caching file identity or size"
+)
+
+test_status_event_rechecks_identity_after_its_span_read() (
+  # shellcheck source=bin/fm-classify-lib.sh
+  . "$ROOT/bin/fm-classify-lib.sh"
+  local state="$TMP_ROOT/status-replacement" reader out task endpoint ident
+  mkdir -p "$state"
+  printf 'done: original\n' > "$state/task.status"
+  out=$(status_presentation_snapshot "$state") || fail "initial snapshot failed"
+  IFS=$'\t' read -r task endpoint ident <<< "$out"
+  reader="$state/replace-reader"
+  command cat > "$reader" <<'SH'
+#!/usr/bin/env bash
+[ "$2" = 0 ] || exit 1
+command cat "$1" || exit 1
+printf 'done: replaced\n' > "$1.replacement" || exit 1
+touch -r "$1" "$1.replacement" || exit 1
+mv -f "$1.replacement" "$1"
+SH
+  chmod +x "$reader"
+  if FM_STATUS_SPAN_READER="$reader" status_snapshot_latest_event "$state/task.status" "$endpoint" "$ident"; then
+    fail "latest-event read accepted a replacement between its pre/post checks"
+  fi
+  [ -z "$FM_STATUS_SNAPSHOT_EVENT_LINE" ] || fail "failed event read retained a prior result"
+  out=$(status_presentation_snapshot "$state") || fail "replacement snapshot failed"
+  IFS=$'\t' read -r task endpoint ident <<< "$out"
+  status_snapshot_latest_event "$state/task.status" "$endpoint" "$ident" \
+    || fail "fresh replacement event was refused"
+  [ "$FM_STATUS_SNAPSHOT_EVENT_LINE" = 'done: replaced' ] \
+    || fail "fresh event did not belong to the replacement file"
+  pass "batched file facts retain fresh pre/post-read replacement refusal"
+)
+
+test_backlog_path_validation_avoids_interpreter_launches() (
+  # shellcheck source=bin/fm-backlog-transition-lib.sh
+  . "$ROOT/bin/fm-backlog-transition-lib.sh"
+  local data="$TMP_ROOT/literal path café" calls resolved code char out rc
+  mkdir -p "$data"
+  calls="$TMP_ROOT/path-validation-calls"
+  : > "$calls"
+  # shellcheck disable=SC2329 # Regression sentinels for removed interpreter launches.
+  perl() { printf 'perl\n' >> "$calls"; command perl "$@"; }
+  # shellcheck disable=SC2329 # The path predicate must stay in-process.
+  awk() { printf 'awk\n' >> "$calls"; command awk "$@"; }
+  resolved=$(fm_backlog_data_absolute "$data") || fail "literal data directory was refused"
+  [ "$resolved" -ef "$data" ] || fail "data resolution changed the filesystem object"
+  [ ! -s "$calls" ] || fail "literal path validation still launches Perl or awk"
+  for code in 1 9 10 13 31 127; do
+    printf -v char '%03o' "$code"
+    printf -v char '%b' "\\$char"
+    rc=0
+    out=$(fm_backlog_data_absolute "$data$char" 2>&1) || rc=$?
+    [ "$rc" -eq 2 ] && [[ "$out" == *'invalid control byte'* ]] \
+      || fail "path validation accepted or misclassified control byte $code"
+  done
+  pass "literal path validation keeps byte-level refusals without per-read interpreters"
+)
+
 test_routine_status_history_stays_bounded_and_keeps_decisions() (
   # shellcheck source=bin/fm-timeout-lib.sh
   . "$ROOT/bin/fm-timeout-lib.sh"
@@ -119,6 +281,57 @@ test_routine_status_history_stays_bounded_and_keeps_decisions() (
     || fail "updated status history exceeded its read bound"
   [ -z "$out" ] || fail "status read cached a decision after its resolution"
   pass "routine history stays bounded without losing or caching decision transitions"
+)
+
+test_status_text_destinations_preserve_legacy_capture_semantics() (
+  # shellcheck source=bin/fm-classify-lib.sh
+  . "$ROOT/bin/fm-classify-lib.sh"
+  local line reader expected actual expected_rc actual_rc output="$TMP_ROOT/text-reader.out"
+  for line in \
+    'needs-decision corr=0123456789abcdef [key=choice]: keep "quoted" text' \
+    'resolved: [key=choice] answer' \
+    'blocked [key=before]: [key=after] literal note' \
+    'corr=0123456789abcdef resolved [key=choice]: not a transition' \
+    'needs-decision [key=bad/key]: malformed key' \
+    $'note: trailing spaces  \n\n' \
+    'legacy without colon'; do
+    for reader in status_line_verb status_line_note _fm_decision_key; do
+      expected_rc=0
+      expected=$("$reader" "$line") || expected_rc=$?
+      actual=stale
+      actual_rc=0
+      "$reader" "$line" actual > "$output" || actual_rc=$?
+      [ "$actual_rc" -eq "$expected_rc" ] && [ ! -s "$output" ] \
+        || fail "$reader changed its failure or output-channel contract"
+      if [ "$actual_rc" -eq 0 ]; then
+        [ "$actual" = "$expected" ] || fail "$reader changed its captured literal bytes"
+      fi
+    done
+  done
+  if status_line_verb 'done: finished' 'invalid[0]' >/dev/null 2>&1; then
+    fail "status reader accepted a non-scalar result destination"
+  fi
+  pass "status text destinations retain literal, malformed-key, and legacy capture behavior"
+)
+
+test_transition_history_stays_in_process_and_keeps_open_keys() (
+  # shellcheck source=bin/fm-timeout-lib.sh
+  . "$ROOT/bin/fm-timeout-lib.sh"
+  local log="$TMP_ROOT/transitions.status" i=0 out
+  printf 'needs-decision [key=retained]: preserve the unanswered choice\n' > "$log"
+  while [ "$i" -lt 100 ]; do
+    printf 'blocked corr=0123456789abcdef [key=step-%s]: waiting\n' "$i" >> "$log"
+    printf 'resolved: [key=step-%s] completed\n' "$i" >> "$log"
+    i=$((i + 1))
+  done
+  # Real transitions must be cheap too, not only the routine-line prefilter.
+  # shellcheck disable=SC2016
+  out=$(fm_run_timed 20 bash -c '. "$1"; status_open_decisions "$2"' \
+    _ "$ROOT/bin/fm-classify-lib.sh" "$log") \
+    || fail "transition history exceeded its 20-second read bound"
+  [ "$out" = $'retained\tneeds-decision\tpreserve the unanswered choice' ] \
+    || fail "transition folding lost an unanswered key or retained a resolved key"
+  pass "real decision transitions stay bounded without changing correlation or keyed closure"
 )
 
 test_snapshot_projection_bounds_json_tool_launches() (
@@ -168,5 +381,12 @@ test_snapshot_projection_bounds_json_tool_launches() (
 fm_test_run_cases \
   test_metadata_reads_support_in_process_results \
   test_record_guards_use_fast_resolution_and_keep_fallback \
+  test_recorded_herdr_presentations_skip_orphan_discovery \
+  test_lock_pid_reads_stay_in_process_and_preserve_ownership \
+  test_status_snapshot_batches_fresh_file_facts \
+  test_status_event_rechecks_identity_after_its_span_read \
+  test_backlog_path_validation_avoids_interpreter_launches \
   test_routine_status_history_stays_bounded_and_keeps_decisions \
+  test_status_text_destinations_preserve_legacy_capture_semantics \
+  test_transition_history_stays_in_process_and_keeps_open_keys \
   test_snapshot_projection_bounds_json_tool_launches

@@ -116,12 +116,16 @@ fm_backlog_directory_present() {
 }
 
 fm_backlog_data_absolute() {
-  local data=$1 raw_bytes check
-  raw_bytes=$(fm_backlog_bytes_of_string "$data") || return 1
-  if ! fm_backlog_control_bytes_valid 0 "$raw_bytes"; then
-    printf 'error: data directory contains an invalid control byte\n' >&2
-    return 2
-  fi
+  local data=$1 check LC_ALL=C
+  # In the C locale [:cntrl:] is exactly bytes 0-31 and 127, matching the
+  # serialized-byte validator without a Perl/awk pipeline for every path.
+  # Non-ASCII path bytes remain literal data, not a reason to refuse a home.
+  case "$data" in
+    *[[:cntrl:]]*)
+      printf 'error: data directory contains an invalid control byte\n' >&2
+      return 2
+      ;;
+  esac
   check=$data
   while [ "$check" != / ] && [ "${check%/}" != "$check" ]; do
     check=${check%/}

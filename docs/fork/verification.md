@@ -41,8 +41,12 @@ The exit-to-shell fixture waits for Pi's `session_start` readiness marker as wel
 
 ## Startup and Bearings
 
-Run `bin/fm-test-run.sh tests/fm-startup-performance.test.sh` for in-process metadata reads, fresh native and portable path validation, bounded routine-status scans, and snapshot JSON invocation counts with field-preservation assertions.
-These checks run in the Windows reconciliation core job as well as portable CI.
+Run `bin/fm-test-run.sh tests/fm-startup-performance.test.sh` for in-process metadata, lock-owner, and status reads; fresh native and portable path validation; bounded routine and transition-history scans; and snapshot JSON invocation counts with field-preservation assertions.
+The same suite checks batched file-fact queries against replacement and append, including a replacement between an event reader's pre/post checks.
+Its Herdr cleanup case verifies the all-recorded no-op, conservative handling of dangling metadata, and fresh discovery after a record disappears; the cleanup suites retain the actual retirement and ambiguity checks.
+These checks run in the Windows reconciliation core job, the stock macOS Bash job, and portable CI.
+`FM_TEST_ONLY=test_bootstrap_diagnostics_stream_before_probe_completion bin/fm-test-run.sh tests/fm-session-start.test.sh` verifies that a completed bootstrap diagnostic reaches the session while a later probe is still blocked; the Windows core job also selects this case.
+The full startup suite retains truncation, cancellation, lock-refusal, and recovery coverage.
 `FM_TEST_ONLY=test_bootstrap_batches_already_in_flight_rows bin/fm-test-run.sh tests/fm-bootstrap.test.sh` verifies that already in-flight records share a single list query while an actual repair still requires its locked, fresh row read.
 The full bootstrap suite also covers failed, unrecognized, and truncated batch responses falling back to per-record checks.
 

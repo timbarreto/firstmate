@@ -5,7 +5,10 @@
 #
 # The caller must already own this Firstmate home's session lock. This script is
 # home-local and considers only the current named Herdr session and ordinary
-# state/*.herdr-presentation journals in the effective FM_HOME. Each candidate
+# state/*.herdr-presentation journals in the effective FM_HOME. If every journal
+# still has task metadata, there is no orphan candidate and no Herdr discovery
+# is needed. This presence shortcut authorizes no mutation; a later cleanup
+# rechecks it, and actual candidates retain every locked check below. Each candidate
 # is additionally serialized by the existing state/.spawn-<task>.lock and the
 # shared named-session Herdr presentation lock, in that order.
 #
@@ -293,13 +296,18 @@ fm_herdr_cleanup_one() { # <session> <workspace> <title> <home-real>
 }
 
 fm_herdr_session_cleanup() {
-  local session home_real list candidates workspace title journal found=0
+  local session home_real list candidates workspace title journal id found=0
   [ -d "$STATE" ] && [ ! -L "$STATE" ] || return 0
   for journal in "$STATE"/*"$FM_BACKEND_HERDR_PRESENTATION_JOURNAL_SUFFIX"; do
-    if [ -f "$journal" ] && [ ! -L "$journal" ]; then
-      found=1
-      break
-    fi
+    [ -f "$journal" ] && [ ! -L "$journal" ] || continue
+    id=${journal##*/}
+    id=${id%"$FM_BACKEND_HERDR_PRESENTATION_JOURNAL_SUFFIX"}
+    fm_task_id_creation_valid "$id" || continue
+    # Metadata of any kind already forbids retirement, including a dangling
+    # symlink. Observe presence before scanning/decoding every journal for
+    # every workspace. Never exclude these journals from uniqueness checks
+    # when an actual orphan exists; they may be evidence of ambiguity.
+    [ -e "$STATE/$id.meta" ] || [ -L "$STATE/$id.meta" ] || { found=1; break; }
   done
   [ "$found" -eq 1 ] || return 0
   command -v herdr >/dev/null 2>&1 \
