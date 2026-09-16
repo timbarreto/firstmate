@@ -21,6 +21,7 @@ test	tests/fm-bearings-board.test.sh	pure-contract-unit
 test	tests/fm-brief.test.sh	pure-contract-unit
 test	tests/fm-vendor-auth-probe.test.sh	pure-contract-unit
 test	tests/fm-calm-pi-extension.test.sh	pure-contract-unit
+test	tests/fm-calm-claude-mod.test.sh	pure-contract-unit
 test	tests/fm-cd-pretool-check.test.sh	pure-contract-unit
 test	tests/fm-classify-decision-key.test.sh	pure-contract-unit
 test	tests/fm-composer-ghost.test.sh	pure-contract-unit
@@ -129,6 +130,7 @@ test	tests/fm-bearings-board-lavish-live-e2e.test.sh	live-harness-optin
 test	tests/fm-claude-stop-autoarm-live-e2e.test.sh	live-harness-optin
 test	tests/fm-cmux-claude-composer-live-e2e.test.sh	live-harness-optin
 test	tests/fm-composer-matrix-live-e2e.test.sh	live-harness-optin
+test	tests/fm-composer-codex-idle-live-e2e.test.sh	live-harness-optin
 test	tests/fm-codex-continuity-live-e2e.test.sh	live-harness-optin
 test	tests/fm-grok-continuity-live-e2e.test.sh	live-harness-optin
 test	tests/fm-cursor-primary-live-e2e.test.sh	live-harness-optin
@@ -144,6 +146,7 @@ test	tests/fm-opencode-primary-live-e2e.test.sh	live-harness-optin
 test	tests/fm-pi-branch-live-e2e.test.sh	live-harness-optin
 test	tests/fm-pi-branch-responsiveness-live-e2e.test.sh	live-harness-optin
 test	tests/fm-pi-primary-live-e2e.test.sh	live-harness-optin
+test	tests/fm-pr-state-live-e2e.test.sh	live-harness-optin
 test	tests/fm-pi-codex-native.test.sh	live-harness-optin
 test	tests/fm-omp-primary-live-e2e.test.sh	live-harness-optin
 test	tests/fm-sessionstart-hook-live-e2e.test.sh	live-harness-optin
@@ -151,6 +154,8 @@ test	tests/fm-sessionstart-instruction-refresh-live-e2e.test.sh	live-harness-opt
 test	tests/fm-quota-array-dispatch-live-e2e.test.sh	live-harness-optin
 test	tests/fm-send-secondmate-marker-herdr-e2e.test.sh	live-harness-optin
 test	tests/fm-send-inbox-doorbell-live-e2e.test.sh	live-harness-optin
+test	tests/fm-calm-claude-mod-plugin.test.sh	live-harness-optin
+test	tests/fm-calm-claude-mod-live-e2e.test.sh	live-harness-optin
 test	tests/fm-herdr-submit-confirm-live-e2e.test.sh	live-harness-optin
 test	tests/fm-backend-herdr.test.sh	backend-dispatch
 test	tests/fm-backend-tmux-smoke.test.sh	backend-dispatch
@@ -172,6 +177,8 @@ test	tests/fm-teardown-endpoint-safety.test.sh	backend-dispatch
 test	tests/fm-check-unregister.test.sh	pr-forge
 test	tests/fm-pr-check-security.test.sh	pr-forge
 test	tests/fm-pr-merge.test.sh	pr-forge
+test	tests/fm-pr-reviewers.test.sh	pr-forge
+test	tests/fm-pr-state.test.sh	pr-forge
 test	tests/fm-review-diff.test.sh	pr-forge
 test	tests/fm-teardown.test.sh	pr-forge
 test	tests/fm-x-mode.test.sh	pr-forge
@@ -408,6 +415,7 @@ map	route-bin-fm-procevent-quota-sh	1800	bin/fm-procevent-quota.sh	__script__:fm
 map	route-bin-fm-quota-choose-sh	1900	bin/fm-quota-choose.sh	__script__:fm-quota-choose.test.sh
 map	route-pi-extensions-fm-branch-supervision-ts	2000	.pi/extensions/fm-branch-supervision.ts|.pi/extensions/lib/fm-async-exec.ts|.pi/extensions/lib/fm-branch-dispatch.ts|.pi/extensions/lib/fm-native-contract.ts	__script__:fm-pi-branch-extension.test.sh,__script__:fm-pi-watch-extension.test.sh,__script__:fm-calm-pi-extension.test.sh,__script__:fm-watch-recovery-loop.test.sh,__script__:fm-wake-queue.test.sh,__script__:fm-pi-primary-types.test.sh,live-harness-optin
 map	route-pi-extensions-lib-fm-operational-input-ts	2100	.pi/extensions/lib/fm-operational-input.ts	__script__:fm-pi-windows-shell-invocation.test.sh,__script__:fm-pi-branch-extension.test.sh,__script__:fm-pi-watch-extension.test.sh,__script__:fm-calm-pi-extension.test.sh,__script__:fm-watch-recovery-loop.test.sh,__script__:fm-turnend-guard.test.sh,__script__:fm-sessionstart-nudge.test.sh,__script__:fm-pi-primary-types.test.sh,live-harness-optin
+map	route-calm-mod-and-sprite	2150	.agents/skills/firstmate-calm|.claude/mods/firstmate-calm/*|.pi/extensions/lib/fm-calm-working-ship.ts|.pi/extensions/lib/fm-calm-working-ship-sprite.ts	__script__:fm-calm-claude-mod.test.sh,__script__:fm-calm-pi-extension.test.sh,__script__:fm-pi-primary-types.test.sh,live-harness-optin
 map	route-bin-fm-sessionstart-run-sh	2200	bin/fm-sessionstart-run.sh|.claude/settings.json|.codex/hooks.json|.pi/extensions/fm-primary-turnend-guard.ts	__script__:fm-pi-windows-shell-invocation.test.sh,session-bootstrap,live-harness-optin
 map	route-bin-fm-extension-mjs	2300	bin/fm-extension.mjs|bin/fm-extension.sh|docs/examples/process-event-extension/*	__script__:fm-extension-binding.test.sh
 map	route-bin-fm-procevent-sh	2400	bin/fm-procevent.sh|bin/fm-procevent-lib.sh|bin/fm-procevent-extension-capture.pl	__script__:fm-extension-binding.test.sh,__script__:fm-procevent.test.sh,__script__:fm-procevent-stop-proof.test.sh,__script__:fm-procevent-when.test.sh,__script__:fm-remote-reply.test.sh

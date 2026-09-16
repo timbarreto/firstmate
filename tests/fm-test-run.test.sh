@@ -437,6 +437,57 @@ test_fork_workflow_selects_its_contracts() {
   pass "fork workflow selects every relocated contract plus the lint/runner family"
 }
 
+test_calm_mod_and_sprite_select_all_consumers() {
+  local tmp repo path script listed expected
+  tmp=$(fm_test_tmproot fm-test-run-calm-mod)
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  mkdir -p "$repo/.claude/mods/firstmate-calm/hooks" \
+    "$repo/.claude/mods/firstmate-calm/lib" "$repo/.agents/skills" \
+    "$repo/.pi/extensions/lib"
+  for script in fm-calm-claude-mod.test.sh fm-calm-pi-extension.test.sh \
+    fm-pi-primary-types.test.sh fm-calm-claude-mod-plugin.test.sh \
+    fm-calm-claude-mod-live-e2e.test.sh fm-composer-codex-idle-live-e2e.test.sh \
+    fm-pr-state-live-e2e.test.sh fm-pr-state.test.sh fm-pr-reviewers.test.sh; do
+    printf '#!/usr/bin/env bash\n' > "$repo/tests/$script"
+  done
+  fm_test_install_catalog "$repo"
+  for path in .agents/skills/firstmate-calm \
+    .claude/mods/firstmate-calm/hooks/register.ts \
+    .claude/mods/firstmate-calm/lib/fm-calm-working-ship-sprite.ts \
+    .pi/extensions/lib/fm-calm-working-ship.ts \
+    .pi/extensions/lib/fm-calm-working-ship-sprite.ts; do
+    : > "$repo/$path"
+  done
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm calm-mod-fixture
+  expected=$(
+    "$repo/bin/fm-test-run.sh" --list --family live-harness-optin
+    printf 'tests/%s\n' fm-calm-claude-mod.test.sh fm-calm-pi-extension.test.sh \
+      fm-pi-primary-types.test.sh
+  )
+  expected=$(printf '%s\n' "$expected" | LC_ALL=C sort -u)
+  for path in .agents/skills/firstmate-calm \
+    .claude/mods/firstmate-calm/hooks/register.ts \
+    .claude/mods/firstmate-calm/lib/fm-calm-working-ship-sprite.ts \
+    .pi/extensions/lib/fm-calm-working-ship.ts \
+    .pi/extensions/lib/fm-calm-working-ship-sprite.ts; do
+    printf '\n' > "$repo/$path"
+    listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+      || fail "Calm dependency lacks changed-test routing: $path"
+    [ "$listed" = "$expected" ] \
+      || fail "$path did not select exactly the shared sprite consumers and live guards"$'\n'"$listed"
+    : > "$repo/$path"
+  done
+  listed=$("$repo/bin/fm-test-run.sh" --list --family pr-forge)
+  assert_contains "$listed" 'tests/fm-pr-state.test.sh' "PR state keeps its upstream family"
+  assert_contains "$listed" 'tests/fm-pr-reviewers.test.sh' "reviewer discovery keeps its upstream family"
+  listed=$("$repo/bin/fm-test-run.sh" --list --proven-isolated)
+  assert_not_contains "$listed" 'tests/fm-calm-claude-mod.test.sh' \
+    "catalog registration must not grant concurrency admission"
+  pass "Calm module, loader entry and shared sprite select all consumers without changing proof admission"
+}
+
 test_process_modules_select_all_consumers() {
   local tmp repo path family listed expected
   tmp=$(fm_test_tmproot fm-test-run-process-modules)
@@ -2274,6 +2325,7 @@ fm_test_run_cases \
   test_changed_reference_scan_batches_test_files \
   test_changed_runner_surfaces_select_their_family \
   test_fork_workflow_selects_its_contracts \
+  test_calm_mod_and_sprite_select_all_consumers \
   test_process_modules_select_all_consumers \
   test_harness_modules_select_all_consumers \
   test_shell_line_ending_policy_selects_runner_contract \

@@ -145,7 +145,27 @@ The production runner measured the same family at `--family pr-forge --jobs 1` i
 That is close to the family's ceiling rather than a scheduling loss: its longest script runs 198.5s, so no partition of these six can finish faster than about 2.1x.
 The family's clock is two long scripts that do not contend: `fm-pr-check-security` (198.5s) and `fm-teardown` (194.1s) each own a worker for nearly the whole run, and `fm-pr-merge` (118.5s) plus `fm-x-mode` (79.4s) fill the other two.
 `bin/fm-test-isolation-proof.sh`'s own `--list-exclusions` keeps `fm-pr-check-security` and `fm-teardown` out of the mixed PORTABLE pool, where they would share a machine with unrelated lock and forge stress.
-Admitting them inside their own family is a different question and this proof answers it: the family's six scripts are safe with each other at four workers.
+Admitting them inside their own family is a different question and this proof answers it: the six members present on that date are safe with each other at four workers.
+
+`tests/fm-pr-state.test.sh` and `tests/fm-pr-reviewers.test.sh` joined this family after the date above, so that result does not cover them.
+Canonical upstream re-proved its eight-member family in [PR #4278](https://github.com/kunchenguid/firstmate/pull/4278), whose runner admits scripts by family membership.
+These upstream measurements do not change the fork's frozen `--list-family-admissions` set, so the two new tests remain serial here.
+
+- Date: 2026-09-12
+- Command: `bin/fm-test-isolation-proof.sh --pool pr-forge --jobs 4`
+- Result: two consecutive runs, 8 candidates, 0 failures.
+
+| Run | Summary |
+|---|---|
+| 1 | `FM_ISOLATION_SUMMARY total=8 failed=0 concurrency=4 duration_ms=367947` |
+| 2 | `FM_ISOLATION_SUMMARY total=8 failed=0 concurrency=4 duration_ms=352910` |
+
+Both recorded runs began with the machine's one-minute load average below 6.0, at 5.55 and 5.76, so they measure isolation rather than contention.
+A third run taken between them also reported `total=8 failed=0 concurrency=4 duration_ms=357804`, but it started at a load average of 9.20 while the previous run's workers were still decaying, so it is disclosed here rather than recorded as a measurement.
+That its duration landed within 3% of the two clean runs is evidence the elevated figure was a lagging load average rather than real competition for the machine.
+
+These durations are not comparable with the six-member run above: that measurement was taken on a different machine state, and the gap is far larger than two short scripts can account for, so it is not evidence about the two new members.
+For the same reason the 1.72x four-worker figure recorded above is left as a statement about that measurement rather than restated as current.
 
 ### secondmate: admitted
 
