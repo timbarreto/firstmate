@@ -1131,7 +1131,7 @@ crew_dispatch_validate() {
           else ($m | startswith($prefix)) and (($m | length) > ($prefix | length)) end
       elif $pilots | has($h) then ($pilots[$h].efforts | index($e))
       elif $h == "claude" then (["low","medium","high","xhigh","max"] | index($e))
-      elif $h == "codex" then (["low","medium","high","xhigh"] | index($e))
+      elif $h == "codex" then ((["low","medium","high","xhigh"] | index($e)) != null or ($e == "max" and $m == "gpt-5.6-luna"))
       elif $h == "grok" then (["low","medium","high"] | index($e))
       elif $h == "agy" then (["low","medium","high"] | index($e))
       elif $h == "pi-signed" or $h == "omp" then (["low","medium","high","xhigh","max"] | index($e))

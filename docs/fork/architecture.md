@@ -165,7 +165,7 @@ The existing update and restart owners retain their authority.
 | `tests/catalog-helpers.sh` | Real catalog loader, valid fixture catalogs, and the required proof-list dependency |
 
 Synthetic catalogs may describe a minimal test world; they are not another production registry.
-Pi type checks preserve repository-relative module depth rather than flattening libraries, and the Calm rendering fixture keeps the same layout.
+Pi type checks preserve repository-relative module depth rather than flattening libraries, including the Claude-owned Calm sprite target reached by the Pi symlink; the Calm rendering fixture keeps the same layout.
 Copied startup and hook fixtures must install the complete dependency closure even when the exercised case does not launch either pilot.
 Missing tracked code remains an explicit error rather than permission to continue with a partially loaded fixture.
 

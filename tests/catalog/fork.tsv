@@ -179,3 +179,21 @@ override-duration	tests/fm-watch-recovery-loop.test.sh	58731	58677
 override-duration	tests/fm-watch-triage.test.sh	262626	577386
 override-duration	tests/fm-watcher-lock.test.sh	88554	65163
 duration	tests/herdr-workspace-move.test.sh	135
+# Missing serial hints filled from successful, non-gated portable CI samples.
+duration	tests/fm-backlog-read-bound.test.sh	23958
+duration	tests/fm-ci-workflow.test.sh	2061
+duration	tests/fm-control-recovery.test.sh	5265
+duration	tests/fm-harness-contract.test.sh	970
+duration	tests/fm-harness-precedence.test.sh	4539
+duration	tests/fm-herdr-unregistered-agent.test.sh	330
+duration	tests/fm-home-summary-request.test.sh	470
+duration	tests/fm-lint-inventory.test.sh	160885
+duration	tests/fm-lock-fast.test.sh	118
+duration	tests/fm-platform-process.test.sh	1274
+duration	tests/fm-pr-local-cost.test.sh	290
+duration	tests/fm-private-path.test.sh	367
+duration	tests/fm-procevent-stop-proof.test.sh	7714
+duration	tests/fm-remote-job-wait.test.sh	991
+duration	tests/fm-send-agy-confirm.test.sh	4176
+duration	tests/fm-startup-performance.test.sh	964
+duration	tests/fm-tasks-axi.test.sh	1383
