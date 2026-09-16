@@ -69,6 +69,100 @@ test_metadata_reads_support_in_process_results() (
   pass "metadata can be read in-process without changing literal or legacy results"
 )
 
+test_metadata_first_read_error_returns_without_aborting() (
+  local mode meta rc output="$TMP_ROOT/first-read-error.out" errors="$TMP_ROOT/first-read-error.err"
+  local expected="$TMP_ROOT/first-read-error.expected"
+  printf 'continued\n' > "$expected"
+  for mode in bulk destination stdout; do
+    meta="$TMP_ROOT/first-read-error-$mode.meta"
+    printf 'key=unread\nlast=unread\n' > "$meta"
+    rc=0
+    # Preserve the real file-type verdict, then replace that file before open.
+    # The real parser and Bash read must handle the resulting filesystem error.
+    # shellcheck disable=SC2016 # Expansion belongs to the strict-mode child.
+    "$BASH" -euc '
+      . "$1"
+      fault_meta=$2
+      mode=$3
+      function [ {
+        local predicate_rc=0
+        builtin [ "$@" || predicate_rc=$?
+        if test "$#" -eq 3 && test "$1" = -f && test "$2" = "$fault_meta" && test "$predicate_rc" -eq 0; then
+          rm -- "$fault_meta" && mkdir -- "$fault_meta" || exit 98
+        fi
+        return "$predicate_rc"
+      }
+      value=stale last=stale absent=stale
+      case "$mode" in
+        bulk)
+          fm_meta_read "$fault_meta" key value last last missing absent
+          [ -z "$value" ] && [ -z "$last" ] && [ -z "$absent" ] || exit 96
+          ;;
+        destination)
+          fm_meta_get "$fault_meta" key value
+          [ -z "$value" ]
+          ;;
+        stdout) fm_meta_get "$fault_meta" key ;;
+      esac
+      printf "continued\n"
+    ' _ "$ROOT/bin/fm-backend.sh" "$meta" "$mode" > "$output" 2> "$errors" || rc=$?
+    [ -d "$meta" ] || fail "first-read-error fixture did not replace the file"
+    [ "$rc" -eq 0 ] || fail "$mode metadata read aborted its caller (exit $rc)"
+    [ ! -s "$errors" ] || fail "$mode metadata read emitted unexpected read-error diagnostics"
+    cmp -s "$expected" "$output" || fail "$mode metadata read changed its empty result or continuation"
+  done
+  pass "metadata readers return empty results after a first-read error without aborting callers"
+)
+
+test_metadata_later_read_error_stops_without_replaying_a_line() (
+  local mode rc meta="$TMP_ROOT/later-read-error.meta" fault_dir="$TMP_ROOT/later-read-error-dir"
+  local output="$TMP_ROOT/later-read-error.out" errors="$TMP_ROOT/later-read-error.err"
+  local expected="$TMP_ROOT/later-read-error.expected"
+  mkdir -p "$fault_dir"
+  printf 'key=first\nkey=must-not-be-read\nlast=must-not-be-read\n' > "$meta"
+  printf 'first|continued\n' > "$expected"
+  for mode in bulk destination stdout; do
+    rc=0
+    # Let the first real read succeed, then inject a real I/O error through a
+    # directory descriptor. Refuse another read so a stale-buffer loop fails
+    # immediately instead of waiting for the runner's timeout.
+    # shellcheck disable=SC2016 # Expansion belongs to the strict-mode child.
+    "$BASH" -euc '
+      . "$1"
+      fault_dir=$3
+      mode=$4
+      read_calls=0
+      read() {
+        read_calls=$((read_calls + 1))
+        case "$read_calls" in
+          1) builtin read "$@" ;;
+          2) builtin read "$@" < "$fault_dir" ;;
+          *) exit 97 ;;
+        esac
+      }
+      value=stale last=stale absent=stale
+      case "$mode" in
+        bulk)
+          fm_meta_read "$2" key value last last missing absent
+          [ -z "$last" ] && [ -z "$absent" ] || exit 96
+          printf "%s" "$value"
+          ;;
+        destination)
+          fm_meta_get "$2" key value
+          printf "%s" "$value"
+          ;;
+        stdout) fm_meta_get "$2" key ;;
+      esac
+      [ "$read_calls" -eq 2 ]
+      printf "|continued\n"
+    ' _ "$ROOT/bin/fm-backend.sh" "$meta" "$fault_dir" "$mode" > "$output" 2> "$errors" || rc=$?
+    [ "$rc" -eq 0 ] || fail "$mode metadata read did not stop after the I/O error (exit $rc)"
+    [ ! -s "$errors" ] || fail "$mode metadata read emitted unexpected read-error diagnostics"
+    cmp -s "$expected" "$output" || fail "$mode metadata read lost a completed field or consumed a later field"
+  done
+  pass "metadata readers stop after a later read error without replaying a prior line"
+)
+
 test_record_guards_use_fast_resolution_and_keep_fallback() (
   # shellcheck source=bin/fm-backlog-transition-lib.sh
   . "$ROOT/bin/fm-backlog-transition-lib.sh"
@@ -431,6 +525,8 @@ test_snapshot_projection_bounds_json_tool_launches() (
 
 fm_test_run_cases \
   test_metadata_reads_support_in_process_results \
+  test_metadata_first_read_error_returns_without_aborting \
+  test_metadata_later_read_error_stops_without_replaying_a_line \
   test_watcher_health_reads_records_without_subprocesses \
   test_record_guards_use_fast_resolution_and_keep_fallback \
   test_recorded_herdr_presentations_skip_orphan_discovery \
