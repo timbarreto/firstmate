@@ -447,7 +447,8 @@ jobs:
           # The same status/lock readers feed startup and snapshot consumers.
           PATH="/bin:/usr/bin:$PATH" /bin/bash bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
             tests/fm-startup-performance.test.sh \
-            tests/fm-busy-state.test.sh
+            tests/fm-busy-state.test.sh \
+            tests/fm-path.test.sh
 
           for test_case in \
             test_relaunch_slow_probe_consumes_deadline \

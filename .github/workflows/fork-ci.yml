@@ -72,6 +72,7 @@ jobs:
             tests/fm-backend-herdr-treehouse.test.sh \
             tests/fm-pi-windows-shell-invocation.test.sh \
             tests/fm-platform-process.test.sh \
+            tests/fm-path.test.sh \
             tests/fm-private-path.test.sh \
             tests/fm-startup-performance.test.sh
           for test_case in \
@@ -126,6 +127,9 @@ jobs:
           FM_LIVE: "0"
         run: |
           set -eu
+          FM_TEST_ONLY=test_windows_pr_registration_path_spellings \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
+              tests/fm-pr-check-security.test.sh
           FM_TEST_ONLY=test_azure_completed_pr_preserves_backlog_link \
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
               tests/fm-teardown.test.sh
@@ -169,7 +173,9 @@ jobs:
             test_relaunch_slow_probe_consumes_deadline \
             test_relaunch_stuck_probe_is_bounded_and_reaped \
             test_relaunch_completed_probe_keeps_parent_transaction \
-            test_windows_relaunch_query_deadline_reaps_native_process; do
+            test_windows_relaunch_query_deadline_reaps_native_process \
+            test_control_inspect_accepts_windows_path_context \
+            test_recovery_receipt_home_aliases_remain_readable; do
             FM_TEST_ONLY="$test_case" \
               bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
                 tests/fm-control-recovery.test.sh
@@ -177,6 +183,17 @@ jobs:
           FM_TEST_ONLY=test_control_inspect_is_read_only_during_another_action \
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
               tests/fm-control-relaunch.test.sh
+          for test_case in \
+            test_windows_relaunch_path_context_preserves_work \
+            test_windows_relaunch_posix_paths_preserve_work \
+            test_windows_relaunch_mixed_paths_preserve_work; do
+            FM_TEST_ONLY="$test_case" \
+              bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
+                tests/fm-control-relaunch.test.sh
+          done
+          FM_TEST_ONLY=test_windows_home_spellings_enqueue_once \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
+              tests/fm-send-inbox.test.sh
 
   harness-package-compatibility:
     name: Harness package compatibility

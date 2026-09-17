@@ -1337,6 +1337,40 @@ test_live_artifact_single_link_and_privacy_validation() {
   pass "live poll and custom-check artifacts require private single-link files"
 }
 
+test_windows_pr_registration_path_spellings() {
+  local dir form home code state data out
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) return 0 ;;
+  esac
+  dir=$(make_case "path spellings café '[x] & literal")
+  write_task_meta "$dir"
+  for form in posix mixed native; do
+    home="$dir/home" code="$dir/root" state="$dir/home/state" data="$dir/home/data"
+    case "$form" in
+      mixed)
+        home=$(cygpath -m "$home"); code=$(cygpath -m "$code")
+        state=$(cygpath -m "$state"); data=$(cygpath -m "$data")
+        ;;
+      native)
+        home=$(cygpath -w "$home"); code=$(cygpath -w "$code")
+        state=$(cygpath -w "$state"); data=$(cygpath -w "$data")
+        ;;
+    esac
+    out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$code" FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" \
+      FM_TEST_GUARD_LOG="$dir/guard.log" FM_TEST_GH_LOG="$dir/gh.log" \
+      PATH="$dir/fakebin:$BASE_PATH" "$PR_CHECK" task-a https://github.com/example/repo/pull/42 2>&1) \
+      || fail "$form home/root paths failed PR registration: $out"
+    assert_grep 'pr=https://github.com/example/repo/pull/42' "$dir/home/state/task-a.meta" \
+      "$form PR registration changed its identity"
+    assert_grep 'pr_head=0123456789abcdef0123456789abcdef01234567' "$dir/home/state/task-a.meta" \
+      "$form PR registration lost the fixture head"
+    fm_pr_poll_artifacts_valid "$dir/home/state" task-a "$POLL" \
+      || fail "$form PR registration did not publish its complete, private poll"
+  done
+  pass "PR registration accepts equivalent Windows and POSIX home/code/state spellings without retry"
+}
+
 test_windows_pr_publication_removes_broad_inheritance() {
   local dir state device
   case "$(uname -s 2>/dev/null)" in
@@ -2931,6 +2965,7 @@ fm_test_run_cases \
   test_concurrent_watcher_sees_only_complete_publication \
   test_poll_publication_refuses_unsafe_destinations \
   test_live_artifact_single_link_and_privacy_validation \
+  test_windows_pr_registration_path_spellings \
   test_windows_pr_publication_removes_broad_inheritance \
   test_postrename_poll_validation_revokes_and_retries \
   test_bootstrap_leaves_unauthenticated_checks \

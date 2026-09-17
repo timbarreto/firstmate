@@ -6,11 +6,10 @@
 # PR and X retry at most three times; worker and Herdr make one native call.
 # The platform owner defines the ACL differences. No validation result is cached.
 
-_FM_PRIVATE_PATH_SCRIPT="${BASH_SOURCE[0]%fm-private-path-lib.sh}platform/windows-private-path.ps1"
-case "$_FM_PRIVATE_PATH_SCRIPT" in
-  /*) ;;
-  *) _FM_PRIVATE_PATH_SCRIPT="$PWD/$_FM_PRIVATE_PATH_SCRIPT" ;;
-esac
+# shellcheck source=bin/fm-path-lib.sh
+. "${BASH_SOURCE[0]%fm-private-path-lib.sh}fm-path-lib.sh" || return 1
+fm_path_absolute "${BASH_SOURCE[0]%fm-private-path-lib.sh}platform/windows-private-path.ps1" \
+  _FM_PRIVATE_PATH_SCRIPT || return 1
 # Only the immutable code location is converted once, never a path verdict.
 _FM_PRIVATE_PATH_SCRIPT_NATIVE=
 

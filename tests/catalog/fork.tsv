@@ -3,6 +3,8 @@ version	1
 test	tests/fm-test-catalog.test.sh	pure-contract-unit
 test	tests/fm-remote-job-wait.test.sh	pure-contract-unit
 test	tests/fm-private-path.test.sh	pure-contract-unit
+test	tests/fm-path.test.sh	pure-contract-unit
+map	route-path-inputs	25	bin/fm-path-lib.sh	pure-contract-unit,pr-forge,backend-dispatch,session-bootstrap,watcher-wake-lock,standalone,real-herdr-gated
 test	tests/fm-startup-performance.test.sh	pure-contract-unit
 test	tests/fm-home-summary-request.test.sh	pure-contract-unit
 test	tests/fm-lock-fast.test.sh	pure-contract-unit

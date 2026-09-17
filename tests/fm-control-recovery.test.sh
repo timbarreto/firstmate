@@ -260,6 +260,61 @@ PS
   pass "Windows recovery bounds and reaps its native observation without claiming partial alive output"
 }
 
+test_control_inspect_accepts_windows_path_context() {
+  local dir form home code state data out
+  case "${OS:-}" in Windows_NT) ;; *) return 0 ;; esac
+  dir=$(make_case "path context café '[x] &")
+  for form in posix mixed native; do
+    home="$dir/home" code="$CODE" state="$dir/home/state" data="$dir/home/data"
+    case "$form" in
+      mixed)
+        home=$(cygpath -m "$home"); code=$(cygpath -m "$code")
+        state=$(cygpath -m "$state"); data=$(cygpath -m "$data")
+        ;;
+      native)
+        home=$(cygpath -w "$home"); code=$(cygpath -w "$code")
+        state=$(cygpath -w "$state"); data=$(cygpath -w "$data")
+        ;;
+    esac
+    # shellcheck disable=SC2016 # PowerShell receives code paths as data.
+    out=$(FM_TEST_REAL_ROOT="$ROOT" FM_TEST_CASE="$dir" FM_HOME="$home" FM_ROOT_OVERRIDE="$code" \
+      FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" PATH="$dir/fakebin:$PATH" \
+      FM_TEST_CODE_NATIVE="$(cygpath -w "$CODE")" powershell.exe -NoProfile -NonInteractive -Command '
+        & (Join-Path $env:FM_TEST_CODE_NATIVE "bin/fm-windows-git-bash.ps1") (Join-Path $env:FM_TEST_CODE_NATIVE "bin/fm-control.sh") task-a inspect
+        exit $LASTEXITCODE
+      ') || fail "$form context inspection failed through the native launcher"
+    printf '%s' "$out" | jq -e '.schema == "fm-control-inspection.v1" and .agent_state == "missing" and .action_in_progress == false' \
+      >/dev/null || fail "$form context inspection changed its observation"
+    [ ! -s "$dir/actions" ] || fail "$form inspection delivered a lifecycle action"
+  done
+  pass "read-only control inspection accepts equivalent Windows and POSIX context paths"
+}
+
+test_recovery_receipt_home_aliases_remain_readable() {
+  local dir token receipt home form out
+  case "${OS:-}" in Windows_NT) ;; *) return 0 ;; esac
+  dir=$(make_case receipt-path-alias)
+  token=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  receipt="$dir/home/state/task-a.control-recovery/$token/receipt.json"
+  mkdir -p "${receipt%/*}" "$dir/foreign-home"
+  printf 'control_recovery_token=%s\n' "$token" >> "$dir/home/state/task-a.meta"
+  for form in native mixed posix; do
+    home="$dir/home"
+    case "$form" in native) home=$(cygpath -w "$home");; mixed) home=$(cygpath -m "$home");; esac
+    jq -cn --arg token "$token" --arg home "$home" \
+      '{schema:"fm-control-recovery-plan.v1",approval:$token,bindings:{task:"task-a",home:$home},phase:"complete"}' > "$receipt"
+    cp "$receipt" "$dir/before-receipt"
+    out=$(control "$dir" inspect 2>&1) || fail "$form legacy receipt was unreadable through the equivalent home: $out"
+    printf '%s' "$out" | jq -e '.recovery.phase == "complete"' >/dev/null || fail "$form receipt lost its completed phase"
+    cmp -s "$dir/before-receipt" "$receipt" || fail "inspection rewrote a bound receipt"
+  done
+  jq --arg home "$dir/foreign-home" '.bindings.home=$home' "$receipt" > "$dir/foreign-receipt"
+  mv "$dir/foreign-receipt" "$receipt"
+  if control "$dir" inspect >/dev/null 2>&1; then fail "a receipt from another physical home was accepted"; fi
+  [ ! -s "$dir/actions" ] || fail "receipt inspection performed a lifecycle action"
+  pass "completed receipts retain their bytes across home spellings and refuse a different directory identity"
+}
+
 test_recovery_approved_and_idempotent() {
 local dir before out token inspected
 dir=$(make_case approved)
@@ -371,4 +426,6 @@ fm_test_run_cases \
   test_relaunch_slow_probe_consumes_deadline \
   test_relaunch_stuck_probe_is_bounded_and_reaped \
   test_relaunch_completed_probe_keeps_parent_transaction \
-  test_windows_relaunch_query_deadline_reaps_native_process
+  test_windows_relaunch_query_deadline_reaps_native_process \
+  test_control_inspect_accepts_windows_path_context \
+  test_recovery_receipt_home_aliases_remain_readable

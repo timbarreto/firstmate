@@ -15,6 +15,10 @@ The tracked code root contains the shared instruction, skill, documentation, wor
 `config/` holds local gitignored operating choices, including explicit extension bindings under `config/extensions.d/`, and `projects/` holds the local project clones that Firstmate reads but changes only through the narrow guarded and concrete captain-approved exceptions in `AGENTS.md`.
 Untracked files and directories whose names begin with `scratchpad` are also gitignored, so temporary scratch does not make porcelain-based secondmate sync guards treat a home as dirty.
 
+On Windows, the control, send, spawn, and PR/check registration commands accept fully qualified Windows and Git Bash spellings for their selected home and code paths through [`bin/fm-path-lib.sh`](../bin/fm-path-lib.sh).
+Use an absolute drive or UNC path rather than drive-relative forms such as `C:folder`; path spelling never bypasses directory existence, task identity, ownership, or permission checks.
+This does not require changing installed shell profiles or retrying a failed operation under a different spelling.
+
 `bin/fm-spawn.sh` owns the base task-metadata fields it emits, while the runtime-backend section below owns backend-specific fields and selector interpretation.
 The producing PR and Relay helpers own the fields they append, `bin/fm-classify-lib.sh` owns status-event vocabulary, and `bin/fm-crew-state.sh` owns current-state reconciliation.
 Wake, watcher, away-mode, and Relay-specific state mechanics remain with their named scripts and reference sections rather than being duplicated into one exhaustive state tree here.

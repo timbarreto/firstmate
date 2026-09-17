@@ -11,6 +11,7 @@ The [implementation plan](upstream-plan.md) records the approved design and acce
 | Copilot/Pi policy | `bin/fm-harness-lib.sh`, `bin/harnesses/copilot.sh`, `bin/harnesses/pi.sh` | Detection order, profile selection, lifecycle transactions, and every nonpilot path |
 | Process/directory identity and native transport | `bin/platform/process.mjs`, its `.d.mts` declarations, `bin/fm-platform-process-lib.sh`, `bin/platform/windows-process.ps1` | Ownership, generation checks, escalation, and backend leases |
 | Backend harness-process classification | `bin/fm-agent-process-lib.sh` | tmux and Herdr retain recovery, busy-state, and close-authority decisions |
+| Bash/native path spelling | `bin/fm-path-lib.sh` | Explicit home/code context initialization; filesystem identity and authorization remain with callers |
 | Native private paths | `bin/fm-private-path-lib.sh`, `bin/platform/windows-private-path.ps1` | Caller-specific POSIX policy, transaction ordering, publication, and rollback |
 | Azure PR identity and observation | `bin/fm-pr-poll.sh`, consumed through `bin/fm-pr-lib.sh` | Canonical private registration, notification, merge authority, and landed-work proof |
 | Test metadata | `bin/fm-test-catalog-lib.sh`, `tests/catalog/core.tsv`, `tests/catalog/fork.tsv` | Runner execution and reference expansion; independent proof admission |
@@ -72,6 +73,16 @@ Each successful load replaces the prior cache, including entries no longer prese
 Parallel-lane hint overrides do not change serial scheduling weights or concurrency admission.
 Missing dependencies or invalid records stop selection explicitly.
 `.gitattributes` preserves the catalogs' LF format on Windows.
+
+## Path spelling and directory identity
+
+`bin/fm-path-lib.sh` owns Bash path spelling, declared context initialization, and explicit path arguments for native consumers.
+Its header owns supported forms and refusal mechanics.
+Control, send, spawn, and PR/check registration initialize their selected home/code paths before using them; source-only helpers do not implicitly rewrite a caller's environment.
+Native Git receives explicit native directory arguments instead of relying on MSYS heuristics for paths containing spaces, Unicode, or glob metacharacters.
+Spelling conversion preserves unexamined components and does not confer filesystem permission, resolve a symbolic link as authorization, or cache an identity verdict.
+The existing `fm_platform_same_directory` predicate remains the identity owner used by isolation and recovery checks.
+Retained recovery receipts are not rewritten merely to change their home spelling; inspection checks that the bound home identifies the same existing directory.
 
 ## Private-path seam
 
@@ -161,7 +172,7 @@ The existing update and restart owners retain their authority.
 | --- | --- |
 | `tests/harness-helpers.sh` | Harness interface, both registered adapters, and process dependencies |
 | `tests/process-helpers.sh` | Bash process helpers, canonical module and declarations, and native process implementation |
-| `tests/private-path-helpers.sh` | Bash interface and native ACL implementation |
+| `tests/private-path-helpers.sh` | Shared path spelling, Bash private-path interface, and native ACL implementation |
 | `tests/catalog-helpers.sh` | Real catalog loader, valid fixture catalogs, and the required proof-list dependency |
 
 Synthetic catalogs may describe a minimal test world; they are not another production registry.

@@ -137,6 +137,9 @@ if [ -z "${FM_HOME+x}" ] || [ -z "${FM_HOME:-}" ]; then
   echo "error: FM_HOME is not set; fm-control refuses to resolve a task without an explicit firstmate home" >&2
   exit 1
 fi
+# shellcheck source=bin/fm-path-lib.sh
+. "$SCRIPT_DIR/fm-path-lib.sh" || exit 1
+fm_path_normalize_context || exit 1
 [ -d "$FM_HOME" ] || {
   echo "error: FM_HOME '$FM_HOME' is not a directory" >&2
   exit 1
@@ -798,20 +801,21 @@ resolve_relaunch_profile() {
 # refuses outright when any of it cannot be established.
 CHECKPOINT_LINES=()
 safe_checkpoint() {
-  local wt_real wt_top wt_top_real head head_ref head_ref_status status_output dirty children marker child_meta
+  local wt_real wt_top wt_top_real wt_git_path head head_ref head_ref_status status_output dirty children marker child_meta
   CHECKPOINT_LINES=()
   [ -n "$WT" ] || die "task $ID has no recorded worktree; refusing to relaunch without a recorded local copy to preserve"
   [ -d "$WT" ] || die "task $ID's recorded worktree $WT is missing; refusing to relaunch and lose track of its work"
   wt_real=$(cd "$WT" 2>/dev/null && pwd -P) || die "task $ID's recorded worktree $WT cannot be resolved"
-  wt_top=$(git -C "$WT" rev-parse --show-toplevel 2>/dev/null) \
+  fm_path_native_argument "$wt_real" wt_git_path || die "task $ID's Git directory argument cannot be resolved"
+  wt_top=$(git -C "$wt_git_path" rev-parse --show-toplevel 2>/dev/null) \
     || die "task $ID's recorded worktree $WT is not a git worktree; refusing to relaunch without a checkout whose unlanded work can be accounted for"
   wt_top_real=$(cd "$wt_top" 2>/dev/null && pwd -P) || wt_top_real=$wt_top
-  [ "$wt_real" = "$wt_top_real" ] \
+  fm_platform_same_directory "$wt_real" "$wt_top_real" \
     || die "task $ID's recorded worktree $WT is not a worktree root (root is $wt_top); refusing to relaunch against an ambiguous checkout"
-  if head=$(git -C "$WT" rev-parse --verify HEAD 2>/dev/null); then
+  if head=$(git -C "$wt_git_path" rev-parse --verify HEAD 2>/dev/null); then
     :
-  elif head_ref=$(git -C "$WT" symbolic-ref -q HEAD 2>/dev/null); then
-    if git -C "$WT" show-ref --verify --quiet "$head_ref" 2>/dev/null; then
+  elif head_ref=$(git -C "$wt_git_path" symbolic-ref -q HEAD 2>/dev/null); then
+    if git -C "$wt_git_path" show-ref --verify --quiet "$head_ref" 2>/dev/null; then
       die "task $ID's worktree HEAD exists but cannot be resolved; refusing to relaunch from an unreadable checkout"
     else
       head_ref_status=$?
@@ -822,7 +826,7 @@ safe_checkpoint() {
   else
     die "task $ID's worktree HEAD cannot be inspected; refusing to relaunch from an unreadable checkout"
   fi
-  status_output=$(git -C "$WT" status --porcelain 2>/dev/null) \
+  status_output=$(git -C "$wt_git_path" status --porcelain 2>/dev/null) \
     || die "task $ID's worktree status cannot be inspected; refusing to relaunch without accounting for local changes"
   if [ -n "$status_output" ]; then
     dirty=yes
