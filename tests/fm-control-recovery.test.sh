@@ -32,7 +32,35 @@ fm_backend_herdr_parse_target() {
 fm_backend_herdr_agent_state() {
   case "$1" in
     fixture:w2:p2) printf '%s' "${FM_TEST_CURRENT_STATE:-missing}" ;;
-    fixture:w1:p1) cat "$FM_TEST_CASE/agent" ;;
+    fixture:w1:p1)
+      if [ -f "$FM_TEST_CASE/launch-observed" ]; then
+        printf 'probe\n' >> "$FM_TEST_CASE/probes"
+        if [ "${FM_TEST_PROBE_MODE:-}" = stuck ]; then
+          # This function is already inside the real query subshell. Avoid
+          # spending the fixture deadline loading another Bash executable.
+          trap '' TERM
+          local probe_pid child
+          fm_current_pid probe_pid
+          printf '%s\n' "$probe_pid" > "$FM_TEST_CASE/probe-pid"
+          printf alive
+          /bin/sleep 12 &
+          child=$!
+          printf '%s\n' "$child" > "$FM_TEST_CASE/probe-child"
+          wait "$child"
+          : > "$FM_TEST_CASE/probe-escaped"
+          return 0
+        fi
+        if [ "${FM_TEST_PROBE_MODE:-}" = native-stuck ]; then
+          FM_TEST_NATIVE_RECORD=$(cygpath -m "$FM_TEST_CASE/native-process.json") \
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+              -File "$(cygpath -w "$FM_TEST_CASE/native-probe.ps1")"
+          return $?
+        fi
+        /bin/sleep "${FM_TEST_PROBE_DELAY:-0}"
+        printf 'complete\n' >> "$FM_TEST_CASE/completed-probes"
+      fi
+      cat "$FM_TEST_CASE/agent"
+      ;;
     *) printf unreadable ;;
   esac
 }
@@ -58,7 +86,15 @@ cat > "$CODE/bin/fm-spawn.sh" <<'SH'
 set -eu
 [ "$1" = task-a ] && [ "$2" = --relaunch ] || exit 2
 printf 'launch\n' >> "$FM_TEST_CASE/actions"
-printf alive > "$FM_TEST_CASE/agent"
+if [ "${FM_TEST_PROBE_MODE:-}" = ready ]; then
+  printf alive > "$FM_TEST_CASE/agent"
+  : > "$FM_TEST_CASE/launch-observed"
+elif [ -n "${FM_TEST_PROBE_DELAY:-}${FM_TEST_PROBE_MODE:-}" ]; then
+  printf dead > "$FM_TEST_CASE/agent"
+  : > "$FM_TEST_CASE/launch-observed"
+else
+  printf alive > "$FM_TEST_CASE/agent"
+fi
 awk '$0 ~ /^spawn_gen=/ {$0="spawn_gen=new-generation"} {print}' "$FM_STATE_OVERRIDE/task-a.meta" > "$FM_STATE_OVERRIDE/next.meta"
 mv "$FM_STATE_OVERRIDE/next.meta" "$FM_STATE_OVERRIDE/task-a.meta"
 SH
@@ -100,13 +136,128 @@ control() {
   local dir=$1; shift
   env FM_TEST_REAL_ROOT="$ROOT" FM_TEST_CASE="$dir" FM_HOME="$dir/home" \
     FM_ROOT_OVERRIDE="$CODE" FM_STATE_OVERRIDE="$dir/home/state" FM_DATA_OVERRIDE="$dir/home/data" \
-    FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
+    FM_CONTROL_POLL="${FM_TEST_CONTROL_POLL:-0.01}" FM_CONTROL_EXIT_WAIT=10 \
+    FM_CONTROL_LAUNCH_WAIT="${FM_TEST_CONTROL_LAUNCH_WAIT:-10}" \
     PATH="$dir/fakebin:$PATH" "$CODE/bin/fm-control.sh" task-a "$@"
 }
 plan() { control "$1" inspect --recover-from "$1/home/data/task-a/original.meta"; }
 recover() {
   control "$1" relaunch --recover-from "$1/home/data/task-a/original.meta" \
     --approve-recovery "$2" --note 'Approved original-worker recovery; preserve both copies.'
+}
+
+test_relaunch_slow_probe_consumes_deadline() {
+  local dir out rc=0 count
+  dir=$(make_case slow-probe)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  out=$(FM_TEST_PROBE_DELAY=4 FM_TEST_CONTROL_POLL=2 FM_TEST_CONTROL_LAUNCH_WAIT=2 \
+    control "$dir" relaunch --note 'A failed replacement must not multiply its wait by query cost.' 2>&1) || rc=$?
+  expect_code 1 "$rc" "slow launch confirmation must report failure: $out"
+  [ -f "$dir/launch-observed" ] && [ -s "$dir/probes" ] || fail "slow probe did not run after launch"
+  count=$(wc -l < "$dir/probes")
+  [ "$count" -eq 1 ] || fail "a two-second wait made $count queries despite each taking at least four seconds"
+  [ ! -s "$dir/completed-probes" ] || fail "the status query outlived the shared deadline"
+  assert_contains "$out" 'did not come up within 2s' "timeout must retain the existing recovery refusal"
+  assert_grep 'phase=failed:launching' "$dir/home/state/task-a.control-relaunch" "failed launch phase missing"
+  assert_grep 'rollback=none-new-record-kept' "$dir/home/state/task-a.control-relaunch" "replacement record was not preserved"
+  assert_grep 'spawn_gen=new-generation' "$dir/home/state/task-a.meta" "timed-out replacement reverted its record"
+  assert_grep 'unfinished original work' "$dir/original/preserved.txt" "timeout discarded the original work"
+  [ ! -e "$dir/home/state/.control-task-a.lock" ] && [ ! -L "$dir/home/state/.control-task-a.lock" ] \
+    || fail "timed-out recovery retained lifecycle authority"
+  pass "relaunch charges slow observations to one deadline and preserves failed replacement state"
+}
+
+test_relaunch_stuck_probe_is_bounded_and_reaped() {
+  local dir out rc=0 pid i stat
+  dir=$(make_case stuck-probe)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  # Partial alive output followed by a TERM-resistant query and descendant
+  # must not become launch confirmation, even when their output pipe stays open.
+  out=$(FM_TEST_PROBE_MODE=stuck FM_TEST_CONTROL_POLL=2 FM_TEST_CONTROL_LAUNCH_WAIT=4 \
+    control "$dir" relaunch --note 'An unfinished observation must not confirm the replacement.' 2>&1) || rc=$?
+  expect_code 1 "$rc" "a stuck observation must fail recovery: $out"
+  [ -s "$dir/probe-pid" ] && [ -s "$dir/probe-child" ] || fail "TERM-resistant probe did not reach its child"
+  [ ! -e "$dir/probe-escaped" ] || fail "stuck probe completed outside the configured deadline"
+  assert_contains "$out" "endpoint reads 'unreadable'" "partial alive output was accepted as a completed observation"
+  assert_grep 'phase=failed:launching' "$dir/home/state/task-a.control-relaunch" "stuck query lost failed-launch phase"
+  assert_grep 'rollback=none-new-record-kept' "$dir/home/state/task-a.control-relaunch" "stuck query reverted its replacement"
+  for pid in "$(cat "$dir/probe-pid")" "$(cat "$dir/probe-child")"; do
+    i=0
+    while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 30 ]; do
+      # A terminated, not-yet-reaped child is not a running escaped observer.
+      stat=
+      if [ -r "/proc/$pid/stat" ]; then
+        IFS= read -r stat < "/proc/$pid/stat" || true
+        case "${stat##*)}" in ' Z '*) break ;; esac
+      else
+        stat=$(ps -p "$pid" -o stat= 2>/dev/null || true)
+        case "$stat" in Z*) break ;; esac
+      fi
+      /bin/sleep 0.1
+      i=$((i + 1))
+    done
+    [ "$i" -lt 30 ] || fail "owned observation process $pid escaped timeout cleanup"
+  done
+  [ ! -e "$dir/home/state/.control-task-a.lock" ] && [ ! -L "$dir/home/state/.control-task-a.lock" ] \
+    || fail "stuck recovery retained lifecycle authority"
+  pass "relaunch kills its TERM-resistant observation group and rejects partial alive output"
+}
+
+test_relaunch_completed_probe_keeps_parent_transaction() {
+  local dir out
+  dir=$(make_case completed-probe)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  out=$(FM_TEST_PROBE_MODE=ready control "$dir" relaunch --note 'A completed observation confirms this replacement.' 2>&1) \
+    || fail "completed observation failed recovery: $out"
+  assert_contains "$out" 'relaunched task-a' "completed observation lost its success result"
+  [ "$(wc -l < "$dir/probes")" -eq 1 ] || fail "completed observation was polled again"
+  assert_grep 'phase=complete' "$dir/home/state/task-a.control-relaunch" "observer ran the parent's rollback"
+  assert_grep 'spawn_gen=new-generation' "$dir/home/state/task-a.meta" "successful observer reverted replacement state"
+  [ ! -e "$dir/home/state/.control-task-a.lock" ] && [ ! -L "$dir/home/state/.control-task-a.lock" ] \
+    || fail "completed recovery retained lifecycle authority"
+  pass "a complete pre-deadline observation confirms launch without inheriting parent rollback"
+}
+
+test_windows_relaunch_query_deadline_reaps_native_process() {
+  local dir out rc=0 native_record
+  case "${OS:-}" in Windows_NT) ;; *) return 0 ;; esac
+  command -v powershell.exe >/dev/null 2>&1 || fail "PowerShell is required for the native query deadline case"
+  dir=$(make_case native-query)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  cat > "$dir/native-probe.ps1" <<'PS'
+$process = Get-Process -Id $PID
+@{ pid=$PID; birth=$process.StartTime.ToUniversalTime().Ticks.ToString() } |
+  ConvertTo-Json -Compress | Set-Content -LiteralPath $env:FM_TEST_NATIVE_RECORD
+[Console]::Write('alive')
+Start-Sleep -Seconds 30
+Set-Content -LiteralPath ($env:FM_TEST_NATIVE_RECORD + '.escaped') -Value 'escaped'
+PS
+  out=$(FM_TEST_PROBE_MODE=native-stuck FM_TEST_CONTROL_LAUNCH_WAIT=8 \
+    control "$dir" relaunch --note 'Bound the native status query, not the worker it observes.' 2>&1) || rc=$?
+  expect_code 1 "$rc" "unfinished native observation must not confirm recovery: $out"
+  [ -f "$dir/native-process.json" ] || fail "native process did not start inside the fixture's query window"
+  [ ! -e "$dir/native-process.json.escaped" ] || fail "native query escaped its deadline"
+  assert_contains "$out" "endpoint reads 'unreadable'" "native partial output became a liveness verdict"
+  native_record=$(cygpath -m "$dir/native-process.json")
+  # Read only the exact PID/birth tuple created by this fixture; never signal
+  # the worker or scan another process tree to compensate for failed cleanup.
+  # shellcheck disable=SC2016 # PowerShell expands its own process/identity variables.
+  FM_TEST_NATIVE_RECORD="$native_record" powershell.exe -NoProfile -NonInteractive -Command '
+    $record = Get-Content -Raw -LiteralPath $env:FM_TEST_NATIVE_RECORD | ConvertFrom-Json
+    $process = Get-Process -Id $record.pid -ErrorAction SilentlyContinue
+    if ($process -and -not $process.HasExited -and $process.StartTime.ToUniversalTime().Ticks.ToString() -eq $record.birth) {
+      Write-Output ("owned native query still running: pid=" + $record.pid + " observed=" + [DateTime]::UtcNow.ToString("o"))
+      exit 1
+    }
+    exit 0
+  ' || fail "the native query process survived the observation deadline"
+  assert_grep 'phase=failed:launching' "$dir/home/state/task-a.control-relaunch" "native query timeout lost failed phase"
+  assert_grep 'rollback=none-new-record-kept' "$dir/home/state/task-a.control-relaunch" "native query timeout reverted the task"
+  pass "Windows recovery bounds and reaps its native observation without claiming partial alive output"
 }
 
 test_recovery_approved_and_idempotent() {
@@ -216,4 +367,8 @@ fm_test_run_cases \
   test_recovery_live_and_foreign_refusals \
   test_recovery_pid_drift_and_partial_replay \
   test_recovery_ambiguous_evidence_refuses \
-  test_recovery_other_claim_refuses_publication
+  test_recovery_other_claim_refuses_publication \
+  test_relaunch_slow_probe_consumes_deadline \
+  test_relaunch_stuck_probe_is_bounded_and_reaped \
+  test_relaunch_completed_probe_keeps_parent_transaction \
+  test_windows_relaunch_query_deadline_reaps_native_process

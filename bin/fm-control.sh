@@ -107,8 +107,11 @@
 # Environment knobs (all bounded waits, seconds):
 #   FM_CONTROL_POLL              poll interval for postcondition waits (0.5)
 #   FM_CONTROL_SETTLE_WAIT       adapter acknowledgement wait after interrupt (5)
-#   FM_CONTROL_EXIT_WAIT         alive->dead wait after the exit command (30)
-#   FM_CONTROL_LAUNCH_WAIT       dead->alive wait after a relaunch (90)
+#   FM_CONTROL_EXIT_WAIT         positive elapsed-time alive->dead bound (30)
+#   FM_CONTROL_LAUNCH_WAIT       positive elapsed-time dead->alive bound (90)
+#       Each postcondition bound includes its status queries and poll sleeps.
+#       An unfinished query at expiry is unreadable, never proof of agent exit
+#       or successful launch. Preparation and launch delivery are separate.
 #   FM_CONTROL_EXIT_RETRIES      Enter retries for the exit command (3)
 set -eu
 
@@ -155,6 +158,8 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 . "$SCRIPT_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
+# shellcheck source=bin/fm-timeout-lib.sh
+. "$SCRIPT_DIR/fm-timeout-lib.sh"
 
 POLL=${FM_CONTROL_POLL:-0.5}
 SETTLE_WAIT=${FM_CONTROL_SETTLE_WAIT:-5}
@@ -384,25 +389,43 @@ busy_verdict() {
   fm_busy_classify_meta "$META" "$ID" "$STATE"
 }
 
-# wait_agent_state <wanted...> <timeout>: poll until agent_state prints one of
-# the wanted values. Prints the final observed state; returns 0 on a match.
-wait_agent_state() {  # <timeout> <wanted>...
-  local timeout=$1 state want elapsed=0
-  shift
+# This read-only loop runs inside the timeout owner's isolated process group.
+# Publish unreadable before each query so a killed or partially printed query
+# cannot leave a previous observation masquerading as its completed result.
+wait_agent_state_observe() {  # <wanted>...
+  local state want
   while :; do
-    state=$(agent_state)
+    printf 'unreadable\n'
+    state=$(agent_state) || return 1
+    printf '%s\n' "$state"
     for want in "$@"; do
-      if [ "$state" = "$want" ]; then
-        printf '%s' "$state"
-        return 0
-      fi
+      [ "$state" != "$want" ] || return 0
     done
-    awk -v e="$elapsed" -v t="$timeout" 'BEGIN{exit !(e < t)}' || break
-    sleep "$POLL"
-    elapsed=$(awk -v e="$elapsed" -v p="$POLL" 'BEGIN{printf "%.3f", e + p}')
+    sleep "$POLL" || return 1
   done
-  printf '%s' "$state"
-  return 1
+}
+
+# One elapsed-time deadline covers all queries and sleeps, including a stuck
+# query. Prints the last completed observation (or unreadable while a query is
+# incomplete); only a match completed before the bound returns success.
+wait_agent_state() {  # <timeout> <wanted>...
+  local timeout=$1 output rc=0 state
+  shift
+  if ! awk -v seconds="$timeout" 'BEGIN { exit !(seconds ~ /^([0-9]+([.][0-9]*)?|[.][0-9]+)$/ && seconds + 0 > 0) }'; then
+    printf 'unreadable'
+    return 1
+  fi
+  output=$(
+    # The parent alone owns lifecycle rollback and lease/lock release. Neither
+    # the observer nor its watchdog may inherit that transaction's EXIT trap.
+    trap - EXIT
+    # The documented Bash mechanism accepts the already-loaded shell function
+    # and bounds its descendants without reloading adapters or changing Bash.
+    FM_TIMEOUT_MECHANISM_OVERRIDE=bash fm_run_timed "$timeout" wait_agent_state_observe "$@"
+  ) || rc=$?
+  state=${output##*$'\n'}
+  printf '%s' "${state:-unreadable}"
+  [ "$rc" -eq 0 ]
 }
 
 require_state_verified_backend() {  # <verb>

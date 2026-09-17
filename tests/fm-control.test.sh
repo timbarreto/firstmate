@@ -144,7 +144,8 @@ if [ -n "${FM_FAKE_MUSE_DISAPPEAR_BEFORE_ACK:-}" ] \
   printf 'zsh' > "$FM_FAKE_DIR/command"
   printf '%s\n' '{"schema_version":1,"payload_type":"runtime.session","payload":{"kind":"run","run_id":"run-1","event":{"kind":"terminal","terminal":"cancelled","reason":null}}}' >> "$FM_FAKE_MUSE_LOG"
 fi
-exit 0
+# Preserve watchdog time while retaining the fixture's acknowledgement event.
+exec /bin/sleep "$@"
 SH
   chmod +x "$fb/sleep"
   printf '%s\n' "$fb"
@@ -195,7 +196,7 @@ run_control() {
   local dir=$1; shift
   env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
     FM_CONTROL_POLL=0.01 FM_CONTROL_SETTLE_WAIT=0.05 \
-    FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
+    FM_CONTROL_EXIT_WAIT=20 FM_CONTROL_LAUNCH_WAIT=20 \
     FM_FAKE_MUSE_LOG="${FM_FAKE_MUSE_LOG:-}" \
     FM_FAKE_MUSE_DISAPPEAR_BEFORE_ACK="${FM_FAKE_MUSE_DISAPPEAR_BEFORE_ACK:-}" \
     FM_FAKE_INTERRUPT_STOPS_AGENT="${FM_FAKE_INTERRUPT_STOPS_AGENT:-}" \
@@ -793,12 +794,16 @@ test_agent_that_does_not_stop_fails_closed() {
   gen=$("$ROOT/bin/fm-busy-event.sh" arm "$dir/home/state" t1)
   printf 'busy_gen=%s\n' "$gen" >> "$dir/home/state/t1.meta"
   out=$(env FM_FAKE_NEVER_DIES=1 PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" \
-    FM_FAKE_DIR="$dir/fake" FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 \
+    FM_FAKE_DIR="$dir/fake" FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=2 \
     "$CONTROL" t1 exit 2>&1); rc=$?
   expect_code 1 "$rc" "an agent that ignores its exit command should fail closed"
   assert_contains "$out" "did not stop" "the failure should say the agent did not stop"
-  assert_contains "$out" "exit-delivered t1 interrupt=delivered verified=agent-alive cancel=unconfirmed exit-command=delivered agent-state=alive exit=unconfirmed" \
+  assert_contains "$out" "exit-delivered t1 interrupt=delivered verified=agent-alive cancel=unconfirmed exit-command=delivered" \
     "the failure should distinguish delivered lifecycle input from the unconfirmed exit"
+  case "$out" in
+    *'agent-state=alive exit=unconfirmed'*|*'agent-state=unreadable exit=unconfirmed'*) ;;
+    *) fail "a timed-out exit claimed stopped or lost its incomplete-observation state: $out" ;;
+  esac
   assert_not_contains "$out" "nothing was changed" \
     "the failure must not deny the lifecycle input that was delivered"
   [ "$(keys_sent "$dir")" = Escape ] \
@@ -881,38 +886,39 @@ test_fm_send_still_marks_the_same_secondmate_task() {
   pass "fm-control's arrival leaves fm-send's from-firstmate marking untouched"
 }
 
-test_exit_types_each_harness_verified_command
-test_interrupt_sends_each_harness_verified_key
-test_opencode_interrupts_twice_and_others_once
-test_unverified_harness_is_refused
-test_harness_family_resolution
-test_prefixed_recorded_harness_reaches_each_control_verb
-test_backend_key_capability_matrix
-test_harness_kind_capability
-test_orca_refuses_an_escape_harness_interrupt
-test_unverified_state_backends_refuse_stop_verbs
-test_state_verified_backends_are_exactly_tmux_and_herdr
-test_window_label_is_refused_with_the_exact_id
-test_explicit_endpoint_is_refused
-test_unknown_task_is_refused
-test_record_bound_to_another_task_is_refused
-test_remote_secondmate_is_refused_by_placement
-test_interrupt_and_exit_lock_before_task_state_resolution
-test_verb_allowlist_is_closed
-test_resume_is_refused_with_its_reason
-test_relaunch_only_flags_are_rejected_on_other_verbs
-test_already_stopped_exit_is_idempotent
-test_missing_endpoint_refuses
-test_interrupt_refuses_when_no_agent_runs
-test_ambiguous_endpoint_refuses
-test_busy_agent_is_interrupted_before_the_exit_command
-test_idle_agent_is_not_interrupted
-test_interrupt_without_acknowledgement_preserves_busy_state
-test_muse_interrupt_confirms_adapter_acknowledgement
-test_interrupt_revalidates_agent_after_acknowledgement_wait
-test_exit_accepts_agent_stopped_by_busy_interrupt
-test_agent_that_does_not_stop_fails_closed
-test_grok_interrupt_without_acknowledgement_reports_unconfirmed
-test_grok_idle_footer_does_not_confirm_cancellation
-test_secondmate_control_command_carries_no_marker
-test_fm_send_still_marks_the_same_secondmate_task
+fm_test_run_cases \
+  test_exit_types_each_harness_verified_command \
+  test_interrupt_sends_each_harness_verified_key \
+  test_opencode_interrupts_twice_and_others_once \
+  test_unverified_harness_is_refused \
+  test_harness_family_resolution \
+  test_prefixed_recorded_harness_reaches_each_control_verb \
+  test_backend_key_capability_matrix \
+  test_harness_kind_capability \
+  test_orca_refuses_an_escape_harness_interrupt \
+  test_unverified_state_backends_refuse_stop_verbs \
+  test_state_verified_backends_are_exactly_tmux_and_herdr \
+  test_window_label_is_refused_with_the_exact_id \
+  test_explicit_endpoint_is_refused \
+  test_unknown_task_is_refused \
+  test_record_bound_to_another_task_is_refused \
+  test_remote_secondmate_is_refused_by_placement \
+  test_interrupt_and_exit_lock_before_task_state_resolution \
+  test_verb_allowlist_is_closed \
+  test_resume_is_refused_with_its_reason \
+  test_relaunch_only_flags_are_rejected_on_other_verbs \
+  test_already_stopped_exit_is_idempotent \
+  test_missing_endpoint_refuses \
+  test_interrupt_refuses_when_no_agent_runs \
+  test_ambiguous_endpoint_refuses \
+  test_busy_agent_is_interrupted_before_the_exit_command \
+  test_idle_agent_is_not_interrupted \
+  test_interrupt_without_acknowledgement_preserves_busy_state \
+  test_muse_interrupt_confirms_adapter_acknowledgement \
+  test_interrupt_revalidates_agent_after_acknowledgement_wait \
+  test_exit_accepts_agent_stopped_by_busy_interrupt \
+  test_agent_that_does_not_stop_fails_closed \
+  test_grok_interrupt_without_acknowledgement_reports_unconfirmed \
+  test_grok_idle_footer_does_not_confirm_cancellation \
+  test_secondmate_control_command_carries_no_marker \
+  test_fm_send_still_marks_the_same_secondmate_task
