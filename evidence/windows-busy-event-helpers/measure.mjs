@@ -65,7 +65,7 @@ function execute(spec) {
   });
   const done = observeChild(child);
   child.stdin.on("error", error => { if (error.code !== "EPIPE") throw error; });
-  child.stdin.end();
+  child.stdin.end(spec.input ?? "");
   return done;
 }
 const silent = result => {
@@ -160,7 +160,7 @@ const manifest = selected.flatMap(s => Object.entries(pins).map(([version, pin])
     assert.equal(hook.type, "command");
     assert.equal(hook.timeoutSec, 10, "Do not change the generated vendor hook bound");
     Object.assign(spec, { file: ps, args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", `${hook.powershell}; exit $LASTEXITCODE`],
-      boundary: "native generated PowerShell worker command -> hook owner -> busy writer close", vendorTimeoutSec: hook.timeoutSec });
+      boundary: "native generated PowerShell worker command -> hook owner -> busy writer close", input: "{}", vendorTimeoutSec: hook.timeoutSec });
   }
   if (s.harness === "pi") spec.boundary = s.id === "pi-progress"
     ? "generated progress callback -> real Bash helper close; NOT synchronous callback blocking"
