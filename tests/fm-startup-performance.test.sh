@@ -69,6 +69,193 @@ test_metadata_reads_support_in_process_results() (
   pass "metadata can be read in-process without changing literal or legacy results"
 )
 
+test_backend_metadata_selection_stays_in_process() (
+  # shellcheck source=bin/fm-backend.sh
+  . "$ROOT/bin/fm-backend.sh"
+  local meta="$TMP_ROOT/backend-cost.meta" output="$TMP_ROOT/backend-cost.out"
+  local expected="$TMP_ROOT/backend-cost.expected" reads="$TMP_ROOT/backend-cost.reads"
+  local caller_depth=$BASH_SUBSHELL depth
+  : > "$reads"
+  # Observe real filesystem reads, including on stock Bash 3.2, without
+  # replacing the metadata parser or inspecting implementation source text.
+  # shellcheck disable=SC2162,SC2329 # The real parser calls this option-preserving read probe.
+  read() { printf '%s\n' "$BASH_SUBSHELL" >> "$reads"; builtin read "$@"; }
+  printf 'backend=orca\nterminal=terminal-id\nwindow=window-id\n' > "$meta"
+  fm_backend_of_meta "$meta" > "$output" || fail "backend selection failed"
+  printf orca > "$expected"
+  cmp -s "$expected" "$output" || fail "backend selection changed its output bytes"
+  fm_backend_target_of_meta "$meta" > "$output" || fail "terminal selection failed"
+  printf terminal-id > "$expected"
+  cmp -s "$expected" "$output" || fail "target selection lost the Orca terminal"
+  printf 'backend=orca\nterminal=\nwindow=window-id\n' > "$meta"
+  fm_backend_target_of_meta "$meta" > "$output" || fail "window fallback failed"
+  printf window-id > "$expected"
+  cmp -s "$expected" "$output" || fail "target selection lost the Orca fallback"
+  [ -s "$reads" ] || fail "backend cost fixture did not observe any real reads"
+  while IFS= builtin read -r depth; do
+    [ "$depth" -eq "$caller_depth" ] \
+      || fail "backend metadata selection read in subshell depth $depth (caller $caller_depth)"
+  done < "$reads"
+  pass "backend metadata selection retains results without nested read subprocesses"
+)
+
+test_backend_metadata_values_preserve_caller_state() (
+  # shellcheck source=bin/fm-backend.sh
+  . "$ROOT/bin/fm-backend.sh"
+  local output="$TMP_ROOT/backend-values.out" errors="$TMP_ROOT/backend-values.err"
+  local expected="$TMP_ROOT/backend-values.expected" input="$TMP_ROOT/backend-values.in"
+  local v=caller-v backend=caller-backend terminal=caller-terminal window=caller-window
+  local selected_backend rc flags cwd remaining
+  # shellcheck disable=SC2016 # Path, arguments, and field values are literal data.
+  local meta='-backend café [data] $literal.meta' arg_two='$literal two'
+  # shellcheck disable=SC2016
+  local literal=' terminal=$literal "quoted" \ backslash ; $(never-run)  '
+  cd "$TMP_ROOT" || fail "could not enter the literal-path fixture"
+  set -f
+  IFS=:
+  set -- 'argument one' "$arg_two"
+  flags=$- cwd=$PWD
+  printf 'caller-input\n' > "$input"
+  exec < "$input"
+  expect_backend_values() {
+    local expected_backend=$1 expected_target=$2 expected_rc=$3
+    rc=0
+    fm_backend_of_meta "$meta" > "$output" 2> "$errors" || rc=$?
+    [ "$rc" -eq 0 ] && [ ! -s "$errors" ] || fail "backend reader changed its result status or diagnostics"
+    printf '%s' "$expected_backend" > "$expected"
+    cmp -s "$expected" "$output" || fail "backend reader changed literal/default/last-value bytes"
+    rc=0
+    fm_backend_target_of_meta "$meta" > "$output" 2> "$errors" || rc=$?
+    [ "$rc" -eq "$expected_rc" ] && [ ! -s "$errors" ] || fail "target reader changed its result status or diagnostics"
+    printf '%s' "$expected_target" > "$expected"
+    cmp -s "$expected" "$output" || fail "target reader changed literal/fallback/last-value bytes"
+  }
+  expect_backend_values tmux '' 1
+  : > "$meta"
+  expect_backend_values tmux '' 1
+  printf 'window=default-window\n' > "$meta"
+  expect_backend_values tmux default-window 0
+  for selected_backend in tmux herdr zellij cmux; do
+    printf 'backend=%s\nterminal=ignored\nwindow=selected-window\n' "$selected_backend" > "$meta"
+    expect_backend_values "$selected_backend" selected-window 0
+  done
+  printf '%s\n' 'backend=tmux' 'backend=orca' 'window=ignored' 'terminal=first' "terminal=$literal" > "$meta"
+  expect_backend_values orca "$literal" 0
+  printf 'backend=orca\nterminal=old\nterminal=\nwindow=fallback\n' > "$meta"
+  expect_backend_values orca fallback 0
+  printf 'backend=orca\nbackend=\nterminal=ignored\nwindow=old\nwindow=\n' > "$meta"
+  expect_backend_values tmux '' 1
+  printf 'backend=orca\n' > "$meta"
+  expect_backend_values orca '' 1
+  printf 'backend=%s\nterminal=ignored\nwindow=%s' "$literal" "$literal" > "$meta"
+  expect_backend_values "$literal" "$literal" 0
+  printf 'backend=orca\nterminal=%s' "$literal" > "$meta"
+  expect_backend_values orca "$literal" 0
+  printf 'backend=orca\r\nwindow=carriage-return-is-data\n' > "$meta"
+  expect_backend_values $'orca\r' carriage-return-is-data 0
+  rm -- "$meta"
+  expect_backend_values tmux '' 1
+  [ "$v:$backend:$terminal:$window" = caller-v:caller-backend:caller-terminal:caller-window ] \
+    || fail "backend selectors changed caller variables"
+  [ "$IFS" = : ] && [ "$-" = "$flags" ] && [ "$PWD" = "$cwd" ] \
+    || fail "backend selectors changed caller IFS, options, or directory"
+  [ "$#" -eq 2 ] && [ "$1" = 'argument one' ] && [ "$2" = "$arg_two" ] \
+    || fail "backend selectors changed caller arguments"
+  IFS= read -r remaining || fail "backend selectors consumed caller stdin"
+  [ "$remaining" = caller-input ] || fail "backend selectors changed caller stdin"
+  pass "backend selectors preserve literal results, defaults, failures, and caller state"
+)
+
+test_backend_metadata_selection_rechecks_between_reads() (
+  # shellcheck source=bin/fm-backend.sh
+  . "$ROOT/bin/fm-backend.sh"
+  local dir="$TMP_ROOT/backend-fresh" meta first second remove_after_read reads output errors expected
+  mkdir -p "$dir"
+  meta="$dir/task.meta" first="$dir/first.meta" second="$dir/second.meta"
+  remove_after_read="$dir/remove" reads="$dir/reads" output="$dir/out" errors="$dir/err" expected="$dir/expected"
+  # Publish a replacement only after a real reader reaches EOF. Its open file
+  # remains the old snapshot, while the next independent read sees the new one.
+  # shellcheck disable=SC2329 # Invoked by the real metadata reader.
+  read() {
+    local read_rc=0
+    # shellcheck disable=SC2162 # Forward the real reader's options unchanged.
+    builtin read "$@" || read_rc=$?
+    if [ "$read_rc" -ne 0 ]; then
+      printf 'read\n' >> "$reads"
+      if [ -f "$remove_after_read" ]; then
+        rm -- "$meta" "$remove_after_read" || exit 98
+      elif [ -f "$first" ]; then
+        mv -f -- "$first" "$meta" || exit 98
+      elif [ -f "$second" ]; then
+        mv -f -- "$second" "$meta" || exit 98
+      fi
+    fi
+    return "$read_rc"
+  }
+  expect_fresh_target() {
+    local rc=0 count
+    : > "$reads"
+    fm_backend_target_of_meta "$meta" > "$output" 2> "$errors" || rc=$?
+    [ "$rc" -eq "$2" ] && [ ! -s "$errors" ] || fail "fresh target read changed its status or diagnostics"
+    printf '%s' "$1" > "$expected"
+    cmp -s "$expected" "$output" || fail "target selection reused or reordered a metadata observation"
+    count=$(wc -l < "$reads")
+    [ "$count" -eq "$3" ] || fail "target selection changed its independent read phases ($count, expected $3)"
+  }
+  printf 'backend=orca\nterminal=stale\nwindow=stale\n' > "$meta"
+  printf 'backend=tmux\nterminal=\nwindow=too-early\n' > "$first"
+  printf 'backend=cmux\nterminal=too-late\nwindow=fresh-window\n' > "$second"
+  expect_fresh_target fresh-window 0 3
+  printf 'backend=herdr\nterminal=ignored\nwindow=stale\n' > "$meta"
+  printf 'backend=orca\nterminal=wrong-branch\nwindow=fresh-window\n' > "$first"
+  expect_fresh_target fresh-window 0 2
+  printf 'backend=orca\nterminal=stale\nwindow=stale\n' > "$meta"
+  printf 'backend=tmux\nterminal=fresh-terminal\nwindow=ignored\n' > "$first"
+  printf 'backend=cmux\nterminal=too-late\nwindow=too-late\n' > "$second"
+  expect_fresh_target fresh-terminal 0 2
+  printf 'backend=orca\nterminal=stale\nwindow=stale\n' > "$meta"
+  : > "$remove_after_read"
+  expect_fresh_target '' 1 1
+  pass "backend target selection keeps backend/terminal/window order and fresh independent reads"
+)
+
+test_backend_metadata_read_errors_do_not_abort_callers() (
+  local selector meta rc output="$TMP_ROOT/backend-read-error.out"
+  local errors="$TMP_ROOT/backend-read-error.err" expected="$TMP_ROOT/backend-read-error.expected"
+  for selector in fm_backend_of_meta fm_backend_target_of_meta; do
+    meta="$TMP_ROOT/read-error-$selector.meta"
+    printf 'backend=orca\nterminal=terminal-id\nwindow=window-id\n' > "$meta"
+    rc=0
+    # The real read encounters a directory replacing the successfully checked
+    # file. A continuation marker distinguishes normal failure from an abort.
+    # shellcheck disable=SC2016
+    "$BASH" -uc '
+      . "$1"
+      fault_meta=$2
+      selector=$3
+      function [ {
+        local predicate_rc=0
+        builtin [ "$@" || predicate_rc=$?
+        if test "$#" -eq 3 && test "$1" = -f && test "$2" = "$fault_meta" && test "$predicate_rc" -eq 0; then
+          rm -- "$fault_meta" && mkdir -- "$fault_meta" || exit 98
+        fi
+        return "$predicate_rc"
+      }
+      "$selector" "$fault_meta"
+      printf "\nreturned=%s\n" "$?"
+    ' _ "$ROOT/bin/fm-backend.sh" "$meta" "$selector" > "$output" 2> "$errors" || rc=$?
+    [ -d "$meta" ] || fail "selector read-error fixture did not replace the file"
+    [ "$rc" -eq 0 ] || fail "$selector aborted its caller on a read error (exit $rc)"
+    [ ! -s "$errors" ] || fail "$selector changed its read-error diagnostics"
+    case "$selector" in
+      fm_backend_of_meta) printf 'tmux\nreturned=0\n' > "$expected" ;;
+      fm_backend_target_of_meta) printf '\nreturned=1\n' > "$expected" ;;
+    esac
+    cmp -s "$expected" "$output" || fail "$selector changed its read-error output or status"
+  done
+  pass "backend selector read errors retain defaults and return without aborting callers"
+)
+
 test_metadata_first_read_error_returns_without_aborting() (
   local mode meta rc output="$TMP_ROOT/first-read-error.out" errors="$TMP_ROOT/first-read-error.err"
   local expected="$TMP_ROOT/first-read-error.expected"
@@ -525,6 +712,10 @@ test_snapshot_projection_bounds_json_tool_launches() (
 
 fm_test_run_cases \
   test_metadata_reads_support_in_process_results \
+  test_backend_metadata_selection_stays_in_process \
+  test_backend_metadata_values_preserve_caller_state \
+  test_backend_metadata_selection_rechecks_between_reads \
+  test_backend_metadata_read_errors_do_not_abort_callers \
   test_metadata_first_read_error_returns_without_aborting \
   test_metadata_later_read_error_stops_without_replaying_a_line \
   test_watcher_health_reads_records_without_subprocesses \

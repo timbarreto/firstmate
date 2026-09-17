@@ -399,18 +399,19 @@ fm_meta_get() {  # <meta-file> <key> [<destination>]
 # `tmux` when the field is absent - the P1 compatibility contract.
 fm_backend_of_meta() {  # <meta-file>
   local v
-  v=$(fm_meta_get "$1" backend)
+  fm_meta_get "$1" backend v
   printf '%s' "${v:-tmux}"
 }
 
 fm_backend_target_of_meta() {  # <meta-file>
   local meta=$1 backend terminal window
-  backend=$(fm_backend_of_meta "$meta")
+  fm_meta_get "$meta" backend backend
+  backend=${backend:-tmux}
   if [ "$backend" = orca ]; then
-    terminal=$(fm_meta_get "$meta" terminal)
+    fm_meta_get "$meta" terminal terminal
     [ -n "$terminal" ] && { printf '%s' "$terminal"; return 0; }
   fi
-  window=$(fm_meta_get "$meta" window)
+  fm_meta_get "$meta" window window
   [ -n "$window" ] && printf '%s' "$window"
 }
 
