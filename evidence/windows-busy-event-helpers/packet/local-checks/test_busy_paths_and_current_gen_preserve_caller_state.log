@@ -1,0 +1,8 @@
+FM_TEST_BEGIN 2026-09-17T03:15:00Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+ok - literal relative paths preserve caller state across gen, arm, apply, progress, and retire
+all fm-busy-state tests passed
+FM_TEST_END 2026-09-17T03:15:17Z tests/fm-busy-state.test.sh exit=0 duration_ms=16461 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=20773
+FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=16461 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=16461
+fm-test-run: wrote timing artifact: /c/src/.fm-perf-runs/busy-event-helpers/checks/test_busy_paths_and_current_gen_preserve_caller_state.json

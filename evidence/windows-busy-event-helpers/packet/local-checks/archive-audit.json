@@ -1,0 +1,90 @@
+{
+  "reference": {
+    "pins": {
+      "base": {
+        "root": "C:/src/firstmate-base-busy-event-helpers",
+        "sha": "0716ecdcb5b5e81654ef102eb471c2a04320f508"
+      },
+      "candidate": {
+        "root": "C:/src/firstmate-perf-busy-event-helpers",
+        "sha": "91a8d6dda8b6f15b80d1a105c0959a652d264f8b"
+      }
+    },
+    "driverSHA": "9aa87056d6eb1827fdd23bcf7ec552b06755f11d",
+    "driverFiles": {
+      "run.sh": "3cd97b7b7dc21ea6f153202e6e93da549ff256fdbe442606b540c103d6b8d1af",
+      "measure.mjs": "b217839a140599d45cc0e094d9335492dcd080ffeb593df6fa8b7301d9f7f7fc",
+      "trace-hook.sh": "ce9b627793f1b07a553f0a7767da9c843679deab8d9d161ce5b1312552c6d575"
+    },
+    "tools": {
+      "node": "v24.19.0",
+      "git": "git version 2.55.0.windows.5",
+      "bash": "GNU bash, version 5.3.15(2)-release (x86_64-pc-cygwin)\nCopyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.",
+      "powershell": "5.1.26100.9444",
+      "jq": "jq-1.8.2",
+      "perl": "v5.42.3",
+      "cygpath": "cygpath (cygwin) 3.6.10\nPath Conversion Utility\nCopyright (C) 1998 - 2026 Cygwin Authors\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+    },
+    "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef"
+  },
+  "audits": [
+    {
+      "batch": 1,
+      "fixtureOperations": 322,
+      "measuredOperations": 280,
+      "warmupOperations": 42,
+      "outputDigestsVerified": true,
+      "statisticsVerified": true,
+      "accepted": false,
+      "copilotFixtureCompletionsOverConfigured10Seconds": [
+        {
+          "scenario": "copilot-busy",
+          "version": "base",
+          "round": 5,
+          "ms": 10082.77350000001
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "fixtureOperations": 322,
+      "measuredOperations": 280,
+      "warmupOperations": 42,
+      "outputDigestsVerified": true,
+      "statisticsVerified": true,
+      "accepted": false,
+      "copilotFixtureCompletionsOverConfigured10Seconds": [
+        {
+          "scenario": "copilot-idle",
+          "version": "candidate",
+          "round": 0,
+          "ms": 11594.243099999992
+        },
+        {
+          "scenario": "copilot-idle",
+          "version": "base",
+          "round": 0,
+          "ms": 11577.90969999999
+        },
+        {
+          "scenario": "copilot-idle",
+          "version": "candidate",
+          "round": 7,
+          "ms": 10937.530300000042
+        },
+        {
+          "scenario": "copilot-idle",
+          "version": "candidate",
+          "round": 15,
+          "ms": 10605.151799999992
+        },
+        {
+          "scenario": "copilot-busy",
+          "version": "candidate",
+          "round": 19,
+          "ms": 26115.161299999803
+        }
+      ]
+    }
+  ]
+}

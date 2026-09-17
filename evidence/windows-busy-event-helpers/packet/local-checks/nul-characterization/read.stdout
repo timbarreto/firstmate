@@ -1,0 +1,1 @@
+v1 gen=g.fixture seq=7 state=busy source=pi-ext event=agent-start ts=1

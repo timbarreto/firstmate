@@ -1,0 +1,6 @@
+{
+  "status": 0,
+  "stdout": "",
+  "stderr": "",
+  "record": "v1 gen=g.fixture seq=3 state=busy source=copilot-hook event=user-prompt-submitted ts=1789615501\n"
+}

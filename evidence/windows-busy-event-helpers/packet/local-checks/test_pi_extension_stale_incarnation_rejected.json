@@ -1,0 +1,31 @@
+{
+  "families": [
+    {
+      "count": 1,
+      "duration_ms": 96108,
+      "failed": 0,
+      "name": "standalone"
+    }
+  ],
+  "finished_at": "2026-09-17T03:44:31Z",
+  "run_id": "fm-test-run-1789616567460-649118",
+  "scripts": [
+    {
+      "duration_ms": 96108,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "standalone",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-busy-adapter-wiring.test.sh"
+    }
+  ],
+  "selection": "scripts;jobs=1",
+  "started_at": "2026-09-17T03:42:47Z",
+  "summary": {
+    "duration_ms": 104206,
+    "failed": 0,
+    "skipped_gate": 0,
+    "total": 1
+  }
+}

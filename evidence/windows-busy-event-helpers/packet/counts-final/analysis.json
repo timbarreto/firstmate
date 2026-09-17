@@ -1,0 +1,266 @@
+{
+  "observations": [
+    {
+      "scenario": "control-bash",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 1,
+      "additionalSubshellContexts": 0,
+      "maximumObservedSubshellDepth": 0,
+      "traceRows": 1,
+      "bytes": 49,
+      "helperEntries": {
+        "bash": 1
+      },
+      "externalCommandEvaluations": {}
+    },
+    {
+      "scenario": "control-bash",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 1,
+      "additionalSubshellContexts": 0,
+      "maximumObservedSubshellDepth": 0,
+      "traceRows": 1,
+      "bytes": 49,
+      "helperEntries": {
+        "bash": 1
+      },
+      "externalCommandEvaluations": {}
+    },
+    {
+      "scenario": "copilot-busy",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 2,
+      "observedBashContexts": 20,
+      "additionalSubshellContexts": 18,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 367,
+      "bytes": 47432,
+      "helperEntries": {
+        "fm-ghcp-hook.sh": 1,
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 5,
+        "mv": 2,
+        "uname": 1,
+        "mkdir": 1,
+        "head": 1,
+        "date": 1,
+        "rmdir": 1
+      }
+    },
+    {
+      "scenario": "copilot-busy",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 2,
+      "observedBashContexts": 17,
+      "additionalSubshellContexts": 15,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 361,
+      "bytes": 46284,
+      "helperEntries": {
+        "fm-ghcp-hook.sh": 1,
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 5,
+        "mv": 2,
+        "uname": 1,
+        "mkdir": 1,
+        "head": 1,
+        "date": 1,
+        "rmdir": 1
+      }
+    },
+    {
+      "scenario": "copilot-idle",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 2,
+      "observedBashContexts": 19,
+      "additionalSubshellContexts": 17,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 327,
+      "bytes": 41691,
+      "helperEntries": {
+        "fm-ghcp-hook.sh": 1,
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 5,
+        "uname": 1,
+        "mkdir": 1,
+        "head": 1,
+        "date": 1,
+        "mv": 1,
+        "rmdir": 1,
+        "touch": 1
+      }
+    },
+    {
+      "scenario": "copilot-idle",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 2,
+      "observedBashContexts": 16,
+      "additionalSubshellContexts": 14,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 321,
+      "bytes": 40543,
+      "helperEntries": {
+        "fm-ghcp-hook.sh": 1,
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 5,
+        "uname": 1,
+        "mkdir": 1,
+        "head": 1,
+        "date": 1,
+        "mv": 1,
+        "rmdir": 1,
+        "touch": 1
+      }
+    },
+    {
+      "scenario": "pi-busy",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 14,
+      "additionalSubshellContexts": 13,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 207,
+      "bytes": 26038,
+      "helperEntries": {
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 3,
+        "uname": 1,
+        "mkdir": 1,
+        "head": 1,
+        "date": 1,
+        "mv": 1,
+        "rmdir": 1
+      }
+    },
+    {
+      "scenario": "pi-busy",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 11,
+      "additionalSubshellContexts": 10,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 201,
+      "bytes": 24920,
+      "helperEntries": {
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 3,
+        "uname": 1,
+        "mkdir": 1,
+        "head": 1,
+        "date": 1,
+        "mv": 1,
+        "rmdir": 1
+      }
+    },
+    {
+      "scenario": "pi-idle",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 14,
+      "additionalSubshellContexts": 13,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 207,
+      "bytes": 26044,
+      "helperEntries": {
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 3,
+        "uname": 1,
+        "mkdir": 1,
+        "head": 1,
+        "date": 1,
+        "mv": 1,
+        "rmdir": 1
+      }
+    },
+    {
+      "scenario": "pi-idle",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 11,
+      "additionalSubshellContexts": 10,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 201,
+      "bytes": 24926,
+      "helperEntries": {
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 3,
+        "uname": 1,
+        "mkdir": 1,
+        "head": 1,
+        "date": 1,
+        "mv": 1,
+        "rmdir": 1
+      }
+    },
+    {
+      "scenario": "pi-progress",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 12,
+      "additionalSubshellContexts": 11,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 177,
+      "bytes": 22467,
+      "helperEntries": {
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 3,
+        "uname": 1,
+        "mkdir": 1,
+        "touch": 1,
+        "rmdir": 1
+      }
+    },
+    {
+      "scenario": "pi-progress",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 9,
+      "additionalSubshellContexts": 8,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 171,
+      "bytes": 21349,
+      "helperEntries": {
+        "fm-busy-event.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 3,
+        "uname": 1,
+        "mkdir": 1,
+        "touch": 1,
+        "rmdir": 1
+      }
+    }
+  ]
+}

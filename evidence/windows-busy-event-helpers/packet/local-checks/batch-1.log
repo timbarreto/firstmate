@@ -1,0 +1,322 @@
+control-bash base warmup 159.6 ms
+control-bash candidate warmup 69.8 ms
+pi-busy base warmup 4826.0 ms
+pi-busy candidate warmup 2249.8 ms
+control-powershell base warmup 698.7 ms
+control-powershell candidate warmup 301.7 ms
+copilot-busy base warmup 6280.0 ms
+copilot-busy candidate warmup 6136.0 ms
+pi-idle base warmup 3926.9 ms
+pi-idle candidate warmup 2683.2 ms
+copilot-idle base warmup 5673.8 ms
+copilot-idle candidate warmup 7890.7 ms
+pi-progress base warmup 2054.0 ms
+pi-progress candidate warmup 2658.9 ms
+pi-busy candidate warmup 2986.4 ms
+pi-busy base warmup 3687.6 ms
+control-powershell candidate warmup 480.1 ms
+control-powershell base warmup 410.9 ms
+copilot-busy candidate warmup 6612.0 ms
+copilot-busy base warmup 9261.5 ms
+pi-idle candidate warmup 3286.8 ms
+pi-idle base warmup 3869.3 ms
+copilot-idle candidate warmup 5806.1 ms
+copilot-idle base warmup 9231.1 ms
+pi-progress candidate warmup 1991.5 ms
+pi-progress base warmup 2787.3 ms
+control-bash candidate warmup 492.8 ms
+control-bash base warmup 202.2 ms
+control-powershell base warmup 401.9 ms
+control-powershell candidate warmup 748.9 ms
+copilot-busy base warmup 8966.4 ms
+copilot-busy candidate warmup 7286.5 ms
+pi-idle base warmup 4758.8 ms
+pi-idle candidate warmup 2370.4 ms
+copilot-idle base warmup 9731.5 ms
+copilot-idle candidate warmup 7350.8 ms
+pi-progress base warmup 2907.3 ms
+pi-progress candidate warmup 3066.4 ms
+control-bash base warmup 325.3 ms
+control-bash candidate warmup 219.0 ms
+pi-busy base warmup 4470.3 ms
+pi-busy candidate warmup 4477.8 ms
+copilot-busy candidate sample 1 7683.2 ms
+copilot-busy base sample 1 7439.0 ms
+pi-idle candidate sample 1 3274.0 ms
+pi-idle base sample 1 1937.4 ms
+copilot-idle candidate sample 1 5435.6 ms
+copilot-idle base sample 1 8405.6 ms
+pi-progress candidate sample 1 2306.8 ms
+pi-progress base sample 1 3183.5 ms
+control-bash candidate sample 1 250.5 ms
+control-bash base sample 1 116.2 ms
+pi-busy candidate sample 1 2733.0 ms
+pi-busy base sample 1 6508.8 ms
+control-powershell candidate sample 1 347.8 ms
+control-powershell base sample 1 615.2 ms
+pi-idle base sample 2 2088.9 ms
+pi-idle candidate sample 2 4431.8 ms
+copilot-idle base sample 2 7309.0 ms
+copilot-idle candidate sample 2 8784.8 ms
+pi-progress base sample 2 2956.0 ms
+pi-progress candidate sample 2 4837.5 ms
+control-bash base sample 2 111.2 ms
+control-bash candidate sample 2 134.2 ms
+pi-busy base sample 2 3003.5 ms
+pi-busy candidate sample 2 3582.1 ms
+control-powershell base sample 2 771.8 ms
+control-powershell candidate sample 2 392.3 ms
+copilot-busy base sample 2 7690.8 ms
+copilot-busy candidate sample 2 7597.6 ms
+copilot-idle candidate sample 3 7571.1 ms
+copilot-idle base sample 3 8424.2 ms
+pi-progress candidate sample 3 4494.1 ms
+pi-progress base sample 3 2027.7 ms
+control-bash candidate sample 3 119.5 ms
+control-bash base sample 3 222.0 ms
+pi-busy candidate sample 3 4591.8 ms
+pi-busy base sample 3 2882.0 ms
+control-powershell candidate sample 3 502.0 ms
+control-powershell base sample 3 460.7 ms
+copilot-busy candidate sample 3 7360.9 ms
+copilot-busy base sample 3 7872.9 ms
+pi-idle candidate sample 3 4164.4 ms
+pi-idle base sample 3 4573.1 ms
+pi-progress base sample 4 2105.4 ms
+pi-progress candidate sample 4 1583.9 ms
+control-bash base sample 4 132.8 ms
+control-bash candidate sample 4 477.1 ms
+pi-busy base sample 4 3409.9 ms
+pi-busy candidate sample 4 3120.9 ms
+control-powershell base sample 4 1662.3 ms
+control-powershell candidate sample 4 517.3 ms
+copilot-busy base sample 4 8639.1 ms
+copilot-busy candidate sample 4 6028.2 ms
+pi-idle base sample 4 3608.7 ms
+pi-idle candidate sample 4 4696.3 ms
+copilot-idle base sample 4 8141.1 ms
+copilot-idle candidate sample 4 5043.5 ms
+control-bash candidate sample 5 125.5 ms
+control-bash base sample 5 71.5 ms
+pi-busy candidate sample 5 3508.2 ms
+pi-busy base sample 5 1888.1 ms
+control-powershell candidate sample 5 448.2 ms
+control-powershell base sample 5 363.0 ms
+copilot-busy candidate sample 5 5948.3 ms
+copilot-busy base sample 5 7164.1 ms
+pi-idle candidate sample 5 1918.6 ms
+pi-idle base sample 5 3062.1 ms
+copilot-idle candidate sample 5 7837.7 ms
+copilot-idle base sample 5 8130.2 ms
+pi-progress candidate sample 5 2451.6 ms
+pi-progress base sample 5 1991.8 ms
+pi-busy base sample 6 6021.1 ms
+pi-busy candidate sample 6 4728.4 ms
+control-powershell base sample 6 574.8 ms
+control-powershell candidate sample 6 502.6 ms
+copilot-busy base sample 6 10082.8 ms
+copilot-busy candidate sample 6 8010.8 ms
+pi-idle base sample 6 4835.1 ms
+pi-idle candidate sample 6 5791.7 ms
+copilot-idle base sample 6 8821.9 ms
+copilot-idle candidate sample 6 5673.1 ms
+pi-progress base sample 6 1856.1 ms
+pi-progress candidate sample 6 3214.0 ms
+control-bash base sample 6 73.3 ms
+control-bash candidate sample 6 68.0 ms
+control-powershell candidate sample 7 337.3 ms
+control-powershell base sample 7 370.1 ms
+copilot-busy candidate sample 7 6206.0 ms
+copilot-busy base sample 7 7394.7 ms
+pi-idle candidate sample 7 1463.3 ms
+pi-idle base sample 7 3790.8 ms
+copilot-idle candidate sample 7 7850.0 ms
+copilot-idle base sample 7 4910.1 ms
+pi-progress candidate sample 7 4498.2 ms
+pi-progress base sample 7 1033.3 ms
+control-bash candidate sample 7 454.2 ms
+control-bash base sample 7 92.5 ms
+pi-busy candidate sample 7 1804.0 ms
+pi-busy base sample 7 3257.8 ms
+copilot-busy base sample 8 5599.6 ms
+copilot-busy candidate sample 8 7667.1 ms
+pi-idle base sample 8 1575.6 ms
+pi-idle candidate sample 8 1592.0 ms
+copilot-idle base sample 8 4814.3 ms
+copilot-idle candidate sample 8 3274.4 ms
+pi-progress base sample 8 1174.0 ms
+pi-progress candidate sample 8 1125.5 ms
+control-bash base sample 8 469.6 ms
+control-bash candidate sample 8 1902.9 ms
+pi-busy base sample 8 3073.2 ms
+pi-busy candidate sample 8 1040.5 ms
+control-powershell base sample 8 275.9 ms
+control-powershell candidate sample 8 282.6 ms
+pi-idle candidate sample 9 2592.2 ms
+pi-idle base sample 9 4311.9 ms
+copilot-idle candidate sample 9 8107.5 ms
+copilot-idle base sample 9 9656.5 ms
+pi-progress candidate sample 9 2526.3 ms
+pi-progress base sample 9 4634.7 ms
+control-bash candidate sample 9 104.6 ms
+control-bash base sample 9 116.3 ms
+pi-busy candidate sample 9 11076.1 ms
+pi-busy base sample 9 11621.6 ms
+control-powershell candidate sample 9 693.8 ms
+control-powershell base sample 9 781.5 ms
+copilot-busy candidate sample 9 9886.5 ms
+copilot-busy base sample 9 3474.3 ms
+copilot-idle base sample 10 5661.4 ms
+copilot-idle candidate sample 10 4817.9 ms
+pi-progress base sample 10 2049.8 ms
+pi-progress candidate sample 10 2383.0 ms
+control-bash base sample 10 70.3 ms
+control-bash candidate sample 10 124.3 ms
+pi-busy base sample 10 2602.0 ms
+pi-busy candidate sample 10 3454.5 ms
+control-powershell base sample 10 339.6 ms
+control-powershell candidate sample 10 300.6 ms
+copilot-busy base sample 10 4700.1 ms
+copilot-busy candidate sample 10 5970.0 ms
+pi-idle base sample 10 3796.4 ms
+pi-idle candidate sample 10 1750.9 ms
+pi-progress candidate sample 11 1768.0 ms
+pi-progress base sample 11 2138.6 ms
+control-bash candidate sample 11 126.0 ms
+control-bash base sample 11 433.3 ms
+pi-busy candidate sample 11 1712.3 ms
+pi-busy base sample 11 2976.1 ms
+control-powershell candidate sample 11 276.0 ms
+control-powershell base sample 11 309.7 ms
+copilot-busy candidate sample 11 7551.3 ms
+copilot-busy base sample 11 8414.6 ms
+pi-idle candidate sample 11 1650.1 ms
+pi-idle base sample 11 3793.8 ms
+copilot-idle candidate sample 11 3913.4 ms
+copilot-idle base sample 11 7895.7 ms
+control-bash base sample 12 76.1 ms
+control-bash candidate sample 12 111.6 ms
+pi-busy base sample 12 3733.0 ms
+pi-busy candidate sample 12 1854.5 ms
+control-powershell base sample 12 333.4 ms
+control-powershell candidate sample 12 335.0 ms
+copilot-busy base sample 12 6068.4 ms
+copilot-busy candidate sample 12 4283.6 ms
+pi-idle base sample 12 2340.1 ms
+pi-idle candidate sample 12 3161.4 ms
+copilot-idle base sample 12 6578.5 ms
+copilot-idle candidate sample 12 6877.3 ms
+pi-progress base sample 12 3195.6 ms
+pi-progress candidate sample 12 2194.7 ms
+pi-busy candidate sample 13 3468.0 ms
+pi-busy base sample 13 2421.5 ms
+control-powershell candidate sample 13 738.6 ms
+control-powershell base sample 13 568.0 ms
+copilot-busy candidate sample 13 7969.7 ms
+copilot-busy base sample 13 5779.0 ms
+pi-idle candidate sample 13 1831.2 ms
+pi-idle base sample 13 3717.3 ms
+copilot-idle candidate sample 13 6717.6 ms
+copilot-idle base sample 13 5994.9 ms
+pi-progress candidate sample 13 3618.1 ms
+pi-progress base sample 13 2124.9 ms
+control-bash candidate sample 13 64.1 ms
+control-bash base sample 13 125.6 ms
+control-powershell base sample 14 729.7 ms
+control-powershell candidate sample 14 1758.7 ms
+copilot-busy base sample 14 7423.0 ms
+copilot-busy candidate sample 14 6942.8 ms
+pi-idle base sample 14 3837.0 ms
+pi-idle candidate sample 14 2090.7 ms
+copilot-idle base sample 14 5186.1 ms
+copilot-idle candidate sample 14 6304.5 ms
+pi-progress base sample 14 3515.8 ms
+pi-progress candidate sample 14 1318.4 ms
+control-bash base sample 14 125.0 ms
+control-bash candidate sample 14 107.5 ms
+pi-busy base sample 14 5575.4 ms
+pi-busy candidate sample 14 2106.1 ms
+copilot-busy candidate sample 15 6955.7 ms
+copilot-busy base sample 15 9859.3 ms
+pi-idle candidate sample 15 2007.3 ms
+pi-idle base sample 15 3882.5 ms
+copilot-idle candidate sample 15 8573.7 ms
+copilot-idle base sample 15 9632.1 ms
+pi-progress candidate sample 15 1975.3 ms
+pi-progress base sample 15 2512.3 ms
+control-bash candidate sample 15 1247.3 ms
+control-bash base sample 15 810.5 ms
+pi-busy candidate sample 15 2172.9 ms
+pi-busy base sample 15 4468.7 ms
+control-powershell candidate sample 15 834.6 ms
+control-powershell base sample 15 381.5 ms
+pi-idle base sample 16 4215.6 ms
+pi-idle candidate sample 16 4686.9 ms
+copilot-idle base sample 16 7260.3 ms
+copilot-idle candidate sample 16 6182.3 ms
+pi-progress base sample 16 1709.1 ms
+pi-progress candidate sample 16 2630.9 ms
+control-bash base sample 16 105.1 ms
+control-bash candidate sample 16 72.6 ms
+pi-busy base sample 16 2159.7 ms
+pi-busy candidate sample 16 3815.4 ms
+control-powershell base sample 16 351.6 ms
+control-powershell candidate sample 16 504.7 ms
+copilot-busy base sample 16 7967.4 ms
+copilot-busy candidate sample 16 7039.8 ms
+copilot-idle candidate sample 17 7999.8 ms
+copilot-idle base sample 17 7072.5 ms
+pi-progress candidate sample 17 1877.6 ms
+pi-progress base sample 17 3326.3 ms
+control-bash candidate sample 17 65.5 ms
+control-bash base sample 17 124.9 ms
+pi-busy candidate sample 17 4634.6 ms
+pi-busy base sample 17 2895.4 ms
+control-powershell candidate sample 17 928.5 ms
+control-powershell base sample 17 1162.7 ms
+copilot-busy candidate sample 17 7052.7 ms
+copilot-busy base sample 17 9557.4 ms
+pi-idle candidate sample 17 2304.7 ms
+pi-idle base sample 17 3956.7 ms
+pi-progress base sample 18 2848.5 ms
+pi-progress candidate sample 18 2946.3 ms
+control-bash base sample 18 75.5 ms
+control-bash candidate sample 18 139.9 ms
+pi-busy base sample 18 5611.8 ms
+pi-busy candidate sample 18 2129.3 ms
+control-powershell base sample 18 340.5 ms
+control-powershell candidate sample 18 682.7 ms
+copilot-busy base sample 18 5990.9 ms
+copilot-busy candidate sample 18 7551.2 ms
+pi-idle base sample 18 2756.0 ms
+pi-idle candidate sample 18 3532.3 ms
+copilot-idle base sample 18 8241.2 ms
+copilot-idle candidate sample 18 8182.4 ms
+control-bash candidate sample 19 160.0 ms
+control-bash base sample 19 194.5 ms
+pi-busy candidate sample 19 2467.1 ms
+pi-busy base sample 19 3840.3 ms
+control-powershell candidate sample 19 817.9 ms
+control-powershell base sample 19 505.4 ms
+copilot-busy candidate sample 19 6675.7 ms
+copilot-busy base sample 19 6457.5 ms
+pi-idle candidate sample 19 3206.9 ms
+pi-idle base sample 19 2271.4 ms
+copilot-idle candidate sample 19 4682.0 ms
+copilot-idle base sample 19 7684.0 ms
+pi-progress candidate sample 19 3422.7 ms
+pi-progress base sample 19 1086.2 ms
+pi-busy base sample 20 2389.3 ms
+pi-busy candidate sample 20 4646.0 ms
+control-powershell base sample 20 320.4 ms
+control-powershell candidate sample 20 276.9 ms
+copilot-busy base sample 20 8212.8 ms
+copilot-busy candidate sample 20 7528.8 ms
+pi-idle base sample 20 4031.7 ms
+pi-idle candidate sample 20 3401.4 ms
+copilot-idle base sample 20 9113.0 ms
+copilot-idle candidate sample 20 6336.9 ms
+pi-progress base sample 20 3351.3 ms
+pi-progress candidate sample 20 2122.2 ms
+control-bash base sample 20 616.8 ms
+control-bash candidate sample 20 509.2 ms

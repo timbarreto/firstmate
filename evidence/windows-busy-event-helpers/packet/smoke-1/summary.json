@@ -1,0 +1,599 @@
+{
+  "pins": {
+    "base": {
+      "root": "C:/src/firstmate-base-busy-event-helpers",
+      "sha": "0716ecdcb5b5e81654ef102eb471c2a04320f508"
+    },
+    "candidate": {
+      "root": "C:/src/firstmate-perf-busy-event-helpers",
+      "sha": "91a8d6dda8b6f15b80d1a105c0959a652d264f8b"
+    }
+  },
+  "driverSHA": "3f406016fd4abbed818cc68365c3657645d5e94e",
+  "driverFiles": {
+    "run.sh": "3cd97b7b7dc21ea6f153202e6e93da549ff256fdbe442606b540c103d6b8d1af",
+    "measure.mjs": "5fd1fc63429004dd219171b0de0627ccf39c3da1aca05d8ba5b4ddc41942a620",
+    "trace-hook.sh": "ce9b627793f1b07a553f0a7767da9c843679deab8d9d161ce5b1312552c6d575"
+  },
+  "traced": false,
+  "samples": 1,
+  "warmups": 0,
+  "purpose": "smoke",
+  "fixture": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc",
+  "seeds": {
+    "pi": {
+      "task.busy-gen": "g1789618284.668123.2885\n",
+      "task.busy-state": "v1 gen=g1789618284.668123.2885 seq=1 state=busy source=fm-spawn event=launch-brief ts=1789618284\n"
+    },
+    "copilot": {
+      "task.busy-gen": "g1789618290.668226.21189\n",
+      "task.busy-state": "v1 gen=g1789618290.668226.21189 seq=1 state=busy source=fm-spawn event=launch-brief ts=1789618291\n"
+    }
+  },
+  "started": "2026-09-17T04:11:58.874Z",
+  "platform": "win32",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpus": 16,
+  "cpuModel": "AMD EPYC 7763 64-Core Processor                ",
+  "totalMem": 68665831424,
+  "freeMem": 25698799616,
+  "tools": {
+    "node": "v24.19.0",
+    "git": "git version 2.55.0.windows.5",
+    "bash": "GNU bash, version 5.3.15(2)-release (x86_64-pc-cygwin)\nCopyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.",
+    "powershell": "5.1.26100.9444",
+    "jq": "jq-1.8.2",
+    "perl": "v5.42.3",
+    "cygpath": "cygpath (cygwin) 3.6.10\nPath Conversion Utility\nCopyright (C) 1998 - 2026 Cygwin Authors\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+  },
+  "bashResolution": [
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Windows\\System32\\bash.exe",
+    "C:\\Users\\v-tibarreto\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"
+  ],
+  "hookBashResolution": "C:\\Program Files\\Git\\bin\\bash.exe",
+  "pathEntries": 37,
+  "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef",
+  "generated": {
+    "pi/base.ts": "9feafa815481b528423ecc4af63121f82d069a0bd4db7062cbcb67d4a451a47a",
+    "pi/candidate.ts": "c0b349441558b1d977615ea344dd5b2fd4ba8e6bf5129b782a511fbc84df32eb",
+    "copilot/base.json": "15641fe11316e7541031d621c82c9f3168bff0643819eb910dcbd321617d3491",
+    "copilot/candidate.json": "53f27d12d5bc57efe16d0e58a4c9021f942bd724f0ef5f2dae5140735101e477"
+  },
+  "manifest": [
+    {
+      "id": "control-bash",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/projects"
+      },
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ]
+    },
+    {
+      "id": "control-bash",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/projects"
+      },
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ]
+    },
+    {
+      "id": "pi-busy",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/projects"
+      },
+      "boundary": "generated agent_start callback -> real Bash helper close"
+    },
+    {
+      "id": "pi-busy",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/projects"
+      },
+      "boundary": "generated agent_start callback -> real Bash helper close"
+    },
+    {
+      "id": "control-powershell",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/projects"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "exit 0"
+      ]
+    },
+    {
+      "id": "control-powershell",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/unused-home/projects"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "exit 0"
+      ]
+    },
+    {
+      "id": "copilot-busy",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/projects",
+        "COPILOT_CLI": "1"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& 'C:\\src\\firstmate-base-busy-event-helpers\\bin\\fm-ghcp-hook.ps1' worker-event 'C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state' 'task' 'g1789618290.668226.21189' busy user-prompt-submitted -; exit $LASTEXITCODE"
+      ],
+      "boundary": "native generated PowerShell worker command -> hook owner -> busy writer close",
+      "vendorTimeoutSec": 10
+    },
+    {
+      "id": "copilot-busy",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/projects",
+        "COPILOT_CLI": "1"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& 'C:\\src\\firstmate-perf-busy-event-helpers\\bin\\fm-ghcp-hook.ps1' worker-event 'C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state' 'task' 'g1789618290.668226.21189' busy user-prompt-submitted -; exit $LASTEXITCODE"
+      ],
+      "boundary": "native generated PowerShell worker command -> hook owner -> busy writer close",
+      "vendorTimeoutSec": 10
+    },
+    {
+      "id": "pi-idle",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/projects"
+      },
+      "boundary": "generated agent_settled callback -> real Bash helper close"
+    },
+    {
+      "id": "pi-idle",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/projects"
+      },
+      "boundary": "generated agent_settled callback -> real Bash helper close"
+    },
+    {
+      "id": "copilot-idle",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/projects",
+        "COPILOT_CLI": "1"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& 'C:\\src\\firstmate-base-busy-event-helpers\\bin\\fm-ghcp-hook.ps1' worker-event 'C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state' 'task' 'g1789618290.668226.21189' idle agent-stop 'C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state/task.turn-ended'; exit $LASTEXITCODE"
+      ],
+      "boundary": "native generated PowerShell worker command -> hook owner -> busy writer close",
+      "vendorTimeoutSec": 10
+    },
+    {
+      "id": "copilot-idle",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/projects",
+        "COPILOT_CLI": "1"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& 'C:\\src\\firstmate-perf-busy-event-helpers\\bin\\fm-ghcp-hook.ps1' worker-event 'C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state' 'task' 'g1789618290.668226.21189' idle agent-stop 'C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/copilot/state/task.turn-ended'; exit $LASTEXITCODE"
+      ],
+      "boundary": "native generated PowerShell worker command -> hook owner -> busy writer close",
+      "vendorTimeoutSec": 10
+    },
+    {
+      "id": "pi-progress",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/projects"
+      },
+      "boundary": "generated progress callback -> real Bash helper close; NOT synchronous callback blocking"
+    },
+    {
+      "id": "pi-progress",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\smoke-1\\fixture.3ixzmc\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/smoke-1/fixture.3ixzmc/pi/projects"
+      },
+      "boundary": "generated progress callback -> real Bash helper close; NOT synchronous callback blocking"
+    }
+  ],
+  "finished": "2026-09-17T04:12:54.133Z",
+  "meanHostCpuBusyPercent": 62.76475894257365,
+  "summary": [
+    {
+      "scenario": "control-bash",
+      "primary": false,
+      "control": true,
+      "base": {
+        "n": 1,
+        "medianMs": 2252.9359000000004,
+        "p95Ms": 2252.9359000000004,
+        "maxMs": 2252.9359000000004,
+        "firstHalfMedianMs": 2252.9359000000004,
+        "secondHalfMedianMs": 2252.9359000000004,
+        "meanCpuBusyPercent": 60.76756133073267
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 97.75740000000042,
+        "p95Ms": 97.75740000000042,
+        "maxMs": 97.75740000000042,
+        "firstHalfMedianMs": 97.75740000000042,
+        "secondHalfMedianMs": 97.75740000000042,
+        "meanCpuBusyPercent": 69.8340011448197
+      },
+      "fasterPairs": 1,
+      "medianReductionMs": 2155.1785,
+      "medianReductionPercent": 95.66088853215929,
+      "p95NonIncreasing": true,
+      "accepted": false
+    },
+    {
+      "scenario": "pi-busy",
+      "primary": true,
+      "control": false,
+      "base": {
+        "n": 1,
+        "medianMs": 2257.6008,
+        "p95Ms": 2257.6008,
+        "maxMs": 2257.6008,
+        "firstHalfMedianMs": 2257.6008,
+        "secondHalfMedianMs": 2257.6008,
+        "meanCpuBusyPercent": 64.11070656190971
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 7979.460999999999,
+        "p95Ms": 7979.460999999999,
+        "maxMs": 7979.460999999999,
+        "firstHalfMedianMs": 7979.460999999999,
+        "secondHalfMedianMs": 7979.460999999999,
+        "meanCpuBusyPercent": 62.17128228996975
+      },
+      "fasterPairs": 0,
+      "medianReductionMs": -5721.860199999999,
+      "medianReductionPercent": -253.4487142279538,
+      "p95NonIncreasing": false,
+      "accepted": false
+    },
+    {
+      "scenario": "control-powershell",
+      "primary": false,
+      "control": true,
+      "base": {
+        "n": 1,
+        "medianMs": 385.8904000000002,
+        "p95Ms": 385.8904000000002,
+        "maxMs": 385.8904000000002,
+        "firstHalfMedianMs": 385.8904000000002,
+        "secondHalfMedianMs": 385.8904000000002,
+        "meanCpuBusyPercent": 79.0004805382028
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 299.854800000001,
+        "p95Ms": 299.854800000001,
+        "maxMs": 299.854800000001,
+        "firstHalfMedianMs": 299.854800000001,
+        "secondHalfMedianMs": 299.854800000001,
+        "meanCpuBusyPercent": 63.398963730569946
+      },
+      "fasterPairs": 1,
+      "medianReductionMs": 86.03559999999925,
+      "medianReductionPercent": 22.295346036076356,
+      "p95NonIncreasing": true,
+      "accepted": false
+    },
+    {
+      "scenario": "copilot-busy",
+      "primary": true,
+      "control": false,
+      "base": {
+        "n": 1,
+        "medianMs": 6620.8141,
+        "p95Ms": 6620.8141,
+        "maxMs": 6620.8141,
+        "firstHalfMedianMs": 6620.8141,
+        "secondHalfMedianMs": 6620.8141,
+        "meanCpuBusyPercent": 65.8688475390156
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 7817.4208,
+        "p95Ms": 7817.4208,
+        "maxMs": 7817.4208,
+        "firstHalfMedianMs": 7817.4208,
+        "secondHalfMedianMs": 7817.4208,
+        "meanCpuBusyPercent": 60.68839004024702
+      },
+      "fasterPairs": 0,
+      "medianReductionMs": -1196.6067000000003,
+      "medianReductionPercent": -18.073407317085074,
+      "p95NonIncreasing": false,
+      "accepted": false
+    },
+    {
+      "scenario": "pi-idle",
+      "primary": true,
+      "control": false,
+      "base": {
+        "n": 1,
+        "medianMs": 2628.8104999999996,
+        "p95Ms": 2628.8104999999996,
+        "maxMs": 2628.8104999999996,
+        "firstHalfMedianMs": 2628.8104999999996,
+        "secondHalfMedianMs": 2628.8104999999996,
+        "meanCpuBusyPercent": 59.967378200127655
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 2074.0469999999987,
+        "p95Ms": 2074.0469999999987,
+        "maxMs": 2074.0469999999987,
+        "firstHalfMedianMs": 2074.0469999999987,
+        "secondHalfMedianMs": 2074.0469999999987,
+        "meanCpuBusyPercent": 61.00952948183442
+      },
+      "fasterPairs": 1,
+      "medianReductionMs": 554.7635000000009,
+      "medianReductionPercent": 21.1032137919413,
+      "p95NonIncreasing": true,
+      "accepted": false
+    },
+    {
+      "scenario": "copilot-idle",
+      "primary": true,
+      "control": false,
+      "base": {
+        "n": 1,
+        "medianMs": 5254.059200000003,
+        "p95Ms": 5254.059200000003,
+        "maxMs": 5254.059200000003,
+        "firstHalfMedianMs": 5254.059200000003,
+        "secondHalfMedianMs": 5254.059200000003,
+        "meanCpuBusyPercent": 65.9473014975982
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 4911.225599999998,
+        "p95Ms": 4911.225599999998,
+        "maxMs": 4911.225599999998,
+        "firstHalfMedianMs": 4911.225599999998,
+        "secondHalfMedianMs": 4911.225599999998,
+        "meanCpuBusyPercent": 61.629792949643935
+      },
+      "fasterPairs": 1,
+      "medianReductionMs": 342.8336000000054,
+      "medianReductionPercent": 6.525118712023747,
+      "p95NonIncreasing": true,
+      "accepted": false
+    },
+    {
+      "scenario": "pi-progress",
+      "primary": false,
+      "control": false,
+      "base": {
+        "n": 1,
+        "medianMs": 1918.5635000000038,
+        "p95Ms": 1918.5635000000038,
+        "maxMs": 1918.5635000000038,
+        "firstHalfMedianMs": 1918.5635000000038,
+        "secondHalfMedianMs": 1918.5635000000038,
+        "meanCpuBusyPercent": 55.80096225257516
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 2674.855199999998,
+        "p95Ms": 2674.855199999998,
+        "maxMs": 2674.855199999998,
+        "firstHalfMedianMs": 2674.855199999998,
+        "secondHalfMedianMs": 2674.855199999998,
+        "meanCpuBusyPercent": 64.0461167300733
+      },
+      "fasterPairs": 0,
+      "medianReductionMs": -756.2916999999943,
+      "medianReductionPercent": -39.419685613741365,
+      "p95NonIncreasing": false,
+      "accepted": false
+    }
+  ],
+  "accepted": false
+}

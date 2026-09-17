@@ -1,0 +1,14 @@
+control-bash base sample 1 64.5 ms
+control-bash candidate sample 1 68.5 ms
+pi-busy base sample 1 2643.6 ms
+pi-busy candidate sample 1 4036.2 ms
+control-powershell base sample 1 382.1 ms
+control-powershell candidate sample 1 309.2 ms
+copilot-busy base sample 1 8839.0 ms
+copilot-busy candidate sample 1 5572.8 ms
+pi-idle base sample 1 4006.2 ms
+pi-idle candidate sample 1 2332.7 ms
+copilot-idle base sample 1 6080.5 ms
+copilot-idle candidate sample 1 9685.0 ms
+pi-progress base sample 1 3910.4 ms
+pi-progress candidate sample 1 1899.7 ms

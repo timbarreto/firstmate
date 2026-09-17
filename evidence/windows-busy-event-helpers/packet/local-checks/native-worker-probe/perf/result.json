@@ -1,0 +1,20 @@
+{
+  "version": "perf",
+  "status": 2,
+  "signal": null,
+  "args": [
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "C:/src/firstmate-perf-busy-event-helpers/bin/fm-ghcp-hook.ps1",
+    "worker-event",
+    "C:/src/.fm-perf-runs/busy-event-helpers/checks/native-worker-probe/perf/state",
+    "task",
+    "g.fixture",
+    "busy",
+    "user-prompt-submitted",
+    "-"
+  ]
+}

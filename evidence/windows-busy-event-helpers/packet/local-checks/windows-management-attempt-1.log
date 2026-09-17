@@ -1,0 +1,301 @@
+Windows Copilot management	Set up job	﻿2026-09-17T04:04:27.1439662Z Current runner version: '2.337.0'
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1632661Z ##[group]Runner Image Provisioner
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1633535Z Hosted Compute Agent
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1634157Z Version: 20260828.587
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1634773Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1635525Z Build Date: 2026-08-28T16:44:25Z
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1636228Z Worker ID: {e91af874-654c-40ca-9b13-474687aa0c0b}
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1636905Z Azure Region: westus3
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1637435Z ##[endgroup]
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1638734Z ##[group]Operating System
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1639402Z Microsoft Windows Server 2025
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1639954Z 10.0.26100
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1640408Z Datacenter
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1640898Z ##[endgroup]
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1641385Z ##[group]Runner Image
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1641963Z Image: windows-2025-vs2026
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1642525Z Version: 20260907.229.1
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1643631Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260907.229/images/windows/Windows2025-VS2026-Readme.md
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1645579Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260907.229
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1647282Z ##[endgroup]
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1648801Z ##[group]GITHUB_TOKEN Permissions
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1651168Z Contents: read
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1651727Z Metadata: read
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1652270Z ##[endgroup]
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1654493Z Secret source: Actions
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1655362Z Cache mode: write
+Windows Copilot management	Set up job	2026-09-17T04:04:27.1656011Z Prepare workflow directory
+Windows Copilot management	Set up job	2026-09-17T04:04:27.2528496Z Prepare all required actions
+Windows Copilot management	Set up job	2026-09-17T04:04:27.2591435Z Getting action download info
+Windows Copilot management	Set up job	2026-09-17T04:04:27.5568941Z Download action repository 'actions/checkout@v6' (SHA:d23441a48e516b6c34aea4fa41551a30e30af803)
+Windows Copilot management	Set up job	2026-09-17T04:04:27.7207740Z Download action repository 'actions/setup-node@v7' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+Windows Copilot management	Set up job	2026-09-17T04:04:28.0346055Z Complete job name: Windows Copilot management
+Windows Copilot management	Run actions/checkout@v6	﻿2026-09-17T04:04:28.1901722Z ##[group]Run actions/checkout@v6
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.1903545Z with:
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2009619Z   repository: timbarreto/firstmate
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2015589Z   token: ***
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2016057Z   ssh-strict: true
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2016435Z   ssh-user: git
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2016816Z   persist-credentials: true
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2017276Z   clean: true
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2017662Z   sparse-checkout-cone-mode: true
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2018117Z   fetch-depth: 1
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2018484Z   fetch-tags: false
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2018859Z   show-progress: true
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2019236Z   lfs: false
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2019581Z   submodules: false
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2019959Z   set-safe-directory: true
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2020394Z   allow-unsafe-pr-checkout: false
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.2021670Z ##[endgroup]
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.3545250Z Syncing repository: timbarreto/firstmate
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.3546993Z ##[group]Getting Git version info
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.3547618Z Working directory is 'D:\a\firstmate\firstmate'
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.4334303Z [command]"C:\Program Files\Git\bin\git.exe" version
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.7824679Z git version 2.55.0.windows.5
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.7876927Z ##[endgroup]
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.7897549Z Temporarily overriding HOME='D:\a\_temp\ef33d60e-141d-4204-be2a-41edb1be255b' before making global git config changes
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.7900273Z Adding repository directory to the temporary git global config as a safe directory
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.7908448Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\firstmate\firstmate
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.8557009Z Deleting the contents of 'D:\a\firstmate\firstmate'
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.8564087Z ##[group]Determining repository object format
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.8566910Z ##[endgroup]
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.8568370Z ##[group]Initializing the repository
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.8576668Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\firstmate\firstmate
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.9390736Z Initialized empty Git repository in D:/a/firstmate/firstmate/.git/
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:28.9444000Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/timbarreto/firstmate
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:29.0055422Z ##[endgroup]
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:29.0057120Z ##[group]Disabling automatic garbage collection
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:29.0065359Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:29.0381163Z ##[endgroup]
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:29.0383340Z ##[group]Setting up auth
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:29.0384705Z Removing SSH command configuration
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:29.0394211Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:29.0714836Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:30.5569496Z Removing HTTP extra header
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:30.5579588Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:30.5900864Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.1416307Z Removing includeIf entries pointing to credentials config files
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.1428112Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.1737714Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.7242898Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.7577646Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/firstmate/firstmate/.git.path D:\a\_temp\git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.7895734Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/firstmate/firstmate/.git/worktrees/*.path D:\a\_temp\git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.8272580Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.8622985Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.8929463Z ##[endgroup]
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.8929903Z ##[group]Fetching the repository
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:31.8943101Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +83fdbe860e401d3085bb18581bfd45ff754800ef:refs/remotes/pull/65/merge
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.0131295Z From https://github.com/timbarreto/firstmate
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.0199461Z  * [new ref]         83fdbe860e401d3085bb18581bfd45ff754800ef -> pull/65/merge
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.0203590Z ##[endgroup]
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.0204048Z ##[group]Determining the checkout info
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.0204435Z ##[endgroup]
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.0217996Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.0738837Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.1074663Z ##[group]Checking out the ref
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.1075677Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/65/merge
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4078446Z Note: switching to 'refs/remotes/pull/65/merge'.
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4079143Z 
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4084084Z You are in 'detached HEAD' state. You can look around, make experimental
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4085042Z changes and commit them, and you can discard any commits you make in this
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4085811Z state without impacting any branches by switching back to a branch.
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4086384Z 
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4086758Z If you want to create a new branch to retain commits you create, you may
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4087587Z do so (now or later) by using -c with the switch command. Example:
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4088121Z 
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4088415Z   git switch -c <new-branch-name>
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4088807Z 
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4089026Z Or undo this operation with:
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4089364Z 
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4089570Z   git switch -
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4089838Z 
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4090267Z Turn off this advice by setting config variable advice.detachedHead to false
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4090986Z 
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4092138Z HEAD is now at 83fdbe8 Merge 91a8d6dda8b6f15b80d1a105c0959a652d264f8b into 0716ecdcb5b5e81654ef102eb471c2a04320f508
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4236143Z ##[endgroup]
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4666208Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+Windows Copilot management	Run actions/checkout@v6	2026-09-17T04:04:34.4952419Z 83fdbe860e401d3085bb18581bfd45ff754800ef
+Windows Copilot management	Run actions/setup-node@v7	﻿2026-09-17T04:04:34.5462172Z ##[group]Run actions/setup-node@v7
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:34.5462564Z with:
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:34.5462756Z   node-version: 24
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:34.5462962Z   check-latest: false
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:34.5465467Z   token: ***
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:34.5465929Z   package-manager-cache: true
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:34.5466167Z ##[endgroup]
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:34.7259162Z Found in cache @ C:\hostedtoolcache\windows\node\24.20.0\x64
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:34.7265035Z ##[group]Environment details
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:39.9837546Z node: v24.20.0
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:39.9837900Z npm: 11.19.0
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:39.9838076Z yarn: 1.22.22
+Windows Copilot management	Run actions/setup-node@v7	2026-09-17T04:04:39.9838541Z ##[endgroup]
+Windows Copilot management	Run native management contracts without a live fleet	﻿2026-09-17T04:04:40.0169870Z ##[group]Run set -eu
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0170361Z [36;1mset -eu[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0170722Z [36;1mbin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0171218Z [36;1m  tests/fm-home-summary-request.test.sh \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0171587Z [36;1m  tests/fm-lock-fast.test.sh \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0171916Z [36;1m  tests/fm-pr-local-cost.test.sh \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0172292Z [36;1m  tests/fm-herdr-unregistered-agent.test.sh[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0172643Z [36;1mfor test_case in \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0172946Z [36;1m  test_windows_powershell_pretool_transport \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0173342Z [36;1m  test_windows_worker_hook_semantic_lifecycle \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0173753Z [36;1m  test_windows_command_hooks_do_not_load_git_bash \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0174259Z [36;1m  test_windows_git_resolver_stops_after_preferred_installation \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0174726Z [36;1m  test_stop_repair_uses_its_known_harness \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0175248Z [36;1m  test_stop_uses_one_late_authorized_counter_transaction; do[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0175655Z [36;1m  FM_TEST_ONLY="$test_case" \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0176061Z [36;1m    bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0176510Z [36;1m      tests/fm-copilot-harness.test.sh[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0176820Z [36;1mdone[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0177113Z [36;1mFM_TEST_ONLY=test_recovery_approved_and_idempotent \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0177615Z [36;1m  bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0178049Z [36;1m    tests/fm-control-recovery.test.sh[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0178529Z [36;1mFM_TEST_ONLY=test_control_inspect_is_read_only_during_another_action \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0179093Z [36;1m  bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0179521Z [36;1m    tests/fm-control-relaunch.test.sh[0m
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0201058Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0201470Z env:
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0201718Z   FM_LIVE: 0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:40.0201907Z ##[endgroup]
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:41.3740385Z FM_TEST_BEGIN 2026-09-17T04:04:41Z tests/fm-home-summary-request.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:42.4083659Z ok - summary requests coalesce without running a producer
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:45.1542593Z ok - publication leaves a later request for the next cohort
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:47.5077836Z ok - failed publication preserves both prior data and retryable work
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:48.3833272Z ok - unexpected request artifacts refuse without removing evidence
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:48.6224276Z FM_TEST_END 2026-09-17T04:04:48Z tests/fm-home-summary-request.test.sh exit=0 duration_ms=7175 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:48.7276926Z FM_TEST_BEGIN 2026-09-17T04:04:48Z tests/fm-lock-fast.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:50.0923981Z ok - fast publication preserves the existing lock identity and cross-frame refusal
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:50.2572728Z ok - fast release consumes the ordinary populated-owner protocol
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:50.3688162Z ok - fast acquisition preserves the recovery-claim exclusion
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:50.4876423Z ok - fast mechanics retain unknown artifacts and reject malformed owner identity
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:50.7319987Z FM_TEST_END 2026-09-17T04:04:50Z tests/fm-lock-fast.test.sh exit=0 duration_ms=1920 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:50.8398103Z FM_TEST_BEGIN 2026-09-17T04:04:50Z tests/fm-pr-local-cost.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:51.9991984Z error: invalid Azure DevOps PR identity or response
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:52.0018931Z ok - pure Azure parsing is bounded without borrowing another input's identity
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:53.0730875Z ok - remote PR state is reread even when its canonical URL is unchanged
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:53.1850974Z ok - file identity remains fresh across path replacement
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:53.4162277Z FM_TEST_END 2026-09-17T04:04:53Z tests/fm-pr-local-cost.test.sh exit=0 duration_ms=2501 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:53.5292958Z FM_TEST_BEGIN 2026-09-17T04:04:53Z tests/fm-herdr-unregistered-agent.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:55.2846645Z ok - absent Herdr registration does not demote a live foreground agent
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:04:56.4719742Z ok - native descendants protect an unregistered Windows Copilot worker
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:00.4739717Z ok - native absence requires readable shell-only facts, not a missing registration
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:00.7110130Z FM_TEST_END 2026-09-17T04:05:00Z tests/fm-herdr-unregistered-agent.test.sh exit=0 duration_ms=7091 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:00.7929343Z FM_TEST_SUMMARY total=4 failed=0 skipped_gate=0 duration_ms=20442
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:00.8235463Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=4 duration_ms=18687 failed=0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:00.8617517Z FM_TEST_SLOWEST rank=1 script=tests/fm-home-summary-request.test.sh duration_ms=7175
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:00.8620157Z FM_TEST_SLOWEST rank=2 script=tests/fm-herdr-unregistered-agent.test.sh duration_ms=7091
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:00.8625886Z FM_TEST_SLOWEST rank=3 script=tests/fm-pr-local-cost.test.sh duration_ms=2501
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:00.8627730Z FM_TEST_SLOWEST rank=4 script=tests/fm-lock-fast.test.sh duration_ms=1920
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:01.7176751Z FM_TEST_BEGIN 2026-09-17T04:05:01Z tests/fm-copilot-harness.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:05.9332573Z ok - Copilot PowerShell transport preserves native watcher-policy decisions
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:05.9336606Z all fm-copilot-harness tests passed
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:06.1282642Z FM_TEST_END 2026-09-17T04:05:06Z tests/fm-copilot-harness.test.sh exit=0 duration_ms=4333 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:06.2096918Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=5227
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:06.2311757Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=4333 failed=0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:06.2620493Z FM_TEST_SLOWEST rank=1 script=tests/fm-copilot-harness.test.sh duration_ms=4333
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:07.0705243Z FM_TEST_BEGIN 2026-09-17T04:05:07Z tests/fm-copilot-harness.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:16.1991697Z ok - native Windows worker hooks preserve busy/idle, literal paths, sequence, notifications, acknowledgements, and refusal
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:16.1993615Z all fm-copilot-harness tests passed
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:16.3979020Z FM_TEST_END 2026-09-17T04:05:16Z tests/fm-copilot-harness.test.sh exit=0 duration_ms=9248 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:16.4797107Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=10097
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:16.5003299Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=9248 failed=0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:16.5321943Z FM_TEST_SLOWEST rank=1 script=tests/fm-copilot-harness.test.sh duration_ms=9248
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:17.3276030Z FM_TEST_BEGIN 2026-09-17T04:05:17Z tests/fm-copilot-harness.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:18.6089896Z ok - Copilot Windows command checks retain policy without launching Git Bash
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:18.6091859Z all fm-copilot-harness tests passed
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:18.8039018Z FM_TEST_END 2026-09-17T04:05:18Z tests/fm-copilot-harness.test.sh exit=0 duration_ms=1400 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:18.8863103Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=2229
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:18.9076503Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=1400 failed=0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:18.9416048Z FM_TEST_SLOWEST rank=1 script=tests/fm-copilot-harness.test.sh duration_ms=1400
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:19.8274286Z FM_TEST_BEGIN 2026-09-17T04:05:19Z tests/fm-copilot-harness.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:20.8210990Z ok - Windows Git Bash resolution preserves preference without enumerating unused fallbacks
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:20.8213117Z all fm-copilot-harness tests passed
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:21.0275720Z FM_TEST_END 2026-09-17T04:05:20Z tests/fm-copilot-harness.test.sh exit=0 duration_ms=1118 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:21.1105167Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=2047
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:21.1323423Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=1118 failed=0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:21.1651098Z FM_TEST_SLOWEST rank=1 script=tests/fm-copilot-harness.test.sh duration_ms=1118
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:21.9713893Z FM_TEST_BEGIN 2026-09-17T04:05:21Z tests/fm-copilot-harness.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8747317Z Author identity unknown
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8747709Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8747951Z *** Please tell me who you are.
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8748216Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8748335Z Run
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8748458Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8748769Z   git config --global user.email "you@example.com"
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8749295Z   git config --global user.name "Your Name"
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8749585Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8749772Z to set your account's default identity.
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8750324Z Omit --global to set the identity only in this repository.
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8750692Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:22.8751120Z fatal: unable to auto-detect email address (got 'runneradmin@runnervmvmocb.(none)')
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:24.5943494Z ok - Copilot Stop repair reuses its known harness without another ancestry discovery
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:24.5946545Z all fm-copilot-harness tests passed
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:24.7950745Z FM_TEST_END 2026-09-17T04:05:24Z tests/fm-copilot-harness.test.sh exit=0 duration_ms=2751 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:24.8847862Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=3597
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:24.9054463Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=2751 failed=0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:24.9412713Z FM_TEST_SLOWEST rank=1 script=tests/fm-copilot-harness.test.sh duration_ms=2751
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:25.7476941Z FM_TEST_BEGIN 2026-09-17T04:05:25Z tests/fm-copilot-harness.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6222294Z Author identity unknown
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6222556Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6222691Z *** Please tell me who you are.
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6222881Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6222945Z Run
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6223046Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6223205Z   git config --global user.email "you@example.com"
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6223543Z   git config --global user.name "Your Name"
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6223726Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6223858Z to set your account's default identity.
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6224206Z Omit --global to set the identity only in this repository.
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6224438Z 
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:26.6224716Z fatal: unable to auto-detect email address (got 'runneradmin@runnervmvmocb.(none)')
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:28.8951567Z ok - Copilot Stop uses one late ownership-checked continuation transaction
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:28.8955465Z all fm-copilot-harness tests passed
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:29.0977456Z FM_TEST_END 2026-09-17T04:05:29Z tests/fm-copilot-harness.test.sh exit=0 duration_ms=3278 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:29.1772895Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=4114
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:29.1975487Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=3278 failed=0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:29.2293482Z FM_TEST_SLOWEST rank=1 script=tests/fm-copilot-harness.test.sh duration_ms=3278
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:30.0463724Z FM_TEST_BEGIN 2026-09-17T04:05:30Z tests/fm-control-recovery.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:54.0292289Z ok - approved recovery preserves both copies, current task records, and exactly one relaunch
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:54.3429681Z FM_TEST_END 2026-09-17T04:05:54Z tests/fm-control-recovery.test.sh exit=0 duration_ms=24214 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:54.4265557Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=25064
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:54.4470185Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=24214 failed=0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:54.4780091Z FM_TEST_SLOWEST rank=1 script=tests/fm-control-recovery.test.sh duration_ms=24214
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:55.2953872Z FM_TEST_BEGIN 2026-09-17T04:05:55Z tests/fm-control-relaunch.test.sh family=backend-dispatch expected_gate_skip=none
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:58.6137997Z ok - fm-control inspect: structured observation never acquires lifecycle authority
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:58.8458334Z FM_TEST_END 2026-09-17T04:05:58Z tests/fm-control-relaunch.test.sh exit=0 duration_ms=3477 gate_skip=false
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:58.9283303Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=4320
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:58.9493776Z FM_TEST_SUMMARY_FAMILY family=backend-dispatch count=1 duration_ms=3477 failed=0
+Windows Copilot management	Run native management contracts without a live fleet	2026-09-17T04:05:58.9808529Z FM_TEST_SLOWEST rank=1 script=tests/fm-control-relaunch.test.sh duration_ms=3477
+Windows Copilot management	Post Run actions/setup-node@v7	﻿2026-09-17T04:05:59.0476895Z Post job cleanup.
+Windows Copilot management	Post Run actions/checkout@v6	﻿2026-09-17T04:05:59.2492751Z Post job cleanup.
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:05:59.4362558Z [command]"C:\Program Files\Git\bin\git.exe" version
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:05:59.4635353Z git version 2.55.0.windows.5
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:05:59.4710625Z Temporarily overriding HOME='D:\a\_temp\6b415f5b-db14-4af2-89cd-bedc5c7cd700' before making global git config changes
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:05:59.4711629Z Adding repository directory to the temporary git global config as a safe directory
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:05:59.4722257Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\firstmate\firstmate
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:05:59.5035874Z Removing SSH command configuration
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:05:59.5047272Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:05:59.5376237Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.1419413Z Removing HTTP extra header
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.1431173Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.1758388Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.7403514Z Removing includeIf entries pointing to credentials config files
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.7416486Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.7688973Z includeif.gitdir:D:/a/firstmate/firstmate/.git.path
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.7689773Z includeif.gitdir:D:/a/firstmate/firstmate/.git/worktrees/*.path
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.7690479Z includeif.gitdir:/github/workspace/.git.path
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.7691070Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.7739931Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/firstmate/firstmate/.git.path
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.8004902Z D:\a\_temp\git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.8054792Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/firstmate/firstmate/.git.path D:\a\_temp\git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.8371329Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/firstmate/firstmate/.git/worktrees/*.path
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.8637073Z D:\a\_temp\git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.8685247Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/firstmate/firstmate/.git/worktrees/*.path D:\a\_temp\git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.8999229Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.9270231Z /github/runner_temp/git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.9316214Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.9630602Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.9896994Z /github/runner_temp/git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:00.9944872Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:01.0265997Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Windows Copilot management	Post Run actions/checkout@v6	2026-09-17T04:06:01.5750076Z Removing credentials config 'D:\a\_temp\git-credentials-52f6ba31-1774-48a0-a971-e8deaac63296.config'
+Windows Copilot management	Complete job	﻿2026-09-17T04:06:01.5971862Z Cleaning up orphan processes

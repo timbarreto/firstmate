@@ -1,0 +1,18 @@
+FM_TEST_BEGIN 2026-09-17T03:30:37Z tests/fm-harness-contract.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - pilot and nonpilot control mechanics and busy sources retain their contracts
+ok - recorded raw names and literal owned artifacts preserve pilot and legacy distinctions
+ok - primary supervision retains the pilot, legacy, unknown, and explicit-override behavior
+ok - the closed interface preserves exact registration and staged identity
+ok - pilot identity composes with structural precedence, weak interpreter evidence, and signed Pi markers
+ok - shared backend identity preserves native Copilot, Pi, legacy names, and exact-match refusals
+ok - launch preparation preserves raw commands, literal executables, native effort, and parent bindings
+ok - missing and incomplete registered adapters fail explicitly before dispatch
+ok - malformed calls diagnose instead of shell errors, and operation-specific support stays distinct
+ok - supervision preserves explicit overrides without hiding adapter-load failures
+ok - the executable Pi artifact preserves literal paths, settlement, notifications, and throttled generation-bound progress
+ok - fresh tracked clones and linked worktrees execute the complete adapter dependency closure
+FM_TEST_END 2026-09-17T03:32:18Z tests/fm-harness-contract.test.sh exit=0 duration_ms=100586 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=126724
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=100586 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-harness-contract.test.sh duration_ms=100586
+fm-test-run: wrote timing artifact: /c/src/.fm-perf-runs/busy-event-helpers/checks/fm-harness-contract.json

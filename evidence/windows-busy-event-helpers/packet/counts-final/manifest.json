@@ -1,0 +1,402 @@
+{
+  "pins": {
+    "base": {
+      "root": "C:/src/firstmate-base-busy-event-helpers",
+      "sha": "0716ecdcb5b5e81654ef102eb471c2a04320f508"
+    },
+    "candidate": {
+      "root": "C:/src/firstmate-perf-busy-event-helpers",
+      "sha": "91a8d6dda8b6f15b80d1a105c0959a652d264f8b"
+    }
+  },
+  "driverSHA": "9aa87056d6eb1827fdd23bcf7ec552b06755f11d",
+  "driverFiles": {
+    "run.sh": "3cd97b7b7dc21ea6f153202e6e93da549ff256fdbe442606b540c103d6b8d1af",
+    "measure.mjs": "b217839a140599d45cc0e094d9335492dcd080ffeb593df6fa8b7301d9f7f7fc",
+    "trace-hook.sh": "ce9b627793f1b07a553f0a7767da9c843679deab8d9d161ce5b1312552c6d575"
+  },
+  "traced": true,
+  "samples": 1,
+  "warmups": 0,
+  "purpose": "partial-attribution",
+  "fixture": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM",
+  "seeds": {
+    "pi": {
+      "task.busy-gen": "g1789618784.673408.23550\n",
+      "task.busy-state": "v1 gen=g1789618784.673408.23550 seq=1 state=busy source=fm-spawn event=launch-brief ts=1789618785\n"
+    },
+    "copilot": {
+      "task.busy-gen": "g1789618796.673512.7626\n",
+      "task.busy-state": "v1 gen=g1789618796.673512.7626 seq=1 state=busy source=fm-spawn event=launch-brief ts=1789618797\n"
+    }
+  },
+  "started": "2026-09-17T04:20:13.345Z",
+  "platform": "win32",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpus": 16,
+  "cpuModel": "AMD EPYC 7763 64-Core Processor                ",
+  "totalMem": 68665831424,
+  "freeMem": 25946902528,
+  "tools": {
+    "node": "v24.19.0",
+    "git": "git version 2.55.0.windows.5",
+    "bash": "GNU bash, version 5.3.15(2)-release (x86_64-pc-cygwin)\nCopyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.",
+    "powershell": "5.1.26100.9444",
+    "jq": "jq-1.8.2",
+    "perl": "v5.42.3",
+    "cygpath": "cygpath (cygwin) 3.6.10\nPath Conversion Utility\nCopyright (C) 1998 - 2026 Cygwin Authors\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+  },
+  "bashResolution": [
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Windows\\System32\\bash.exe",
+    "C:\\Users\\v-tibarreto\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"
+  ],
+  "hookBashResolution": "C:\\Program Files\\Git\\bin\\bash.exe",
+  "pathEntries": 37,
+  "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef",
+  "generated": {
+    "pi/base.ts": "d8765b0608c7294ab42f3fde1985ae1e211a51d7d6f6208230e6f9a1ea59fa8a",
+    "pi/candidate.ts": "49f70d0aa5db22ecfecb850f45ee735993f332da10b95e1b5a0cd36d89aadff2",
+    "copilot/base.json": "626b4c5c89f4c0ba90ea718dc9dc00914af42b301b272b075d196c1c04031512",
+    "copilot/candidate.json": "35f6e601a4c94498b1d53964c4ff52da32a0adb3a9a24967a8eff82f1711a1ef"
+  },
+  "manifest": [
+    {
+      "id": "control-bash",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/projects"
+      },
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ]
+    },
+    {
+      "id": "control-bash",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/projects"
+      },
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ]
+    },
+    {
+      "id": "pi-busy",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/projects"
+      },
+      "boundary": "generated agent_start callback -> real Bash helper close"
+    },
+    {
+      "id": "pi-busy",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/projects"
+      },
+      "boundary": "generated agent_start callback -> real Bash helper close"
+    },
+    {
+      "id": "control-powershell",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/projects"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "exit 0"
+      ]
+    },
+    {
+      "id": "control-powershell",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/unused-home/projects"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "exit 0"
+      ]
+    },
+    {
+      "id": "copilot-busy",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/projects",
+        "COPILOT_CLI": "1"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& 'C:\\src\\firstmate-base-busy-event-helpers\\bin\\fm-ghcp-hook.ps1' worker-event 'C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state' 'task' 'g1789618796.673512.7626' busy user-prompt-submitted -; exit $LASTEXITCODE"
+      ],
+      "boundary": "native generated PowerShell worker command -> hook owner -> busy writer close",
+      "input": "{}",
+      "vendorTimeoutSec": 10
+    },
+    {
+      "id": "copilot-busy",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/projects",
+        "COPILOT_CLI": "1"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& 'C:\\src\\firstmate-perf-busy-event-helpers\\bin\\fm-ghcp-hook.ps1' worker-event 'C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state' 'task' 'g1789618796.673512.7626' busy user-prompt-submitted -; exit $LASTEXITCODE"
+      ],
+      "boundary": "native generated PowerShell worker command -> hook owner -> busy writer close",
+      "input": "{}",
+      "vendorTimeoutSec": 10
+    },
+    {
+      "id": "pi-idle",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/projects"
+      },
+      "boundary": "generated agent_settled callback -> real Bash helper close"
+    },
+    {
+      "id": "pi-idle",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/projects"
+      },
+      "boundary": "generated agent_settled callback -> real Bash helper close"
+    },
+    {
+      "id": "copilot-idle",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/projects",
+        "COPILOT_CLI": "1"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& 'C:\\src\\firstmate-base-busy-event-helpers\\bin\\fm-ghcp-hook.ps1' worker-event 'C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state' 'task' 'g1789618796.673512.7626' idle agent-stop 'C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state/task.turn-ended'; exit $LASTEXITCODE"
+      ],
+      "boundary": "native generated PowerShell worker command -> hook owner -> busy writer close",
+      "input": "{}",
+      "vendorTimeoutSec": 10
+    },
+    {
+      "id": "copilot-idle",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/projects",
+        "COPILOT_CLI": "1"
+      },
+      "file": "C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& 'C:\\src\\firstmate-perf-busy-event-helpers\\bin\\fm-ghcp-hook.ps1' worker-event 'C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state' 'task' 'g1789618796.673512.7626' idle agent-stop 'C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/copilot/state/task.turn-ended'; exit $LASTEXITCODE"
+      ],
+      "boundary": "native generated PowerShell worker command -> hook owner -> busy writer close",
+      "input": "{}",
+      "vendorTimeoutSec": 10
+    },
+    {
+      "id": "pi-progress",
+      "version": "base",
+      "cwd": "C:/src/firstmate-base-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/projects"
+      },
+      "boundary": "generated progress callback -> real Bash helper close; NOT synchronous callback blocking"
+    },
+    {
+      "id": "pi-progress",
+      "version": "candidate",
+      "cwd": "C:/src/firstmate-perf-busy-event-helpers",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\busy-event-helpers\\counts-final\\fixture.8oizNM\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-busy-event-helpers",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/busy-event-helpers/counts-final/fixture.8oizNM/pi/projects"
+      },
+      "boundary": "generated progress callback -> real Bash helper close; NOT synchronous callback blocking"
+    }
+  ]
+}

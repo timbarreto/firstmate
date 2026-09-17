@@ -1,0 +1,404 @@
+Windows reconciliation (core)	Set up job	﻿2026-09-17T04:25:24.1742303Z Current runner version: '2.337.0'
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1776643Z ##[group]Runner Image Provisioner
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1777194Z Hosted Compute Agent
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1777826Z Version: 20260828.587
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1778169Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1778556Z Build Date: 2026-08-28T16:44:25Z
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1778936Z Worker ID: {ac8938d4-669e-4c54-8f06-936398fc791d}
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1779334Z Azure Region: westus3
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1779632Z ##[endgroup]
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1780381Z ##[group]Operating System
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1780713Z Microsoft Windows Server 2025
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1781031Z 10.0.26100
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1781326Z Datacenter
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1781588Z ##[endgroup]
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1781876Z ##[group]Runner Image
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1782204Z Image: windows-2025-vs2026
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1782516Z Version: 20260907.229.1
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1783110Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260907.229/images/windows/Windows2025-VS2026-Readme.md
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1784215Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260907.229
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1784746Z ##[endgroup]
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1785341Z ##[group]GITHUB_TOKEN Permissions
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1786502Z Contents: read
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1786802Z Metadata: read
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1787092Z ##[endgroup]
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1788376Z Secret source: Actions
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1788866Z Cache mode: write
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.1789236Z Prepare workflow directory
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.2001526Z Prepare all required actions
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.2033384Z Getting action download info
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.4896773Z Download action repository 'actions/checkout@v6' (SHA:d23441a48e516b6c34aea4fa41551a30e30af803)
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.6638069Z Download action repository 'actions/setup-node@v7' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+Windows reconciliation (core)	Set up job	2026-09-17T04:25:24.8468012Z Complete job name: Windows reconciliation (core)
+Windows reconciliation (core)	Run actions/checkout@v6	﻿2026-09-17T04:25:24.9509747Z ##[group]Run actions/checkout@v6
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9511045Z with:
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9511283Z   repository: timbarreto/firstmate
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9513780Z   token: ***
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9513993Z   ssh-strict: true
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9514206Z   ssh-user: git
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9514426Z   persist-credentials: true
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9514677Z   clean: true
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9514898Z   sparse-checkout-cone-mode: true
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9515157Z   fetch-depth: 1
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9515491Z   fetch-tags: false
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9515707Z   show-progress: true
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9515928Z   lfs: false
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9516131Z   submodules: false
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9516353Z   set-safe-directory: true
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9516605Z   allow-unsafe-pr-checkout: false
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:24.9516997Z ##[endgroup]
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:25.0548465Z Syncing repository: timbarreto/firstmate
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:25.0550141Z ##[group]Getting Git version info
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:25.0550540Z Working directory is 'D:\a\firstmate\firstmate'
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:25.1615202Z [command]"C:\Program Files\Git\bin\git.exe" version
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3307230Z git version 2.55.0.windows.5
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3343371Z ##[endgroup]
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3358624Z Temporarily overriding HOME='D:\a\_temp\1b394451-8a37-4f10-9d98-1b04d97f4903' before making global git config changes
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3360424Z Adding repository directory to the temporary git global config as a safe directory
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3365637Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\firstmate\firstmate
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3926487Z Deleting the contents of 'D:\a\firstmate\firstmate'
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3931897Z ##[group]Determining repository object format
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3933672Z ##[endgroup]
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3934664Z ##[group]Initializing the repository
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.3939946Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\firstmate\firstmate
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.4737329Z Initialized empty Git repository in D:/a/firstmate/firstmate/.git/
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.4773618Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/timbarreto/firstmate
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.5554654Z ##[endgroup]
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.5555924Z ##[group]Disabling automatic garbage collection
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.5561082Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.5783647Z ##[endgroup]
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.5785258Z ##[group]Setting up auth
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.5786383Z Removing SSH command configuration
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.5792264Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:26.5995867Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:28.7226935Z Removing HTTP extra header
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:28.7234334Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:28.7444777Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.1340774Z Removing includeIf entries pointing to credentials config files
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.1349994Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.1573230Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.5445753Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.5707392Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/firstmate/firstmate/.git.path D:\a\_temp\git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.5932415Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/firstmate/firstmate/.git/worktrees/*.path D:\a\_temp\git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.6455347Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.6685710Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.6911627Z ##[endgroup]
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.6912066Z ##[group]Fetching the repository
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:29.6923267Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +83fdbe860e401d3085bb18581bfd45ff754800ef:refs/remotes/pull/65/merge
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.1346996Z From https://github.com/timbarreto/firstmate
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.1348064Z  * [new ref]         83fdbe860e401d3085bb18581bfd45ff754800ef -> pull/65/merge
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.1382229Z ##[endgroup]
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.1383098Z ##[group]Determining the checkout info
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.1383481Z ##[endgroup]
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.1390194Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.1950449Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.2158958Z ##[group]Checking out the ref
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.2165966Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/65/merge
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4289650Z Note: switching to 'refs/remotes/pull/65/merge'.
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4290073Z 
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4290249Z You are in 'detached HEAD' state. You can look around, make experimental
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4290693Z changes and commit them, and you can discard any commits you make in this
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4291063Z state without impacting any branches by switching back to a branch.
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4291282Z 
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4291433Z If you want to create a new branch to retain commits you create, you may
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4291778Z do so (now or later) by using -c with the switch command. Example:
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4291990Z 
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4292110Z   git switch -c <new-branch-name>
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4292244Z 
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4292319Z Or undo this operation with:
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4292445Z 
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4292502Z   git switch -
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4292623Z 
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4292782Z Turn off this advice by setting config variable advice.detachedHead to false
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4293060Z 
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4293412Z HEAD is now at 83fdbe8 Merge 91a8d6dda8b6f15b80d1a105c0959a652d264f8b into 0716ecdcb5b5e81654ef102eb471c2a04320f508
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4407025Z ##[endgroup]
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4678589Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+Windows reconciliation (core)	Run actions/checkout@v6	2026-09-17T04:25:32.4877452Z 83fdbe860e401d3085bb18581bfd45ff754800ef
+Windows reconciliation (core)	Run actions/setup-node@v7	﻿2026-09-17T04:25:32.5283778Z ##[group]Run actions/setup-node@v7
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:32.5284045Z with:
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:32.5284152Z   node-version: 24
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:32.5284272Z   check-latest: false
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:32.5285776Z   token: ***
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:32.5285892Z   package-manager-cache: true
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:32.5286028Z ##[endgroup]
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:32.6637960Z Found in cache @ C:\hostedtoolcache\windows\node\24.20.0\x64
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:32.6644006Z ##[group]Environment details
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:44.3720406Z node: v24.20.0
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:44.3720671Z npm: 11.19.0
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:44.3720835Z yarn: 1.22.22
+Windows reconciliation (core)	Run actions/setup-node@v7	2026-09-17T04:25:44.3721341Z ##[endgroup]
+Windows reconciliation (core)	Run focused native Windows contracts	﻿2026-09-17T04:25:44.3950344Z ##[group]Run set -eu
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3950617Z [36;1mset -eu[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3950727Z [36;1mnode --version[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3950910Z [36;1mbin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3951136Z [36;1m  tests/fm-reconcile-validation.test.sh \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3951324Z [36;1m  tests/fm-backend-herdr-treehouse.test.sh \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3951520Z [36;1m  tests/fm-pi-windows-shell-invocation.test.sh \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3951716Z [36;1m  tests/fm-platform-process.test.sh \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3951880Z [36;1m  tests/fm-private-path.test.sh \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3952041Z [36;1m  tests/fm-startup-performance.test.sh[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3952201Z [36;1mfor test_case in \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3952338Z [36;1m  test_current_gen_path_stays_in_process \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3952513Z [36;1m  test_writer_process_budget \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3952691Z [36;1m  test_generation_first_line_characterization \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3952903Z [36;1m  test_prior_record_first_line_characterization \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3953123Z [36;1m  test_prior_record_nul_diagnostic_is_preserved \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3953322Z [36;1m  test_busy_paths_and_current_gen_preserve_caller_state \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3953536Z [36;1m  test_generation_read_error_returns_without_aborting \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3953739Z [36;1m  test_prior_record_read_failure_resets_sequence \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3953939Z [36;1m  test_current_gen_binding_stays_before_lock_for_apply \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3954154Z [36;1m  test_record_publication_keeps_lock_and_private_umask; do[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3954337Z [36;1m  FM_TEST_ONLY="$test_case" \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3954523Z [36;1m    bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3954723Z [36;1m      tests/fm-busy-state.test.sh[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3954859Z [36;1mdone[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3955181Z [36;1mFM_TEST_ONLY=test_bootstrap_batches_already_in_flight_rows \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3955413Z [36;1m  bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3955609Z [36;1m    tests/fm-bootstrap.test.sh[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3955822Z [36;1mFM_TEST_ONLY=test_bootstrap_diagnostics_stream_before_probe_completion \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3956143Z [36;1m  bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3956361Z [36;1m    tests/fm-session-start.test.sh[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3956564Z [36;1mFM_TEST_ONLY=test_windows_pr_publication_removes_broad_inheritance \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3956800Z [36;1m  bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3956996Z [36;1m    tests/fm-pr-check-security.test.sh[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3957154Z [36;1mfor test_case in \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3957283Z [36;1m  test_clone_root_identity_forms \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3957449Z [36;1m  test_directory_aliases_preserve_local_only \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3957642Z [36;1m  test_pruning_preserves_unlanded_gone_branches; do[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3957810Z [36;1m  FM_TEST_ONLY="$test_case" \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3957989Z [36;1m    bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3958181Z [36;1m      tests/fm-fleet-sync.test.sh[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3958313Z [36;1mdone[0m
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3971380Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3971605Z env:
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3971709Z   FM_LIVE: 0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.3971814Z ##[endgroup]
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:44.6764934Z v24.20.0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:45.8927117Z FM_TEST_BEGIN 2026-09-17T04:25:45Z tests/fm-reconcile-validation.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:57.5178496Z ✔ the default wall budget is 40 minutes and explicit overrides are honored (697.1896ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:57.5179505Z ✔ preflight defers a missing prerequisite without executing the check (99.6879ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:57.5182921Z ✔ preflight-only never certifies or executes a check (216.4554ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:57.5183616Z ✔ resume reuses exact inputs, ignores unrelated prose, and invalidates changed inputs (525.7758ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:57.5184392Z ✔ cache identity includes environment, frozen context, and prerequisite versions (1574.5157ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:57.5185183Z ✔ failures and successful exits with skips never enter the pass cache (852.5853ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:25:57.5185728Z ✔ two timeouts persist partial results and defer additional work (4842.9727ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7486569Z ✔ the wall budget cancels a running command and prevents its delayed result (10003.5124ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7487432Z ✔ caching refuses missing or out-of-scope dependency inputs (224.0071ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7488206Z ✔ registered shell cases preserve default order, select exactly one, and refuse typos (1420.0741ms)
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7501990Z ℹ tests 10
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7502248Z ℹ suites 0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7502489Z ℹ pass 10
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7502669Z ℹ fail 0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7502865Z ℹ cancelled 0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7503074Z ℹ skipped 0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7503247Z ℹ todo 0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.7503452Z ℹ duration_ms 20598.2342
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:06.9177324Z FM_TEST_END 2026-09-17T04:26:06Z tests/fm-reconcile-validation.test.sh exit=0 duration_ms=20954 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:07.0124018Z FM_TEST_BEGIN 2026-09-17T04:26:06Z tests/fm-backend-herdr-treehouse.test.sh family=unclassified expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:07.5995608Z ok - native Windows Herdr alone selects a durable Treehouse lease
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:07.6361149Z ok - the PowerShell worktree command quotes a literal native path
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:07.6742068Z ok - the PowerShell environment command validates its name and quotes its value
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:07.7459372Z ok - the PowerShell launch bridge invokes a POSIX script through literal paths
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:07.8297585Z ok - lease acquisition runs in the project with the exact task holder
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:07.8806807Z ok - an unpublished lease closes its endpoint before Treehouse return
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:07.9104474Z ok - an unpublished lease return failure remains visible to spawn recovery
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:08.1213710Z FM_TEST_END 2026-09-17T04:26:08Z tests/fm-backend-herdr-treehouse.test.sh exit=0 duration_ms=1045 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:08.2350928Z FM_TEST_BEGIN 2026-09-17T04:26:08Z tests/fm-pi-windows-shell-invocation.test.sh family=unclassified expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:09.9286881Z ok - Pi session-start, pre-tool, turn-end, and operational-input seams invoke Bash owners on native Windows
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:10.1032348Z FM_TEST_END 2026-09-17T04:26:10Z tests/fm-pi-windows-shell-invocation.test.sh exit=0 duration_ms=1811 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:10.1835773Z FM_TEST_BEGIN 2026-09-17T04:26:10Z tests/fm-platform-process.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:11.5034669Z ok - Herdr Windows transport preserves slash commands while retaining cwd path conversion
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:22.8289154Z ok - native process facts use one bounded snapshot, sanitize rows, reject reused parents, and distinguish missing PIDs from query errors
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:23.7305871Z ok - both process compatibility interfaces pass isolated behavioral contracts
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:25.8941580Z ok - native Windows PID translation, graceful TERM, and owned tree cleanup preserve foreign processes
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:25.9033694Z ok - Pi and OpenCode preserve process exports, PID semantics, ownership, and call counts
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:26.2731531Z ok - process facts preserve proc overrides and POSIX fallback formatting
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:26.4524498Z ok - Windows transport preserves quotes, metacharacters, and multiline data
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:27.7193077Z bash round trip
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:27.7309231Z ok - native PowerShell executes literal environment, directory, and Bash launch commands
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:27.9042951Z ok - missing platform dependencies refuse before native calls or termination fallbacks
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:28.1463703Z ok - Copilot preserves per-process single-PID caching and only scans after a missing tasklist row
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:30.1966924Z ok - fresh clones and worktree-shaped homes execute both wrappers and tracked native dependencies
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:30.3900673Z FM_TEST_END 2026-09-17T04:26:30Z tests/fm-platform-process.test.sh exit=0 duration_ms=20137 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:30.4595030Z FM_TEST_BEGIN 2026-09-17T04:26:30Z tests/fm-private-path.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:46.9787817Z ok - native callers retain ACL, FullControl, hidden-path, kind, and batch policies
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:54.7137443Z ok - native securing preserves inheritance and every validation rechecks mutation and reparse points
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:57.8145203Z ok - native secure batches enforce every file and subsequent ACL drift remains visible
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:58.0070434Z ok - public callers retain path-kind, device, hard-link, and supported-mode refusals
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:58.6813427Z ok - native batching, retry counts, and lossless environment transport remain bounded
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:58.8362050Z ok - missing Bash, PowerShell, conversion, or platform helpers refuse without a fallback
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:26:58.8631837Z skip - POSIX mode fixtures require a POSIX filesystem
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:00.9879177Z ok - tracked clones and worktree-shaped roots carry the native dependency without ambient fallback
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:01.2640325Z FM_TEST_END 2026-09-17T04:27:01Z tests/fm-private-path.test.sh exit=0 duration_ms=30742 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:01.3405233Z FM_TEST_BEGIN 2026-09-17T04:27:01Z tests/fm-startup-performance.test.sh family=pure-contract-unit expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:01.7564818Z ok - metadata can be read in-process without changing literal or legacy results
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:01.8627710Z ok - backend metadata selection retains results without nested read subprocesses
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:02.5504580Z ok - backend selectors preserve literal results, defaults, failures, and caller state
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:02.8650781Z ok - backend target selection keeps backend/terminal/window order and fresh independent reads
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:03.0738578Z ok - backend selector read errors retain defaults and return without aborting callers
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:03.3722392Z ok - metadata readers return empty results after a first-read error without aborting callers
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:03.6072539Z ok - metadata readers stop after a later read error without replaying a prior line
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:03.7651495Z ok - watcher health reads whole records in-process and rechecks identity and home
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:06.3222725Z ok - fresh record guards retain confinement and symlink checks on native and portable paths
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:07.5497718Z ok - current Herdr presentations skip discovery while a newly orphaned journal is rechecked
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:07.9461089Z ok - in-process lock reads retain whole-record and parent/subshell ownership checks
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:08.1585270Z ok - errexit cleanup quietly releases already-removed owner records and homes
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:08.3659963Z ok - status snapshots batch native file facts without caching file identity or size
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:08.7793774Z ok - batched file facts retain fresh pre/post-read replacement refusal
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:08.8843467Z ok - literal path validation keeps byte-level refusals without per-read interpreters
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:09.3895951Z ok - routine history stays bounded without losing or caching decision transitions
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:09.6512555Z ok - status text destinations retain literal, malformed-key, and legacy capture behavior
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:09.9898729Z ok - real decision transitions stay bounded without changing correlation or keyed closure
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:12.6258031Z ok - real snapshot preserves facts without per-field JSON subprocesses
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.0923133Z FM_TEST_END 2026-09-17T04:27:13Z tests/fm-startup-performance.test.sh exit=0 duration_ms=11699 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.1722349Z FM_TEST_SUMMARY total=6 failed=0 skipped_gate=0 duration_ms=88132
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.1885894Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=4 duration_ms=83532 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.1886547Z FM_TEST_SUMMARY_FAMILY family=unclassified count=2 duration_ms=2856 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.2130629Z FM_TEST_SLOWEST rank=1 script=tests/fm-private-path.test.sh duration_ms=30742
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.2131286Z FM_TEST_SLOWEST rank=2 script=tests/fm-reconcile-validation.test.sh duration_ms=20954
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.2131830Z FM_TEST_SLOWEST rank=3 script=tests/fm-platform-process.test.sh duration_ms=20137
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.2132364Z FM_TEST_SLOWEST rank=4 script=tests/fm-startup-performance.test.sh duration_ms=11699
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.2132958Z FM_TEST_SLOWEST rank=5 script=tests/fm-pi-windows-shell-invocation.test.sh duration_ms=1811
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.2133624Z FM_TEST_SLOWEST rank=6 script=tests/fm-backend-herdr-treehouse.test.sh duration_ms=1045
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:13.7296082Z FM_TEST_BEGIN 2026-09-17T04:27:13Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:14.1078359Z ok - current gen lookup preserves stdout without nested process work
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:14.1085342Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:14.2663253Z FM_TEST_END 2026-09-17T04:27:14Z tests/fm-busy-state.test.sh exit=0 duration_ms=481 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:14.3133896Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=1018
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:14.3250387Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=481 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:14.3453003Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=481
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:14.8350254Z FM_TEST_BEGIN 2026-09-17T04:27:14Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:15.4707966Z ok - busy apply preserves its record within the reduced child-shell budget
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:15.4708909Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:15.6398019Z FM_TEST_END 2026-09-17T04:27:15Z tests/fm-busy-state.test.sh exit=0 duration_ms=735 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:15.6869944Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=1273
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:15.6991409Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=735 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:15.7175472Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=735
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:16.2230768Z FM_TEST_BEGIN 2026-09-17T04:27:16Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:16.8431795Z ok - generation reads preserve first-line, unterminated, empty, and malformed outcomes
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:16.8433037Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:16.9919861Z FM_TEST_END 2026-09-17T04:27:16Z tests/fm-busy-state.test.sh exit=0 duration_ms=713 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:17.0402961Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=1253
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:17.0524083Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=713 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:17.0711374Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=713
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:17.6105973Z FM_TEST_BEGIN 2026-09-17T04:27:17Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:20.1620386Z ok - writer preserves literal first-line and existing malformed-record sequence behavior
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:20.1621657Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:20.3195542Z FM_TEST_END 2026-09-17T04:27:20Z tests/fm-busy-state.test.sh exit=0 duration_ms=2657 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:20.3730233Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=3215
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:20.3852011Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=2657 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:20.4039885Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=2657
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:20.8741512Z FM_TEST_BEGIN 2026-09-17T04:27:20Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:21.5280362Z ok - NUL-containing prior records retain the supported Bash diagnostic and sequence
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:21.5281875Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:21.6700847Z FM_TEST_END 2026-09-17T04:27:21Z tests/fm-busy-state.test.sh exit=0 duration_ms=753 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:21.7188779Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=1243
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:21.7330542Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=753 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:21.7536118Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=753
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:22.2200605Z FM_TEST_BEGIN 2026-09-17T04:27:22Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:23.2775970Z ok - literal relative paths preserve caller state across gen, arm, apply, progress, and retire
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:23.2792969Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:23.4647381Z FM_TEST_END 2026-09-17T04:27:23Z tests/fm-busy-state.test.sh exit=0 duration_ms=1196 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:23.5176044Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=1693
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:23.5296614Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=1196 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:23.5492445Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=1196
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:24.0316514Z FM_TEST_BEGIN 2026-09-17T04:27:24Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:24.4178631Z ok - a real generation read error returns quietly without aborting a strict caller
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:24.4184317Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:24.5563390Z FM_TEST_END 2026-09-17T04:27:24Z tests/fm-busy-state.test.sh exit=0 duration_ms=482 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:25.7971900Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=2170
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:26.2140024Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=482 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:26.7667658Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=482
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:29.3340935Z FM_TEST_BEGIN 2026-09-17T04:27:29Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:30.6349445Z ok - a real prior-record open failure retains quiet publication from sequence one
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:30.6350567Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:30.8134783Z FM_TEST_END 2026-09-17T04:27:30Z tests/fm-busy-state.test.sh exit=0 duration_ms=1410 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:30.8726846Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=2027
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:30.8850651Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=1410 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:30.9043032Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=1410
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:31.4305625Z FM_TEST_BEGIN 2026-09-17T04:27:31Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:33.2273131Z ok - apply keeps pre-lock binding while retire retains its distinct under-lock current generation
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:33.2277817Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:33.4080208Z FM_TEST_END 2026-09-17T04:27:33Z tests/fm-busy-state.test.sh exit=0 duration_ms=1916 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:33.4621528Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=2486
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:33.4758015Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=1916 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:33.4976493Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=1916
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:34.0500144Z FM_TEST_BEGIN 2026-09-17T04:27:34Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:34.7154008Z ok - record replacement publishes a complete line under its lock and private writer umask
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:34.7154585Z all fm-busy-state tests passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:34.8671787Z FM_TEST_END 2026-09-17T04:27:34Z tests/fm-busy-state.test.sh exit=0 duration_ms=780 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:34.9168984Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=1343
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:34.9296580Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=780 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:34.9501286Z FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=780
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:35.4436551Z FM_TEST_BEGIN 2026-09-17T04:27:35Z tests/fm-bootstrap.test.sh family=session-bootstrap expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:40.5215515Z ok - bootstrap batches healthy rows but freshly checks each actual reconciliation
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:40.6983643Z FM_TEST_END 2026-09-17T04:27:40Z tests/fm-bootstrap.test.sh exit=0 duration_ms=5201 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:40.7463666Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=5722
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:40.7581644Z FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=5201 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:40.7777384Z FM_TEST_SLOWEST rank=1 script=tests/fm-bootstrap.test.sh duration_ms=5201
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:41.2755587Z FM_TEST_BEGIN 2026-09-17T04:27:41Z tests/fm-session-start.test.sh family=session-bootstrap expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:47.4351817Z ok - bootstrap diagnostics reach the session before a later probe finishes
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:47.4352888Z # fm-session-start.test.sh: selected assertions passed
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:47.6546770Z FM_TEST_END 2026-09-17T04:27:47Z tests/fm-session-start.test.sh exit=0 duration_ms=6323 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:47.7025576Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=6845
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:47.7149826Z FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=6323 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:47.7340263Z FM_TEST_SLOWEST rank=1 script=tests/fm-session-start.test.sh duration_ms=6323
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:48.2085906Z FM_TEST_BEGIN 2026-09-17T04:27:48Z tests/fm-pr-check-security.test.sh family=pr-forge expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:52.9624672Z ok - PR publication removes broad inherited Windows ACLs
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:53.1351876Z FM_TEST_END 2026-09-17T04:27:53Z tests/fm-pr-check-security.test.sh exit=0 duration_ms=4854 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:53.2327325Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=5427
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:53.2463453Z FM_TEST_SUMMARY_FAMILY family=pr-forge count=1 duration_ms=4854 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:53.2650401Z FM_TEST_SLOWEST rank=1 script=tests/fm-pr-check-security.test.sh duration_ms=4854
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:27:53.7366707Z FM_TEST_BEGIN 2026-09-17T04:27:53Z tests/fm-fleet-sync.test.sh family=session-bootstrap expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:09.4948615Z ok - clone-root identity accepts native path aliases and refuses a different repository
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:09.7248586Z FM_TEST_END 2026-09-17T04:28:09Z tests/fm-fleet-sync.test.sh exit=0 duration_ms=15915 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:09.7791980Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=16442
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:09.7922873Z FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=15915 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:09.8127256Z FM_TEST_SLOWEST rank=1 script=tests/fm-fleet-sync.test.sh duration_ms=15915
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:10.3232546Z FM_TEST_BEGIN 2026-09-17T04:28:10Z tests/fm-fleet-sync.test.sh family=session-bootstrap expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:16.4629148Z ok - physical and native argument aliases preserve the managed project's local-only posture
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:16.6277590Z FM_TEST_END 2026-09-17T04:28:16Z tests/fm-fleet-sync.test.sh exit=0 duration_ms=6245 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:16.6739722Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=6782
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:16.6856523Z FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=6245 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:16.7039771Z FM_TEST_SLOWEST rank=1 script=tests/fm-fleet-sync.test.sh duration_ms=6245
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:17.1965773Z FM_TEST_BEGIN 2026-09-17T04:28:17Z tests/fm-fleet-sync.test.sh family=session-bootstrap expected_gate_skip=none
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:21.1471605Z ok - a deleted upstream is not landing evidence for a unique local branch
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:21.3260546Z FM_TEST_END 2026-09-17T04:28:21Z tests/fm-fleet-sync.test.sh exit=0 duration_ms=4080 gate_skip=false
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:21.3791371Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=4604
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:21.3932437Z FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=4080 failed=0
+Windows reconciliation (core)	Run focused native Windows contracts	2026-09-17T04:28:21.4145734Z FM_TEST_SLOWEST rank=1 script=tests/fm-fleet-sync.test.sh duration_ms=4080
+Windows reconciliation (core)	Post Run actions/setup-node@v7	﻿2026-09-17T04:28:21.4540423Z Post job cleanup.
+Windows reconciliation (core)	Post Run actions/checkout@v6	﻿2026-09-17T04:28:21.5792164Z Post job cleanup.
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:21.6890348Z [command]"C:\Program Files\Git\bin\git.exe" version
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:21.7087928Z git version 2.55.0.windows.5
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:21.7142233Z Temporarily overriding HOME='D:\a\_temp\08d78fa6-959b-416a-bfe0-f1a666cc33d5' before making global git config changes
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:21.7142713Z Adding repository directory to the temporary git global config as a safe directory
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:21.7149418Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\firstmate\firstmate
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:21.7378083Z Removing SSH command configuration
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:21.7387094Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:21.7604492Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.2608445Z Removing HTTP extra header
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.2615734Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.2823990Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.6575707Z Removing includeIf entries pointing to credentials config files
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.6584640Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.6763602Z includeif.gitdir:D:/a/firstmate/firstmate/.git.path
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.6764165Z includeif.gitdir:D:/a/firstmate/firstmate/.git/worktrees/*.path
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.6764420Z includeif.gitdir:/github/workspace/.git.path
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.6764649Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.6799440Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/firstmate/firstmate/.git.path
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.6987260Z D:\a\_temp\git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.7024412Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/firstmate/firstmate/.git.path D:\a\_temp\git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.7232380Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/firstmate/firstmate/.git/worktrees/*.path
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.7411018Z D:\a\_temp\git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.7447753Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/firstmate/firstmate/.git/worktrees/*.path D:\a\_temp\git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.7666283Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.7842764Z /github/runner_temp/git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.7875887Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.8087155Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.8261932Z /github/runner_temp/git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.8295021Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:22.8506584Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Windows reconciliation (core)	Post Run actions/checkout@v6	2026-09-17T04:28:23.2367392Z Removing credentials config 'D:\a\_temp\git-credentials-acc6ecdf-a17f-4666-a9da-be304e9b46cf.config'
+Windows reconciliation (core)	Complete job	﻿2026-09-17T04:28:23.2526542Z Cleaning up orphan processes

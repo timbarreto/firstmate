@@ -1,0 +1,7 @@
+FM_TEST_BEGIN 2026-09-17T03:00:41Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+not ok - busy apply created 12 child-shell contexts (budget 10)
+FM_TEST_END 2026-09-17T03:00:50Z tests/fm-busy-state.test.sh exit=1 duration_ms=9037 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=13872
+FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=9037 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=9037
+fm-test-run: wrote timing artifact: /c/src/.fm-perf-runs/busy-event-helpers/checks/writer-cost-red.json

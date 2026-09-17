@@ -1,0 +1,273 @@
+Harness package compatibility	Set up job	﻿2026-09-17T04:04:26.2657997Z Current runner version: '2.337.0'
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2686015Z ##[group]Runner Image Provisioner
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2686877Z Hosted Compute Agent
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2687522Z Version: 20260828.587
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2688144Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2688844Z Build Date: 2026-08-28T16:44:25Z
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2689630Z Worker ID: {07d5906f-eded-47b9-91cc-fe446260ef64}
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2690294Z Azure Region: westus3
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2690891Z ##[endgroup]
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2692257Z ##[group]Operating System
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2692887Z Ubuntu
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2693457Z 24.04.5
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2693966Z LTS
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2694488Z ##[endgroup]
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2695022Z ##[group]Runner Image
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2695620Z Image: ubuntu-24.04
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2696182Z Version: 20260907.300.1
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2697206Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260907.300/images/ubuntu/Ubuntu2404-Readme.md
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2698889Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260907.300
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2700071Z ##[endgroup]
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2701131Z ##[group]GITHUB_TOKEN Permissions
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2703139Z Contents: read
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2703765Z Metadata: read
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2704285Z ##[endgroup]
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2706412Z Secret source: Actions
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2707305Z Cache mode: write
+Harness package compatibility	Set up job	2026-09-17T04:04:26.2708007Z Prepare workflow directory
+Harness package compatibility	Set up job	2026-09-17T04:04:26.3035826Z Prepare all required actions
+Harness package compatibility	Set up job	2026-09-17T04:04:26.3087651Z Getting action download info
+Harness package compatibility	Set up job	2026-09-17T04:04:26.6297297Z Download action repository 'actions/checkout@v6' (SHA:d23441a48e516b6c34aea4fa41551a30e30af803)
+Harness package compatibility	Set up job	2026-09-17T04:04:26.7379679Z Download action repository 'actions/setup-node@v7' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+Harness package compatibility	Set up job	2026-09-17T04:04:26.9345172Z Complete job name: Harness package compatibility
+Harness package compatibility	Run actions/checkout@v6	﻿2026-09-17T04:04:27.0215355Z ##[group]Run actions/checkout@v6
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0216216Z with:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0216662Z   repository: timbarreto/firstmate
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0220498Z   token: ***
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0220906Z   ssh-strict: true
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0221341Z   ssh-user: git
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0221783Z   persist-credentials: true
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0222239Z   clean: true
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0222658Z   sparse-checkout-cone-mode: true
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0223138Z   fetch-depth: 1
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0223544Z   fetch-tags: false
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0223955Z   show-progress: true
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0224368Z   lfs: false
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0224746Z   submodules: false
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0225169Z   set-safe-directory: true
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0225643Z   allow-unsafe-pr-checkout: false
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.0226404Z ##[endgroup]
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1297560Z Syncing repository: timbarreto/firstmate
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1300595Z ##[group]Getting Git version info
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1301386Z Working directory is '/home/runner/work/firstmate/firstmate'
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1303144Z [command]/usr/bin/git version
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1359598Z git version 2.55.0
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1410988Z ##[endgroup]
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1427559Z Temporarily overriding HOME='/home/runner/work/_temp/d7307003-8a6c-4e83-b7fa-7b7bdba2660f' before making global git config changes
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1429492Z Adding repository directory to the temporary git global config as a safe directory
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1431101Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/firstmate/firstmate
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1472280Z Deleting the contents of '/home/runner/work/firstmate/firstmate'
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1477100Z ##[group]Determining repository object format
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1480237Z ##[endgroup]
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1481707Z ##[group]Initializing the repository
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1486113Z [command]/usr/bin/git init /home/runner/work/firstmate/firstmate
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1587735Z hint: Using 'master' as the name for the initial branch. This default branch name
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1592409Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1594385Z hint: to use in all of your new repositories, which will suppress this warning,
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1595783Z hint: call:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1596679Z hint:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1597669Z hint: 	git config --global init.defaultBranch <name>
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1598497Z hint:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1599524Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1601269Z hint: 'development'. The just-created branch can be renamed via this command:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1602711Z hint:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1603670Z hint: 	git branch -m <name>
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1604593Z hint:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1605792Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1607741Z Initialized empty Git repository in /home/runner/work/firstmate/firstmate/.git/
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1611341Z [command]/usr/bin/git remote add origin https://github.com/timbarreto/firstmate
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1655499Z ##[endgroup]
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1656982Z ##[group]Disabling automatic garbage collection
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1659549Z [command]/usr/bin/git config --local gc.auto 0
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1689437Z ##[endgroup]
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1691555Z ##[group]Setting up auth
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1692587Z Removing SSH command configuration
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1696976Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.1729992Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2042470Z Removing HTTP extra header
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2052949Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2090710Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2286341Z Removing includeIf entries pointing to credentials config files
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2294298Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2331815Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2541679Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2577898Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/firstmate/firstmate/.git.path /home/runner/work/_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2606554Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/firstmate/firstmate/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2637865Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2675311Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2698825Z ##[endgroup]
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2700242Z ##[group]Fetching the repository
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:27.2710428Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +83fdbe860e401d3085bb18581bfd45ff754800ef:refs/remotes/pull/65/merge
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.0633704Z From https://github.com/timbarreto/firstmate
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.0635975Z  * [new ref]         83fdbe860e401d3085bb18581bfd45ff754800ef -> pull/65/merge
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.0650526Z ##[endgroup]
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.0657242Z ##[group]Determining the checkout info
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.0659257Z ##[endgroup]
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.0660181Z [command]/usr/bin/git sparse-checkout disable
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.0714367Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.0742793Z ##[group]Checking out the ref
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.0747522Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/65/merge
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1626461Z Note: switching to 'refs/remotes/pull/65/merge'.
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1627844Z 
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1628672Z You are in 'detached HEAD' state. You can look around, make experimental
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1630691Z changes and commit them, and you can discard any commits you make in this
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1632650Z state without impacting any branches by switching back to a branch.
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1633800Z 
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1634589Z If you want to create a new branch to retain commits you create, you may
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1636586Z do so (now or later) by using -c with the switch command. Example:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1637754Z 
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1638236Z   git switch -c <new-branch-name>
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1639243Z 
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1639704Z Or undo this operation with:
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1640475Z 
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1640840Z   git switch -
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1641429Z 
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1642515Z Turn off this advice by setting config variable advice.detachedHead to false
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1643967Z 
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1645615Z HEAD is now at 83fdbe8 Merge 91a8d6dda8b6f15b80d1a105c0959a652d264f8b into 0716ecdcb5b5e81654ef102eb471c2a04320f508
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1650515Z ##[endgroup]
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1686126Z [command]/usr/bin/git log -1 --format=%H
+Harness package compatibility	Run actions/checkout@v6	2026-09-17T04:04:29.1709195Z 83fdbe860e401d3085bb18581bfd45ff754800ef
+Harness package compatibility	Run actions/setup-node@v7	﻿2026-09-17T04:04:29.2070242Z ##[group]Run actions/setup-node@v7
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:29.2070899Z with:
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:29.2071310Z   node-version: 24
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:29.2071739Z   check-latest: false
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:29.2075790Z   token: ***
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:29.2076222Z   package-manager-cache: true
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:29.2076756Z ##[endgroup]
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:29.3696423Z Found in cache @ /opt/hostedtoolcache/node/24.20.0/x64
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:29.3701337Z ##[group]Environment details
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:32.2790655Z node: v24.20.0
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:32.2791417Z npm: 11.19.0
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:32.2791860Z yarn: 1.22.22
+Harness package compatibility	Run actions/setup-node@v7	2026-09-17T04:04:32.2794005Z ##[endgroup]
+Harness package compatibility	Install pinned harness packages	﻿2026-09-17T04:04:32.2922807Z ##[group]Run set -eu
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2923317Z [36;1mset -eu[0m
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2923614Z [36;1mnpm install -g \[0m
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2923996Z [36;1m  @earendil-works/pi-coding-agent@0.84.3 \[0m
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2924372Z [36;1m  opencode-ai@1.18.23 \[0m
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2924688Z [36;1m  typescript@5.9.3[0m
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2924995Z [36;1mpi --version[0m
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2925275Z [36;1mopencode --version[0m
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2925570Z [36;1mtsc --version[0m
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2998045Z shell: /usr/bin/bash -e {0}
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:32.2998459Z ##[endgroup]
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:39.9415224Z npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2270777Z 
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2272431Z added 140 packages in 13s
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2281404Z npm warn install-scripts 3 packages have install scripts not yet covered by allowScripts:
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2282252Z 
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2283362Z npm warn install-scripts   opencode-ai@1.18.23 (postinstall: node ./postinstall.mjs)
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2285217Z npm warn install-scripts   @google/genai@1.52.0 (preinstall: echo 'preinstall: no-op')
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2286745Z npm warn install-scripts   protobufjs@7.6.5 (postinstall: node scripts/postinstall)
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2287845Z npm warn install-scripts
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2290247Z npm warn install-scripts Run `npm install -g --allow-scripts=opencode-ai,@google/genai,protobufjs` to allow these scripts once, or `npm config set allow-scripts=opencode-ai,@google/genai,protobufjs --location=user` to allow them for all global installs.
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2293529Z 15 packages are looking for funding
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.2294559Z   run `npm fund` for details
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:45.5601761Z 0.84.3
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:46.2083338Z 1.18.23
+Harness package compatibility	Install pinned harness packages	2026-09-17T04:04:46.3614586Z Version 5.9.3
+Harness package compatibility	Run non-credentialed Pi compatibility checks	﻿2026-09-17T04:04:46.3741641Z ##[group]Run set -eu
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:46.3742173Z [36;1mset -eu[0m
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:46.3742989Z [36;1mbin/fm-test-run.sh tests/fm-pi-primary-types.test.sh tests/fm-platform-process.test.sh[0m
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:46.3744064Z [36;1mbin/fm-test-run.sh tests/fm-pi-branch-extension.test.sh[0m
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:46.3784079Z shell: /usr/bin/bash -e {0}
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:46.3784600Z ##[endgroup]
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:46.5457488Z FM_TEST_BEGIN 2026-09-17T04:04:46Z tests/fm-pi-primary-types.test.sh family=pure-contract-unit expected_gate_skip=none
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:51.5787606Z ok - tracked Pi extensions pass strict no-emit typecheck against Pi 0.84.3
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:51.5886886Z FM_TEST_END 2026-09-17T04:04:51Z tests/fm-pi-primary-types.test.sh exit=0 duration_ms=5038 gate_skip=false
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:51.5948639Z FM_TEST_BEGIN 2026-09-17T04:04:51Z tests/fm-platform-process.test.sh family=pure-contract-unit expected_gate_skip=none
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.5881600Z ok - both process compatibility interfaces pass isolated behavioral contracts
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.5947854Z ok - Pi and OpenCode preserve process exports, PID semantics, ownership, and call counts
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.6307576Z ok - process facts preserve proc overrides and POSIX fallback formatting
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.6625445Z ok - Windows transport preserves quotes, metacharacters, and multiline data
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.7076149Z ok - missing platform dependencies refuse before native calls or termination fallbacks
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.7278233Z ok - Copilot preserves per-process single-PID caching and only scans after a missing tasklist row
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.9326994Z ok - fresh clones and worktree-shaped homes execute both wrappers and tracked native dependencies
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.9492597Z FM_TEST_END 2026-09-17T04:04:52Z tests/fm-platform-process.test.sh exit=0 duration_ms=1348 gate_skip=false
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.9546941Z FM_TEST_SUMMARY total=2 failed=0 skipped_gate=0 duration_ms=6504
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.9565833Z FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=2 duration_ms=6386 failed=0
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.9584657Z FM_TEST_SLOWEST rank=1 script=tests/fm-pi-primary-types.test.sh duration_ms=5038
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:52.9585839Z FM_TEST_SLOWEST rank=2 script=tests/fm-platform-process.test.sh duration_ms=1348
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:53.0663387Z FM_TEST_BEGIN 2026-09-17T04:04:53Z tests/fm-pi-branch-extension.test.sh family=standalone expected_gate_skip=none
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:53.2202844Z skip: installed Pi 0.84.3 predates the stock renderer contract 0.84.4 this case compares against
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:54.1744308Z ok - the installed Pi still bounds the picker's list and ranks its search
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:55.7025919Z ok - branch owns accepted wakes with a stable prefix and deterministic verdict-driven delivery
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:04:55.7156896Z ok - a captain outcome reaches main's model as one typed, sequence-keyed processing request while routine notes stay plain
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:00.4630164Z ok - requested and unsolicited healthy outcomes keep distinct delivery and event ownership
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:01.9726164Z ok - captain outcomes are exact and exactly once across crash, reload, busy main, compaction, and an unrelated assistant response
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:05.2356945Z ok - a captain outcome opens one sequence-keyed processing turn, survives empty and unrelated answers, is re-presented at run end and session start, and closes only on its acknowledgement
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:05.5247382Z ok - scopeForUnreadWake excludes every main-only class without vetoing eligible task-local rows, and writes the eligible snapshot
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:06.7423758Z ok - branch prompt_cache_key is stable per home across sessions and distinct between homes
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:08.6487123Z ok - branch default-on eligibility (task-scoped, heartbeat, afk) binds and a broken branch rejects to watcher fallback
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:09.1248370Z ok - a heartbeat review survives a check row arriving before its drain
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:10.5773470Z ok - fm_branch_report refuses a task the wake did not name, fleet included, while a heartbeat is unscoped
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:11.0846600Z ok - pre-drain eligibility re-check excludes a newly main-owned row without deferring eligible work
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:12.1503415Z ok - a co-present needs-decision row neither vetoes nor falsely settles routine branch delivery
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:13.2067992Z ok - a settled branch turn without a durable outcome falls back and releases its grant for main replay
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:15.5211139Z ok - provider-error latches cool down, re-probe once with backoff, and recover through a durable report
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:16.5612933Z ok - selection changes preserve in-flight transcript ownership and reset provider-error streaks
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:17.0705126Z ok - a stale main claim returns the durable wake to watcher delivery
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:17.6158505Z ok - pre-drain eligibility re-check no-ops an already-drained wake
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:18.2062696Z ok - dialog mirror filters tool and operational traffic, lands before wakes, and keeps a durable cursor
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:19.2208815Z ok - the dialog mirror re-anchors for each session's new branch conversation and stays incremental within it
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:20.6829266Z ok - every main session start begins a new branch conversation while one session keeps its own
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:23.0839738Z ok - the current pin state binds every branch build, and clearing it returns the branch to main's model
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:24.1350494Z ok - unpinned branches follow main model changes live while pinned branches stay fixed
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:25.3925119Z ok - supervision-model command persists the captain's pick and rebinds the live branch
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:25.7682686Z ok - supervision-model opens a bounded searchable list, follow main first, and pins the branch alone
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:25.8513318Z ok - branch model picker keeps follow main first and filters the eligible catalog
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:29.1574475Z ok - the effort pin binds every branch build, and clearing it returns the branch to main's effort
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:30.2853013Z ok - unpinned branches follow main effort changes live while pinned branches stay fixed
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:31.1930513Z ok - an extension-registered provider resolves in the isolated branch runtime
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:31.9808518Z ok - supervision-model runs an effort picker after the model picker and persists both independently
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:33.1927304Z ok - an unusable model pin rejects to watcher fallback and an unparseable one is treated as no pin
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:33.6221014Z ok - replacement activation cleans old branch leases and retries failed cleanup
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:34.2780438Z ok - branch activates on a cold start once the lock is acquired, never before
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:34.8318716Z ok - queued wakes and mirrors stop mutating branch state after lock ownership is lost
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:35.7363730Z ok - stale reports, shells, mirrors, cursors, leases, and prompts perform no side effects
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:35.9622518Z ok - a Pi session that does not own the lock accepts nothing and mutates no branch state
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:36.6977163Z ok - an extension rebind re-mirrors undelivered dialog instead of dropping it
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:39.1546294Z ok - outcome delivery keeps the event loop running and interleaved reports stay ordered and exactly once
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:40.7413297Z ok - a session replaced mid-delivery cancels cleanly and the stored outcome still arrives exactly once
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:41.7270526Z ok - a failing store script surfaces to the branch and its outcome is neither lost nor delivered twice
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:43.2287092Z ok - a failed cursor write re-delivers a routine note exactly once more while a captain outcome stays deduplicated
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:43.2716010Z fm-test-run: gate skip: tests/fm-pi-branch-extension.test.sh: installed Pi 0.84.3 predates the stock renderer contract 0.84.4 this case compares against
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:43.2717477Z FM_TEST_END 2026-09-17T04:05:43Z tests/fm-pi-branch-extension.test.sh exit=0 duration_ms=50197 gate_skip=true
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:43.2767609Z FM_TEST_SUMMARY total=1 failed=0 skipped_gate=1 duration_ms=50311
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:43.2783729Z FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=50197 failed=0
+Harness package compatibility	Run non-credentialed Pi compatibility checks	2026-09-17T04:05:43.2802575Z FM_TEST_SLOWEST rank=1 script=tests/fm-pi-branch-extension.test.sh duration_ms=50197
+Harness package compatibility	Post Run actions/setup-node@v7	﻿2026-09-17T04:05:43.2928862Z Post job cleanup.
+Harness package compatibility	Post Run actions/checkout@v6	﻿2026-09-17T04:05:43.4242422Z Post job cleanup.
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5172147Z [command]/usr/bin/git version
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5222312Z git version 2.55.0
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5275356Z Temporarily overriding HOME='/home/runner/work/_temp/cf65b5b5-87b9-470b-a74b-1055fce810ab' before making global git config changes
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5276751Z Adding repository directory to the temporary git global config as a safe directory
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5283308Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/firstmate/firstmate
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5430065Z Removing SSH command configuration
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5431195Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5436845Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5622178Z Removing HTTP extra header
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5630663Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5669459Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5906911Z Removing includeIf entries pointing to credentials config files
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5914096Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5943243Z includeif.gitdir:/home/runner/work/firstmate/firstmate/.git.path
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5944701Z includeif.gitdir:/home/runner/work/firstmate/firstmate/.git/worktrees/*.path
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5945910Z includeif.gitdir:/github/workspace/.git.path
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5946941Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5956318Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/firstmate/firstmate/.git.path
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5982105Z /home/runner/work/_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.5994830Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/firstmate/firstmate/.git.path /home/runner/work/_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6050214Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/firstmate/firstmate/.git/worktrees/*.path
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6060054Z /home/runner/work/_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6075341Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/firstmate/firstmate/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6102340Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6140375Z /github/runner_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6153765Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6193056Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6218411Z /github/runner_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6228726Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6268474Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Harness package compatibility	Post Run actions/checkout@v6	2026-09-17T04:05:43.6490932Z Removing credentials config '/home/runner/work/_temp/git-credentials-c87491ba-c91f-4713-82b0-de9433e7d3af.config'
+Harness package compatibility	Complete job	﻿2026-09-17T04:05:43.6651880Z Cleaning up orphan processes

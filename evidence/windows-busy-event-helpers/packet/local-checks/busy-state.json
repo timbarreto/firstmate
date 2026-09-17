@@ -1,0 +1,31 @@
+{
+  "families": [
+    {
+      "count": 1,
+      "duration_ms": 185667,
+      "failed": 1,
+      "name": "standalone"
+    }
+  ],
+  "finished_at": "2026-09-17T03:10:20Z",
+  "run_id": "fm-test-run-1789614429506-627079",
+  "scripts": [
+    {
+      "duration_ms": 185667,
+      "exit": 124,
+      "expected_gate_skip": "none",
+      "family": "standalone",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-busy-state.test.sh"
+    }
+  ],
+  "selection": "scripts;jobs=1",
+  "started_at": "2026-09-17T03:07:08Z",
+  "summary": {
+    "duration_ms": 191878,
+    "failed": 1,
+    "skipped_gate": 0,
+    "total": 1
+  }
+}

@@ -1,0 +1,26 @@
+FM_TEST_BEGIN 2026-09-17T03:07:13Z tests/fm-busy-state.test.sh family=standalone expected_gate_skip=none
+ok - native progress is generation-bound, separately recorded, and cleared on arm and retire
+ok - arm mints a gen sidecar and seeds busy fm-spawn at seq=1
+ok - apply advances seq under the armed gen and attributes the writing source
+ok - firstmate-owned interrupt and recovery events bind to the current gen
+ok - apply is refused for a task whose busy contract was never armed
+ok - retire waits for the writer lock and cannot remove a new incarnation
+ok - retire treats only an absent sidecar as already retired
+ok - the writer breaks a stale lock instead of dying on GNU stat output
+ok - a late event from a previous incarnation is rejected, record unchanged
+ok - a record from a stale incarnation classifies unknown, never idle
+ok - a converted adapter with no record classifies unknown, never idle
+ok - malformed records classify unknown malformed, never busy or idle
+ok - a record with no armed gen sidecar classifies unknown
+ok - a record is trusted only by the adapter whose source wrote it
+ok - converted adapters never classify busy from rendered footer text
+ok - the grok fallback is regex-scoped to grok and classifies only grok tasks
+ok - codex classifies unknown until a semantic source passes its verification gate
+ok - standalone kimi classifies unknown until the live verification gate opens
+ok - cursor classifies only from its transcript fold, never rendered text or native state
+not ok - tests/fm-busy-state.test.sh exceeded the per-script bound of 180s and was terminated
+FM_TEST_END 2026-09-17T03:10:20Z tests/fm-busy-state.test.sh exit=124 duration_ms=185667 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=191878
+FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=185667 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-busy-state.test.sh duration_ms=185667
+fm-test-run: wrote timing artifact: /c/src/.fm-perf-runs/busy-event-helpers/checks/busy-state.json
