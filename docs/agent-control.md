@@ -36,6 +36,8 @@ A recorded `harness=` is not always an exact adapter name: a task launched from 
 | `relaunch` | Replace the running agent with a new one in the same endpoint and worktree, on the exact recorded adapter or an explicitly chosen harness, model, and effort. | The new agent is alive on the recorded endpoint, and the durable record names the harness that is actually running. |
 
 An exit that delivers lifecycle input but cannot prove the agent stopped fails with `exit=unconfirmed`, reports the observed agent state and any interrupt cancellation claim, and never claims that nothing changed.
+Postcondition confirmation uses the elapsed-time bounds owned by the `bin/fm-control.sh` header, including time spent querying the agent rather than only sleeping between queries.
+An unfinished query is unreadable, not evidence that an agent stopped or a replacement started; these confirmation bounds do not cover initial validation or launch delivery.
 Interrupt never rewrites busy state as proof of its own success.
 Claude exposes no lifecycle acknowledgement for a manual interrupt, so delivery succeeds with `cancel=unconfirmed` and its adapter-owned busy state remains as observed.
 muse's session log records `terminal=cancelled` for the interrupted run, so the control plane reports `cancel=confirmed` only after observing that exact acknowledgement.
@@ -138,6 +140,6 @@ The empirical basis for each adapter's value is the `harness-adapters` skill's v
 ## Verification
 
 - `tests/fm-control.test.sh` - the adapter contract for its verified-harness lane (adapters outside the lane pin their control mechanics in their own harness suites), the backend capability matrix, exact-id scoping, the closed verb list, the busy, idle, dead, and idempotent lifecycle cases, and marker non-regression, all against a stubbed session provider.
-- `tests/fm-control-recovery.test.sh` - structured inspection, exact approval, original-copy preservation, stale/foreign evidence, native instance replacement, and completed/partial replay.
+- `tests/fm-control-recovery.test.sh` - structured inspection, exact approval, original-copy preservation, stale/foreign evidence, native instance replacement, completed/partial replay, and elapsed confirmation bounds with slow, stuck, partial-output, and native Windows queries.
 - `tests/fm-control-relaunch.test.sh` - the relaunch transaction: identity preservation, harness switching, the progress note, checkpoint refusals, and rollback after a failed launch.
 - `tests/fm-control-herdr-smoke.test.sh` - the second state-verified backend against the real herdr binary, on an isolated throwaway lab session.

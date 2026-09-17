@@ -164,9 +164,16 @@ jobs:
               bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
                 tests/fm-copilot-harness.test.sh
           done
-          FM_TEST_ONLY=test_recovery_approved_and_idempotent \
-            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
-              tests/fm-control-recovery.test.sh
+          for test_case in \
+            test_recovery_approved_and_idempotent \
+            test_relaunch_slow_probe_consumes_deadline \
+            test_relaunch_stuck_probe_is_bounded_and_reaped \
+            test_relaunch_completed_probe_keeps_parent_transaction \
+            test_windows_relaunch_query_deadline_reaps_native_process; do
+            FM_TEST_ONLY="$test_case" \
+              bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
+                tests/fm-control-recovery.test.sh
+          done
           FM_TEST_ONLY=test_control_inspect_is_read_only_during_another_action \
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
               tests/fm-control-relaunch.test.sh
