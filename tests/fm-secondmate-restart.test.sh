@@ -117,11 +117,9 @@ SH
   chmod +x "$fb/tmux"
   cat > "$fb/sleep" <<'SH'
 #!/usr/bin/env bash
-case "${1:-}" in
-  ''|*[!0-9]*) ;;
-  *) /bin/sleep 0.01 ;;
-esac
-exit 0
+# Control confirmation now has a real watchdog; preserve its clock instead
+# of shortening integer sleeps or skipping fractional sleeps.
+exec /bin/sleep "$@"
 SH
   chmod +x "$fb/sleep"
 }
@@ -239,7 +237,7 @@ run_restart() {  # <case-dir> <args...>
   env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
     FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 \
     FM_SECONDMATE_PERSIST_WAIT="${FM_TEST_PERSIST_WAIT:-30}" \
-    FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
+    FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=20 FM_CONTROL_LAUNCH_WAIT=20 \
     FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
     "$RESTART" "$@" 2>&1
 }
@@ -832,24 +830,25 @@ test_already_current_unprovable_mate_stays_on_the_nudge_path() {
   pass "T16 an already-current mate with an unprovable runtime keeps the honest nudge path"
 }
 
-test_persist_gates_and_asks_only_for_open_records
-test_persist_precedes_restart
-test_arrived_answer_precedes_deadline_check
-test_answer_between_resolution_and_timeout_wins
-test_unprovable_runtime_falls_back
-test_unknown_mate_is_accounted_for
-test_refused_restart_falls_back_without_claiming_a_reload
-test_local_restart_uses_the_home_pin_and_reports_what_ran
-test_native_ultra_restart_keeps_local_and_remote_profiles
-test_remote_mate_restarts_over_the_transport_hop
-test_unreachable_host_is_reported_unknown
-test_concurrent_reply_cannot_release_persist_gate
-test_persist_waits_are_polled_together
-test_post_stop_failure_is_reported_unreached
-test_relaunches_do_not_block_persist_polling
-test_unpublished_worker_result_is_accounted_for
-test_result_published_while_reaping_is_honored
-test_already_current_mate_restarts_end_to_end
-test_already_current_unprovable_mate_stays_on_the_nudge_path
+fm_test_run_cases \
+  test_persist_gates_and_asks_only_for_open_records \
+  test_persist_precedes_restart \
+  test_arrived_answer_precedes_deadline_check \
+  test_answer_between_resolution_and_timeout_wins \
+  test_unprovable_runtime_falls_back \
+  test_unknown_mate_is_accounted_for \
+  test_refused_restart_falls_back_without_claiming_a_reload \
+  test_local_restart_uses_the_home_pin_and_reports_what_ran \
+  test_native_ultra_restart_keeps_local_and_remote_profiles \
+  test_remote_mate_restarts_over_the_transport_hop \
+  test_unreachable_host_is_reported_unknown \
+  test_concurrent_reply_cannot_release_persist_gate \
+  test_persist_waits_are_polled_together \
+  test_post_stop_failure_is_reported_unreached \
+  test_relaunches_do_not_block_persist_polling \
+  test_unpublished_worker_result_is_accounted_for \
+  test_result_published_while_reaping_is_honored \
+  test_already_current_mate_restarts_end_to_end \
+  test_already_current_unprovable_mate_stays_on_the_nudge_path
 
 echo "# all fm-secondmate-restart tests passed"
