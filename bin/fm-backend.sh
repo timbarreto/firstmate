@@ -337,6 +337,7 @@ fm_backend_required_tool_available() {  # <backend> <tool>
 # Key/destination pairs are literal data, never evaluated. Destinations must be
 # plain variable names outside the private _fm_meta_read_ namespace; malformed
 # pairs or destinations return 2 before assigning anything. No result is cached.
+# Read errors preserve fields already read without reusing an earlier line.
 # Bulk readers avoid both command-substitution processes and repeated filesystem
 # opens for the same captured metadata, which are expensive on native Windows.
 fm_meta_read() {  # <meta-file> <key> <destination> [<key> <destination>...]
@@ -363,7 +364,11 @@ fm_meta_read() {  # <meta-file> <key> <destination> [<key> <destination>...]
     fi
   done
   [ -f "$_fm_meta_read_file" ] || return 0
-  while IFS= read -r _fm_meta_read_line || [ -n "$_fm_meta_read_line" ]; do
+  # An I/O error can leave read's destination unset or unchanged.
+  while
+    _fm_meta_read_line=
+    IFS= read -r _fm_meta_read_line || [ -n "$_fm_meta_read_line" ]
+  do
     for _fm_meta_read_arg in "$@"; do
       if [ "$_fm_meta_read_expect_key" = 1 ]; then
         _fm_meta_read_key=$_fm_meta_read_arg
