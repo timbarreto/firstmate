@@ -153,7 +153,7 @@ test_prior_record_nul_diagnostic_is_preserved() {
 }
 
 test_busy_paths_and_current_gen_preserve_caller_state() (
-  local state="./state café & '\$literal [x] (1)" id=-t._1 gen before_umask before_options before_pwd
+  local state="./state café & '\$literal [x] (1)" id=-t._1 gen before_umask before_options before_pwd out
   cd "$TMP_ROOT" || fail "literal-path fixture directory missing"
   mkdir -p "$state"
   umask 027
@@ -173,7 +173,10 @@ test_busy_paths_and_current_gen_preserve_caller_state() (
   "$EV" apply "$state" "$id" idle --current-gen --source fm-recovery --event relaunch \
     > "$state/stdout" 2> "$state/stderr" || fail "literal-path current-gen apply failed"
   [ ! -s "$state/stdout" ] && [ ! -s "$state/stderr" ] || fail "literal-path apply was not silent"
-  [ "$(fm_busy_record_read "$state" "$id")" = 'idle fm-recovery relaunch 2' ] || fail "literal record changed"
+  # The changed stdout gen helper is the custom-IFS seam above. Inspect the
+  # written record with the unmodified full parser's ordinary caller setup.
+  out=$(IFS=$' \t\n' fm_busy_record_read "$state" "$id") || fail "literal record unreadable: $out"
+  [ "$out" = 'idle fm-recovery relaunch 2' ] || fail "literal record changed: $out"
   "$EV" progress "$state" "$id" --gen "$gen" || fail "literal-path progress failed"
   [ -f "$state/$id.progress" ] && [ ! -e "$state/$id.turn-ended" ] || fail "progress was not separate"
   "$EV" retire "$state" "$id" --gen "$gen" || fail "literal-path retirement failed"
