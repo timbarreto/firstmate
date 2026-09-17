@@ -13,6 +13,8 @@ const [base, candidate, out] = process.argv.slice(2);
 assert.equal(process.platform, "win32", "Native Windows is required");
 const fixture = process.env.WF_FIXTURE_ROOT;
 assert(fixture && base && candidate && out);
+assert.equal(path.dirname(base), path.dirname(candidate), "Use sibling code copies for comparable source paths");
+assert.equal(base.length, candidate.length, "Use equal-length code-root paths");
 assert(!fs.existsSync(`${out}/samples.jsonl`), "Use a fresh output directory");
 const assets = path.dirname(fileURLToPath(import.meta.url));
 const traced = process.env.WF_TRACE === "1";
@@ -80,6 +82,10 @@ for (const shape of ["empty", "small"]) {
       for (const task of data.tasks) {
         assert.equal(task.project, 'literal="data"');
         assert.equal(task.current_state.state, "unknown");
+        assert.equal(task.current_state.detail, "worktree gone (torn down?)");
+        assert.equal(task.backend, "tmux");
+        assert.equal(task.endpoint.target, null);
+        assert.equal(task.hints.open_decisions.length, 1);
         assert.equal(task.hints.open_decisions[0].summary, 'preserve "quoted" notes');
         assert.equal(task.paths.worktree.present, false);
       }
@@ -94,6 +100,7 @@ for (const shape of ["empty", "small"]) {
       assert.deepEqual(data.in_flight.map(task => task.id), idsFor(shape));
       for (const task of data.in_flight) {
         assert.equal(task.state, "unknown");
+        assert.equal(task.doing, "worktree gone (torn down?)");
         assert.equal(task.repo, 'literal="data"');
       }
       assert.deepEqual(data.recorded_prs, idsFor(shape).map((id, index) => ({ id, url: `https://github.com/example/repo/pull/${index + 1}` })));

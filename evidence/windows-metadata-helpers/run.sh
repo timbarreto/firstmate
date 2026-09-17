@@ -2,6 +2,7 @@
 # Task-scoped paired reporting evidence, derived from the frozen baseline packet:
 # https://github.com/timbarreto/firstmate/tree/82fe66d0f349e520c8bd91617e49934f0b7bb1bb/evidence/windows-workflow-baseline
 # Usage: bash run.sh BASE_CODE_ROOT CANDIDATE_CODE_ROOT NEW_OUTPUT_DIR
+# Use sibling code roots with equal-length paths to avoid a source-path bias.
 # WF_WARMUPS=3 WF_SAMPLES=20; WF_ONLY limits smoke checks to named scenarios.
 # WF_TRACE=1 records one separate attribution pair, never qualification timings.
 # Preparation, verification, and cleanup remain outside the operation timers.
