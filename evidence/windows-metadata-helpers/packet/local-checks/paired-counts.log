@@ -1,0 +1,10 @@
+control-bash base sample 1 220.3 ms
+control-bash candidate sample 1 384.8 ms
+snapshot-empty base sample 1 7735.0 ms
+snapshot-empty candidate sample 1 5099.1 ms
+bearings-empty base sample 1 10378.2 ms
+bearings-empty candidate sample 1 11102.3 ms
+snapshot-small base sample 1 23424.4 ms
+snapshot-small candidate sample 1 26152.1 ms
+bearings-small base sample 1 38384.8 ms
+bearings-small candidate sample 1 29237.3 ms

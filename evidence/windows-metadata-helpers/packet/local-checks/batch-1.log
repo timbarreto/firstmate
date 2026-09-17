@@ -1,0 +1,28 @@
+control-bash base warmup 174.2 ms
+control-bash candidate warmup 91.0 ms
+snapshot-empty base warmup 10320.8 ms
+snapshot-empty candidate warmup 11442.3 ms
+bearings-empty base warmup 14734.4 ms
+bearings-empty candidate warmup 17452.9 ms
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ ''
+- 'worktree gone (torn down?)'
+
+    at Object.verify (file:///C:/src/.fm-perf-runs/metadata-helpers-v2/evidence/evidence/windows-metadata-helpers/measure.mjs:85:16)
+    at file:///C:/src/.fm-perf-runs/metadata-helpers-v2/evidence/evidence/windows-metadata-helpers/measure.mjs:179:24
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: '',
+  expected: 'worktree gone (torn down?)',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.19.0

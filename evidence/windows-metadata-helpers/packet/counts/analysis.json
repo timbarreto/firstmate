@@ -1,0 +1,258 @@
+{
+  "observations": [
+    {
+      "scenario": "bearings-empty",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 3,
+      "observedBashContexts": 47,
+      "additionalSubshellContexts": 42,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 466,
+      "bytes": 113533,
+      "helperEntries": {
+        "fm-bearings-snapshot.sh": 1,
+        "fm-afk-return.sh": 1,
+        "fm-fleet-snapshot.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "jq": 14,
+        "dirname": 8,
+        "uname": 3,
+        "date": 3,
+        "rm": 2,
+        "find": 1,
+        "sort": 1,
+        "grep": 1
+      }
+    },
+    {
+      "scenario": "bearings-empty",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 3,
+      "observedBashContexts": 47,
+      "additionalSubshellContexts": 42,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 466,
+      "bytes": 113533,
+      "helperEntries": {
+        "fm-bearings-snapshot.sh": 1,
+        "fm-afk-return.sh": 1,
+        "fm-fleet-snapshot.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "jq": 14,
+        "dirname": 8,
+        "uname": 3,
+        "date": 3,
+        "rm": 2,
+        "find": 1,
+        "sort": 1,
+        "grep": 1
+      }
+    },
+    {
+      "scenario": "bearings-small",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 6,
+      "observedBashContexts": 200,
+      "additionalSubshellContexts": 192,
+      "maximumObservedSubshellDepth": 5,
+      "traceRows": 9922,
+      "bytes": 1275965,
+      "helperEntries": {
+        "fm-crew-state.sh": 3,
+        "fm-bearings-snapshot.sh": 1,
+        "fm-afk-return.sh": 1,
+        "fm-fleet-snapshot.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 32,
+        "jq": 20,
+        "uname": 12,
+        "basename": 9,
+        "rm": 8,
+        "grep": 4,
+        "date": 3,
+        "env": 3,
+        "cat": 3,
+        "head": 3,
+        "tail": 3,
+        "find": 1,
+        "sort": 1
+      }
+    },
+    {
+      "scenario": "bearings-small",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 6,
+      "observedBashContexts": 176,
+      "additionalSubshellContexts": 168,
+      "maximumObservedSubshellDepth": 5,
+      "traceRows": 9868,
+      "bytes": 1267022,
+      "helperEntries": {
+        "fm-crew-state.sh": 3,
+        "fm-bearings-snapshot.sh": 1,
+        "fm-afk-return.sh": 1,
+        "fm-fleet-snapshot.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 32,
+        "jq": 20,
+        "uname": 12,
+        "basename": 9,
+        "rm": 8,
+        "grep": 4,
+        "date": 3,
+        "env": 3,
+        "cat": 3,
+        "head": 3,
+        "tail": 3,
+        "find": 1,
+        "sort": 1
+      }
+    },
+    {
+      "scenario": "control-bash",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 1,
+      "additionalSubshellContexts": 0,
+      "maximumObservedSubshellDepth": 0,
+      "traceRows": 1,
+      "bytes": 49,
+      "helperEntries": {
+        "bash": 1
+      },
+      "externalCommandEvaluations": {}
+    },
+    {
+      "scenario": "control-bash",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 1,
+      "additionalSubshellContexts": 0,
+      "maximumObservedSubshellDepth": 0,
+      "traceRows": 1,
+      "bytes": 49,
+      "helperEntries": {
+        "bash": 1
+      },
+      "externalCommandEvaluations": {}
+    },
+    {
+      "scenario": "snapshot-empty",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 30,
+      "additionalSubshellContexts": 26,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 293,
+      "bytes": 58322,
+      "helperEntries": {
+        "fm-fleet-snapshot.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "jq": 12,
+        "dirname": 4,
+        "date": 3,
+        "uname": 2,
+        "rm": 2,
+        "find": 1,
+        "sort": 1,
+        "grep": 1
+      }
+    },
+    {
+      "scenario": "snapshot-empty",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 1,
+      "observedBashContexts": 30,
+      "additionalSubshellContexts": 26,
+      "maximumObservedSubshellDepth": 2,
+      "traceRows": 293,
+      "bytes": 58322,
+      "helperEntries": {
+        "fm-fleet-snapshot.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "jq": 12,
+        "dirname": 4,
+        "date": 3,
+        "uname": 2,
+        "rm": 2,
+        "find": 1,
+        "sort": 1,
+        "grep": 1
+      }
+    },
+    {
+      "scenario": "snapshot-small",
+      "version": "base",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 4,
+      "observedBashContexts": 183,
+      "additionalSubshellContexts": 176,
+      "maximumObservedSubshellDepth": 5,
+      "traceRows": 9749,
+      "bytes": 1194733,
+      "helperEntries": {
+        "fm-crew-state.sh": 3,
+        "fm-fleet-snapshot.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 28,
+        "jq": 18,
+        "uname": 11,
+        "basename": 9,
+        "rm": 8,
+        "grep": 4,
+        "date": 3,
+        "env": 3,
+        "cat": 3,
+        "head": 3,
+        "tail": 3,
+        "find": 1,
+        "sort": 1
+      }
+    },
+    {
+      "scenario": "snapshot-small",
+      "version": "candidate",
+      "scope": "partial Bash observations, NOT a native process census",
+      "freshBashEntries": 4,
+      "observedBashContexts": 159,
+      "additionalSubshellContexts": 152,
+      "maximumObservedSubshellDepth": 5,
+      "traceRows": 9695,
+      "bytes": 1185790,
+      "helperEntries": {
+        "fm-crew-state.sh": 3,
+        "fm-fleet-snapshot.sh": 1
+      },
+      "externalCommandEvaluations": {
+        "dirname": 28,
+        "jq": 18,
+        "uname": 11,
+        "basename": 9,
+        "rm": 8,
+        "grep": 4,
+        "date": 3,
+        "env": 3,
+        "cat": 3,
+        "head": 3,
+        "tail": 3,
+        "find": 1,
+        "sort": 1
+      }
+    }
+  ]
+}

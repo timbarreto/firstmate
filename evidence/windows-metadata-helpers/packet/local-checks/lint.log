@@ -1,0 +1,16 @@
+fm-lint.sh: ShellCheck 0.11.0 (pinned 0.11.0)
+fm-lint.sh: local changed-file mode; ShellCheck source following disabled
+
+In tests/fm-startup-performance.test.sh line 81:
+  read() { printf '%s\n' "$BASH_SUBSHELL" >> "$reads"; builtin read "$@"; }
+                                                               ^--^ SC2162 (info): read without -r will mangle backslashes.
+
+
+In tests/fm-startup-performance.test.sh line 179:
+    builtin read "$@" || read_rc=$?
+            ^--^ SC2162 (info): read without -r will mangle backslashes.
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2162 -- read without -r will mangle backs...
+fm-lint-workflows.sh: actionlint 1.7.12 (pinned 1.7.12)
+fm-lint-workflows.sh: 3 workflow files valid

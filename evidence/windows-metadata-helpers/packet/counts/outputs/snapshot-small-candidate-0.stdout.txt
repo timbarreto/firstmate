@@ -1,0 +1,297 @@
+{
+  "schema": "fm-fleet-snapshot.v1",
+  "generated": "2026-09-17T02:04:51Z",
+  "fm_home": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small",
+  "roots": {
+    "fm_root": "C:/src/firstmate-perf-metadata-helpers-v2",
+    "state": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/state",
+    "data": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/data",
+    "config": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/config",
+    "projects": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/projects"
+  },
+  "backlog": {
+    "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/data/backlog.md",
+    "present": true,
+    "records": []
+  },
+  "tasks": [
+    {
+      "id": "task-1",
+      "kind": "ship",
+      "harness": "copilot",
+      "mode": "direct-PR",
+      "yolo": "",
+      "project": "literal=\"data\"",
+      "spawn_gen": "gen-1",
+      "backend": "tmux",
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/state/task-1.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/state/task-1.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "working",
+            "note": "unrelated progress",
+            "raw": "working: unrelated progress"
+          }
+        },
+        "worktree": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/projects/absent-1",
+          "present": false
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/data/task-1/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "unknown",
+        "source": "none",
+        "detail": "worktree gone (torn down?)",
+        "raw": "state: unknown · source: none · worktree gone (torn down?)",
+        "observed_at": "2026-09-17T02:04:51Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": null,
+        "exists": null,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-09-17T02:04:51Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": "https://github.com/example/repo/pull/1",
+        "source": "meta"
+      },
+      "hints": {
+        "pending_decision": true,
+        "blocked_event": false,
+        "open_decisions": [
+          {
+            "key": "choice",
+            "verb": "needs-decision",
+            "summary": "preserve \"quoted\" notes"
+          }
+        ],
+        "scout_report_present": false,
+        "last_event_text": "working: unrelated progress"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-task-1",
+        "steer": "bin/fm-send.sh fm-task-1 '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": null
+    },
+    {
+      "id": "task-2",
+      "kind": "ship",
+      "harness": "pi",
+      "mode": "direct-PR",
+      "yolo": "",
+      "project": "literal=\"data\"",
+      "spawn_gen": "gen-2",
+      "backend": "tmux",
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/state/task-2.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/state/task-2.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "working",
+            "note": "unrelated progress",
+            "raw": "working: unrelated progress"
+          }
+        },
+        "worktree": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/projects/absent-2",
+          "present": false
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/data/task-2/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "unknown",
+        "source": "none",
+        "detail": "worktree gone (torn down?)",
+        "raw": "state: unknown · source: none · worktree gone (torn down?)",
+        "observed_at": "2026-09-17T02:04:51Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": null,
+        "exists": null,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-09-17T02:04:51Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": "https://github.com/example/repo/pull/2",
+        "source": "meta"
+      },
+      "hints": {
+        "pending_decision": true,
+        "blocked_event": false,
+        "open_decisions": [
+          {
+            "key": "choice",
+            "verb": "needs-decision",
+            "summary": "preserve \"quoted\" notes"
+          }
+        ],
+        "scout_report_present": false,
+        "last_event_text": "working: unrelated progress"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-task-2",
+        "steer": "bin/fm-send.sh fm-task-2 '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": null
+    },
+    {
+      "id": "task-3",
+      "kind": "ship",
+      "harness": "copilot",
+      "mode": "direct-PR",
+      "yolo": "",
+      "project": "literal=\"data\"",
+      "spawn_gen": "gen-3",
+      "backend": "tmux",
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/state/task-3.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/state/task-3.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "working",
+            "note": "unrelated progress",
+            "raw": "working: unrelated progress"
+          }
+        },
+        "worktree": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/projects/absent-3",
+          "present": false
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/data/task-3/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "unknown",
+        "source": "none",
+        "detail": "worktree gone (torn down?)",
+        "raw": "state: unknown · source: none · worktree gone (torn down?)",
+        "observed_at": "2026-09-17T02:04:51Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": null,
+        "exists": null,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-09-17T02:04:51Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": "https://github.com/example/repo/pull/3",
+        "source": "meta"
+      },
+      "hints": {
+        "pending_decision": true,
+        "blocked_event": false,
+        "open_decisions": [
+          {
+            "key": "choice",
+            "verb": "needs-decision",
+            "summary": "preserve \"quoted\" notes"
+          }
+        ],
+        "scout_report_present": false,
+        "last_event_text": "working: unrelated progress"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-task-3",
+        "steer": "bin/fm-send.sh fm-task-3 '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": null
+    }
+  ],
+  "main_inventory": {
+    "valid": true,
+    "reason": null,
+    "orphan_in_flight": [],
+    "unstructured_current_count": 0
+  },
+  "scout_reports": [],
+  "secondmate_current": {
+    "registry": {
+      "present": false,
+      "available": true,
+      "complete": true,
+      "reason": null,
+      "provenance": "registered-table",
+      "path": "C:/src/.fm-perf-runs/metadata-helpers-v2/counts/fixture.acCkMB/small/data/secondmates.md",
+      "freshness": {
+        "status": "fresh",
+        "observed_at": "2026-09-17T02:04:51Z"
+      },
+      "records": [],
+      "input_truncated": false,
+      "records_truncated": false,
+      "reasons": [],
+      "lines_in_window": 0,
+      "records_in_window": 0
+    },
+    "records": [],
+    "total_registered": 0,
+    "total": 0,
+    "shown": 0,
+    "truncated": 0
+  },
+  "secondmate_landed": {
+    "records": [],
+    "truncated": [],
+    "unreadable": [],
+    "partial": []
+  },
+  "secondmate_guidance": {
+    "note": "For kind=secondmate, bearings selects validated structured state from that registered home; parent events and bounded terminal evidence are fallback-only supplements and never current-state authority."
+  }
+}

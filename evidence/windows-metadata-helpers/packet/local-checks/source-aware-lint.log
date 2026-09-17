@@ -1,0 +1,14 @@
+fm-lint.sh: ShellCheck 0.11.0 (pinned 0.11.0)
+fm-lint.sh: full ShellCheck extended analysis enabled
+
+In tests/fm-startup-performance.test.sh line 82:
+  read() { printf '%s\n' "$BASH_SUBSHELL" >> "$reads"; builtin read "$@"; }
+  ^-- SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+
+In tests/fm-startup-performance.test.sh line 178:
+  read() {
+  ^-- SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2329 -- This function is never invoked. C...

@@ -1,0 +1,508 @@
+{
+  "pins": {
+    "base": {
+      "root": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+      "sha": "1695ad36f8c78db3a225b9205f38bba840d3b64e"
+    },
+    "candidate": {
+      "root": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "sha": "a8c23d7e86f33c650a2798537552e943a69406c5"
+    }
+  },
+  "driverSHA": "9497fbaa0becd1a0b5e3b5412fb0b81da3f2008a",
+  "driverFiles": {
+    "run.sh": "b727ba9bb3024a8558aed9d5404b76510a7bc253dd3cb4e3f961d56505207207",
+    "measure.mjs": "ef5f615a346499da4e87764a47da74dd2846bf08119c126250c4aceafbab3485",
+    "trace-hook.sh": "ce9b627793f1b07a553f0a7767da9c843679deab8d9d161ce5b1312552c6d575"
+  },
+  "traced": false,
+  "samples": 1,
+  "warmups": 0,
+  "purpose": "smoke",
+  "fixture": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ",
+  "inputs": [
+    {
+      "path": "empty/config",
+      "directory": true
+    },
+    {
+      "path": "empty/config/backlog-backend",
+      "bytes": 7,
+      "sha256": "cd60ed2fa8c947cb05cb57b23884dea9390e4b6aec0add666e69bf842fc68da0"
+    },
+    {
+      "path": "empty/data",
+      "directory": true
+    },
+    {
+      "path": "empty/data/backlog.md",
+      "bytes": 33,
+      "sha256": "fc7cfb341b1c7627e953dcca21ee8f90a02fb1e30d8ef38f3a3ba576acbe6bc8"
+    },
+    {
+      "path": "empty/projects",
+      "directory": true
+    },
+    {
+      "path": "empty/state",
+      "directory": true
+    },
+    {
+      "path": "small/config",
+      "directory": true
+    },
+    {
+      "path": "small/config/backlog-backend",
+      "bytes": 7,
+      "sha256": "cd60ed2fa8c947cb05cb57b23884dea9390e4b6aec0add666e69bf842fc68da0"
+    },
+    {
+      "path": "small/data",
+      "directory": true
+    },
+    {
+      "path": "small/data/backlog.md",
+      "bytes": 33,
+      "sha256": "fc7cfb341b1c7627e953dcca21ee8f90a02fb1e30d8ef38f3a3ba576acbe6bc8"
+    },
+    {
+      "path": "small/projects",
+      "directory": true
+    },
+    {
+      "path": "small/state",
+      "directory": true
+    },
+    {
+      "path": "small/state/task-1.meta",
+      "bytes": 219,
+      "sha256": "927462c57becd430c01ff648a7b29d6ffeef310a099475e629740d6946ca5e66"
+    },
+    {
+      "path": "small/state/task-1.status",
+      "bytes": 81,
+      "sha256": "cb1b64f003dfc50dc4628f59797b48ad16aebcecf96a028a041cc825b3c605d6"
+    },
+    {
+      "path": "small/state/task-2.meta",
+      "bytes": 214,
+      "sha256": "49adf3d6e3fe0f582cd555d3c66d5a07609c161b0b5702497bf8209a06e34b9f"
+    },
+    {
+      "path": "small/state/task-2.status",
+      "bytes": 81,
+      "sha256": "cb1b64f003dfc50dc4628f59797b48ad16aebcecf96a028a041cc825b3c605d6"
+    },
+    {
+      "path": "small/state/task-3.meta",
+      "bytes": 219,
+      "sha256": "dc31a5f292a4b4d89c5e529ce12bc0daa014e1f5bd4e352cb311693147b52906"
+    },
+    {
+      "path": "small/state/task-3.status",
+      "bytes": 81,
+      "sha256": "cb1b64f003dfc50dc4628f59797b48ad16aebcecf96a028a041cc825b3c605d6"
+    }
+  ],
+  "started": "2026-09-17T01:51:01.521Z",
+  "platform": "win32",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpus": 16,
+  "cpuModel": "AMD EPYC 7763 64-Core Processor                ",
+  "totalMem": 68665831424,
+  "freeMem": 26594738176,
+  "tools": {
+    "node": "v24.19.0",
+    "git": "git version 2.55.0.windows.5",
+    "bash": "GNU bash, version 5.3.15(2)-release (x86_64-pc-cygwin)\nCopyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.",
+    "jq": "jq-1.8.2",
+    "awk": "GNU Awk 5.4.1, API 4.1, PMA Avon 8-g1, (GNU MPFR 4.2.2, GNU MP 6.3.0)\nCopyright (C) 1989, 1991-2026 Free Software Foundation.\n\nThis program is free software; you can redistribute it and/or modify\nit under the terms of the GNU General Public License as published by\nthe Free Software Foundation; either version 3 of the License, or\n(at your option) any later version.\n\nThis program is distributed in the hope that it will be useful,\nbut WITHOUT ANY WARRANTY; without even the implied warranty of\nMERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\nGNU General Public License for more details.\n\nYou should have received a copy of the GNU General Public License\nalong with this program. If not, see http://www.gnu.org/licenses/.",
+    "perl": "v5.42.3",
+    "cygpath": "cygpath (cygwin) 3.6.10\nPath Conversion Utility\nCopyright (C) 1998 - 2026 Cygwin Authors\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+  },
+  "bashResolution": [
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Windows\\System32\\bash.exe",
+    "C:\\Users\\v-tibarreto\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"
+  ],
+  "pathEntries": 37,
+  "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef",
+  "manifest": [
+    {
+      "id": "control-bash",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ],
+      "cwd": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home/projects"
+      }
+    },
+    {
+      "id": "control-bash",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/unused-home/projects"
+      }
+    },
+    {
+      "id": "snapshot-empty",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-perf-runs/metadata-helpers-v2/base/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/projects"
+      }
+    },
+    {
+      "id": "snapshot-empty",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-perf-metadata-helpers-v2/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/projects"
+      }
+    },
+    {
+      "id": "bearings-empty",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-perf-runs/metadata-helpers-v2/base/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/projects"
+      }
+    },
+    {
+      "id": "bearings-empty",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-perf-metadata-helpers-v2/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/empty/projects"
+      }
+    },
+    {
+      "id": "snapshot-small",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-perf-runs/metadata-helpers-v2/base/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/projects"
+      }
+    },
+    {
+      "id": "snapshot-small",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-perf-metadata-helpers-v2/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/projects"
+      }
+    },
+    {
+      "id": "bearings-small",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "C:/src/.fm-perf-runs/metadata-helpers-v2/base/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small",
+        "FM_ROOT_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/base",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/projects"
+      }
+    },
+    {
+      "id": "bearings-small",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-perf-metadata-helpers-v2/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\smoke-1\\fixture.T6hIWZ\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/smoke-1/fixture.T6hIWZ/small/projects"
+      }
+    }
+  ],
+  "finished": "2026-09-17T01:53:46.247Z",
+  "meanHostCpuBusyPercent": 64.42304701694017,
+  "summary": [
+    {
+      "scenario": "control-bash",
+      "primary": false,
+      "control": true,
+      "base": {
+        "n": 1,
+        "medianMs": 73.6528000000003,
+        "p95Ms": 73.6528000000003,
+        "maxMs": 73.6528000000003,
+        "firstHalfMedianMs": 73.6528000000003,
+        "secondHalfMedianMs": 73.6528000000003,
+        "meanCpuBusyPercent": 62.18749999999999
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 411.85339999999997,
+        "p95Ms": 411.85339999999997,
+        "maxMs": 411.85339999999997,
+        "firstHalfMedianMs": 411.85339999999997,
+        "secondHalfMedianMs": 411.85339999999997,
+        "meanCpuBusyPercent": 51.38602182247125
+      },
+      "fasterPairs": 0,
+      "medianReductionMs": -338.20059999999967,
+      "medianReductionPercent": -459.18227141398336,
+      "p95NonIncreasing": false,
+      "accepted": false
+    },
+    {
+      "scenario": "snapshot-empty",
+      "primary": false,
+      "control": false,
+      "base": {
+        "n": 1,
+        "medianMs": 5701.311500000001,
+        "p95Ms": 5701.311500000001,
+        "maxMs": 5701.311500000001,
+        "firstHalfMedianMs": 5701.311500000001,
+        "secondHalfMedianMs": 5701.311500000001,
+        "meanCpuBusyPercent": 63.59334469322856
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 4896.7471000000005,
+        "p95Ms": 4896.7471000000005,
+        "maxMs": 4896.7471000000005,
+        "firstHalfMedianMs": 4896.7471000000005,
+        "secondHalfMedianMs": 4896.7471000000005,
+        "meanCpuBusyPercent": 61.37536686570185
+      },
+      "fasterPairs": 1,
+      "medianReductionMs": 804.5644000000002,
+      "medianReductionPercent": 14.111917933268513,
+      "p95NonIncreasing": true,
+      "accepted": false
+    },
+    {
+      "scenario": "bearings-empty",
+      "primary": false,
+      "control": false,
+      "base": {
+        "n": 1,
+        "medianMs": 11280.8293,
+        "p95Ms": 11280.8293,
+        "maxMs": 11280.8293,
+        "firstHalfMedianMs": 11280.8293,
+        "secondHalfMedianMs": 11280.8293,
+        "meanCpuBusyPercent": 60.42175031326254
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 9918.149499999996,
+        "p95Ms": 9918.149499999996,
+        "maxMs": 9918.149499999996,
+        "firstHalfMedianMs": 9918.149499999996,
+        "secondHalfMedianMs": 9918.149499999996,
+        "meanCpuBusyPercent": 62.911713603579955
+      },
+      "fasterPairs": 1,
+      "medianReductionMs": 1362.6798000000035,
+      "medianReductionPercent": 12.07960659417126,
+      "p95NonIncreasing": true,
+      "accepted": false
+    },
+    {
+      "scenario": "snapshot-small",
+      "primary": true,
+      "control": false,
+      "base": {
+        "n": 1,
+        "medianMs": 27784.867899999997,
+        "p95Ms": 27784.867899999997,
+        "maxMs": 27784.867899999997,
+        "firstHalfMedianMs": 27784.867899999997,
+        "secondHalfMedianMs": 27784.867899999997,
+        "meanCpuBusyPercent": 64.81807223536765
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 27594.05739999999,
+        "p95Ms": 27594.05739999999,
+        "maxMs": 27594.05739999999,
+        "firstHalfMedianMs": 27594.05739999999,
+        "secondHalfMedianMs": 27594.05739999999,
+        "meanCpuBusyPercent": 70.752077861332
+      },
+      "fasterPairs": 1,
+      "medianReductionMs": 190.81050000000687,
+      "medianReductionPercent": 0.6867425128193857,
+      "p95NonIncreasing": true,
+      "accepted": false
+    },
+    {
+      "scenario": "bearings-small",
+      "primary": true,
+      "control": false,
+      "base": {
+        "n": 1,
+        "medianMs": 38245.37759999999,
+        "p95Ms": 38245.37759999999,
+        "maxMs": 38245.37759999999,
+        "firstHalfMedianMs": 38245.37759999999,
+        "secondHalfMedianMs": 38245.37759999999,
+        "meanCpuBusyPercent": 63.10608627423008
+      },
+      "candidate": {
+        "n": 1,
+        "medianMs": 35497.69029999999,
+        "p95Ms": 35497.69029999999,
+        "maxMs": 35497.69029999999,
+        "firstHalfMedianMs": 35497.69029999999,
+        "secondHalfMedianMs": 35497.69029999999,
+        "meanCpuBusyPercent": 63.412046423827164
+      },
+      "fasterPairs": 1,
+      "medianReductionMs": 2747.687300000005,
+      "medianReductionPercent": 7.184364418459829,
+      "p95NonIncreasing": true,
+      "accepted": false
+    }
+  ],
+  "accepted": false
+}

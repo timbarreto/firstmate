@@ -1,0 +1,78 @@
+{
+  "schema": "fm-bearings.v1",
+  "home": "fixture.T6hIWZ/small",
+  "generated": "2026-09-17T01:53:13Z",
+  "prs": "not_requested (run: /bearings include PRs)",
+  "in_flight": [
+    {
+      "id": "task-1",
+      "kind": "ship",
+      "state": "unknown",
+      "repo": "literal=\"data\"",
+      "name": "task-1",
+      "doing": "worktree gone (torn down?)"
+    },
+    {
+      "id": "task-2",
+      "kind": "ship",
+      "state": "unknown",
+      "repo": "literal=\"data\"",
+      "name": "task-2",
+      "doing": "worktree gone (torn down?)"
+    },
+    {
+      "id": "task-3",
+      "kind": "ship",
+      "state": "unknown",
+      "repo": "literal=\"data\"",
+      "name": "task-3",
+      "doing": "worktree gone (torn down?)"
+    }
+  ],
+  "secondmates": [],
+  "secondmate_reconcile": [],
+  "decisions_open": [],
+  "landed": [],
+  "gates": [],
+  "reports": [],
+  "recorded_prs": [
+    {
+      "id": "task-1",
+      "url": "https://github.com/example/repo/pull/1"
+    },
+    {
+      "id": "task-2",
+      "url": "https://github.com/example/repo/pull/2"
+    },
+    {
+      "id": "task-3",
+      "url": "https://github.com/example/repo/pull/3"
+    }
+  ],
+  "omitted": [
+    {
+      "surface": "backlog item bodies",
+      "reveal": "--fields bodies"
+    },
+    {
+      "surface": "task paths",
+      "reveal": "--fields paths"
+    },
+    {
+      "surface": "watch/steer actions",
+      "reveal": "--fields actions"
+    },
+    {
+      "surface": "healthy endpoint detail",
+      "reveal": "--fields endpoints"
+    },
+    {
+      "surface": "full scout-report inventory",
+      "reveal": "--all-reports"
+    },
+    {
+      "surface": "live PR discovery + checks",
+      "reveal": "--include-prs"
+    }
+  ]
+}

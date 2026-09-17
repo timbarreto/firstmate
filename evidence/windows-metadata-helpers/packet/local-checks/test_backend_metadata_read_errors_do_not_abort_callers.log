@@ -1,0 +1,7 @@
+FM_TEST_BEGIN 2026-09-17T01:35:24Z tests/fm-startup-performance.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - backend selector read errors retain defaults and return without aborting callers
+FM_TEST_END 2026-09-17T01:35:41Z tests/fm-startup-performance.test.sh exit=0 duration_ms=16310 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=25779
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=16310 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-startup-performance.test.sh duration_ms=16310
+fm-test-run: wrote timing artifact: /c/src/.fm-perf-runs/metadata-helpers-v2/checks/test_backend_metadata_read_errors_do_not_abort_callers.json

@@ -1,0 +1,7 @@
+# Keep captured evidence byte-exact, including native Windows output newlines.
+*.sh text eol=lf
+*.mjs text eol=lf
+*.md text eol=lf
+.gitattributes text eol=lf
+SHA256SUMS text eol=lf
+packet/** -text

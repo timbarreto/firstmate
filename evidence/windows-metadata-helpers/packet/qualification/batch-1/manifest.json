@@ -1,0 +1,363 @@
+{
+  "pins": {
+    "base": {
+      "root": "C:/src/firstmate-base-metadata-helpers-v2",
+      "sha": "1695ad36f8c78db3a225b9205f38bba840d3b64e"
+    },
+    "candidate": {
+      "root": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "sha": "a8c23d7e86f33c650a2798537552e943a69406c5"
+    }
+  },
+  "driverSHA": "6acc496c95e082ebd01004eec69b02722c2241c2",
+  "driverFiles": {
+    "run.sh": "4a38978a5e0cb75cb8796dab7bc8a4f99625be522b76d9fa7a1ba95beb3a862a",
+    "measure.mjs": "824633a9be185f365278a5159b40669131f68e6e2d3caac2ee4309c54c94ddf3",
+    "trace-hook.sh": "ce9b627793f1b07a553f0a7767da9c843679deab8d9d161ce5b1312552c6d575"
+  },
+  "traced": false,
+  "samples": 20,
+  "warmups": 3,
+  "purpose": "qualification-batch",
+  "fixture": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE",
+  "inputs": [
+    {
+      "path": "empty/config",
+      "directory": true
+    },
+    {
+      "path": "empty/config/backlog-backend",
+      "bytes": 7,
+      "sha256": "cd60ed2fa8c947cb05cb57b23884dea9390e4b6aec0add666e69bf842fc68da0"
+    },
+    {
+      "path": "empty/data",
+      "directory": true
+    },
+    {
+      "path": "empty/data/backlog.md",
+      "bytes": 33,
+      "sha256": "fc7cfb341b1c7627e953dcca21ee8f90a02fb1e30d8ef38f3a3ba576acbe6bc8"
+    },
+    {
+      "path": "empty/projects",
+      "directory": true
+    },
+    {
+      "path": "empty/state",
+      "directory": true
+    },
+    {
+      "path": "small/config",
+      "directory": true
+    },
+    {
+      "path": "small/config/backlog-backend",
+      "bytes": 7,
+      "sha256": "cd60ed2fa8c947cb05cb57b23884dea9390e4b6aec0add666e69bf842fc68da0"
+    },
+    {
+      "path": "small/data",
+      "directory": true
+    },
+    {
+      "path": "small/data/backlog.md",
+      "bytes": 33,
+      "sha256": "fc7cfb341b1c7627e953dcca21ee8f90a02fb1e30d8ef38f3a3ba576acbe6bc8"
+    },
+    {
+      "path": "small/projects",
+      "directory": true
+    },
+    {
+      "path": "small/state",
+      "directory": true
+    },
+    {
+      "path": "small/state/task-1.meta",
+      "bytes": 219,
+      "sha256": "54dad2c30ad47319b20771dcf2c1cd7bd87154edc35b946bc872e0bfd910bf6d"
+    },
+    {
+      "path": "small/state/task-1.status",
+      "bytes": 81,
+      "sha256": "cb1b64f003dfc50dc4628f59797b48ad16aebcecf96a028a041cc825b3c605d6"
+    },
+    {
+      "path": "small/state/task-2.meta",
+      "bytes": 214,
+      "sha256": "15bba6c72f820ab64b24f94049df0ee9fcd3cd9999c9227e2cbf828722fa4c05"
+    },
+    {
+      "path": "small/state/task-2.status",
+      "bytes": 81,
+      "sha256": "cb1b64f003dfc50dc4628f59797b48ad16aebcecf96a028a041cc825b3c605d6"
+    },
+    {
+      "path": "small/state/task-3.meta",
+      "bytes": 219,
+      "sha256": "dfaa7d3c03e9874f3c57e2dbc48847ab1acde21907e452c976477df6b6daa35d"
+    },
+    {
+      "path": "small/state/task-3.status",
+      "bytes": 81,
+      "sha256": "cb1b64f003dfc50dc4628f59797b48ad16aebcecf96a028a041cc825b3c605d6"
+    }
+  ],
+  "started": "2026-09-17T02:09:54.394Z",
+  "platform": "win32",
+  "release": "10.0.26200",
+  "arch": "x64",
+  "cpus": 16,
+  "cpuModel": "AMD EPYC 7763 64-Core Processor                ",
+  "totalMem": 68665831424,
+  "freeMem": 27099316224,
+  "tools": {
+    "node": "v24.19.0",
+    "git": "git version 2.55.0.windows.5",
+    "bash": "GNU bash, version 5.3.15(2)-release (x86_64-pc-cygwin)\nCopyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\nThis is free software; you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.",
+    "jq": "jq-1.8.2",
+    "awk": "GNU Awk 5.4.1, API 4.1, PMA Avon 8-g1, (GNU MPFR 4.2.2, GNU MP 6.3.0)\nCopyright (C) 1989, 1991-2026 Free Software Foundation.\n\nThis program is free software; you can redistribute it and/or modify\nit under the terms of the GNU General Public License as published by\nthe Free Software Foundation; either version 3 of the License, or\n(at your option) any later version.\n\nThis program is distributed in the hope that it will be useful,\nbut WITHOUT ANY WARRANTY; without even the implied warranty of\nMERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\nGNU General Public License for more details.\n\nYou should have received a copy of the GNU General Public License\nalong with this program. If not, see http://www.gnu.org/licenses/.",
+    "perl": "v5.42.3",
+    "cygpath": "cygpath (cygwin) 3.6.10\nPath Conversion Utility\nCopyright (C) 1998 - 2026 Cygwin Authors\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+  },
+  "bashResolution": [
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Windows\\System32\\bash.exe",
+    "C:\\Users\\v-tibarreto\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"
+  ],
+  "pathEntries": 37,
+  "pathSHA256": "96bb3e01766b3c15c26edf4f6fcdaa9170494e1202453a76737dd8268568a4ef",
+  "manifest": [
+    {
+      "id": "control-bash",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ],
+      "cwd": "C:/src/firstmate-base-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home/projects"
+      }
+    },
+    {
+      "id": "control-bash",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "-c",
+        ":"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/unused-home/projects"
+      }
+    },
+    {
+      "id": "snapshot-empty",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-base-metadata-helpers-v2/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-base-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/projects"
+      }
+    },
+    {
+      "id": "snapshot-empty",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-perf-metadata-helpers-v2/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/projects"
+      }
+    },
+    {
+      "id": "bearings-empty",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-base-metadata-helpers-v2/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-base-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/projects"
+      }
+    },
+    {
+      "id": "bearings-empty",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-perf-metadata-helpers-v2/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/empty/projects"
+      }
+    },
+    {
+      "id": "snapshot-small",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-base-metadata-helpers-v2/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-base-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/projects"
+      }
+    },
+    {
+      "id": "snapshot-small",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-perf-metadata-helpers-v2/bin/fm-fleet-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/projects"
+      }
+    },
+    {
+      "id": "bearings-small",
+      "version": "base",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-base-metadata-helpers-v2/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-base-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-base-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/projects"
+      }
+    },
+    {
+      "id": "bearings-small",
+      "version": "candidate",
+      "file": "bash",
+      "args": [
+        "C:/src/firstmate-perf-metadata-helpers-v2/bin/fm-bearings-snapshot.sh",
+        "--json"
+      ],
+      "cwd": "C:/src/firstmate-perf-metadata-helpers-v2",
+      "env": {
+        "HOME": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "USERPROFILE": "C:\\src\\.fm-perf-runs\\metadata-helpers-v2\\batch-1\\fixture.HsEZVE\\user-home",
+        "FM_BACKEND": "tmux",
+        "FM_GATE_REFUSE_BYPASS": "1",
+        "FM_LIVE": "0",
+        "FM_HOME": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small",
+        "FM_ROOT_OVERRIDE": "C:/src/firstmate-perf-metadata-helpers-v2",
+        "FM_STATE_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/state",
+        "FM_DATA_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/data",
+        "FM_CONFIG_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/config",
+        "FM_PROJECTS_OVERRIDE": "C:/src/.fm-perf-runs/metadata-helpers-v2/batch-1/fixture.HsEZVE/small/projects"
+      }
+    }
+  ]
+}
