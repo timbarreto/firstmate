@@ -633,6 +633,78 @@ test_primary_repair_continuation_restores_parent_busy() {
   pass "Copilot repair continuations restore parent busy state and reject stale generations"
 }
 
+test_windows_worker_hook_semantic_lifecycle() {
+  local dir="$TMP_ROOT/windows-worker café & '\$literal [x] (1)" state native_root native_state native_turnend
+  local id=worker-copilot gen old_gen first_ack second_ack
+  case "${OS:-}" in Windows_NT) ;; *) printf 'skip: native Windows worker-hook transport\n'; return 0 ;; esac
+  command -v powershell.exe >/dev/null 2>&1 || fail "PowerShell is required for the native worker-hook case"
+  mkdir -p "$dir/state"
+  state="$dir/state"
+  native_root=$(cygpath -m "$ROOT")
+  native_state=$(cygpath -m "$state")
+  native_turnend="$native_state/$id.turn-ended"
+  gen=$("$ROOT/bin/fm-busy-event.sh" arm "$state" "$id") || fail "native worker arm failed"
+  fm_harness_owned_wiring copilot render "$native_root" "$native_state" "$id" "$gen" "$native_turnend" \
+    > "$dir/hooks.json" || fail "native worker hook rendering failed"
+
+  # Consume the generated PowerShell command, as the vendor does, rather than
+  # substituting PowerShell's distinct -File argument-binding mode.
+  native_worker_event() {
+    local rc=0 cmd
+    cmd=$(jq -er --arg event "$1" '.hooks[$event][0].powershell' < "$dir/hooks.json") \
+      || fail "native worker event is missing from generated wiring"
+    # shellcheck disable=SC2016 # PowerShell expands its own exit code.
+    cmd+='; exit $LASTEXITCODE'
+    COPILOT_CLI=1 FM_HOME="$dir" powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+      -Command "$cmd" </dev/null > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+    expect_code 0 "$rc" "native worker event must return safely: $(cat "$dir/stderr")"
+    [ ! -s "$dir/stdout" ] && [ ! -s "$dir/stderr" ] || fail "native worker event was not silent"
+  }
+
+  native_worker_event userPromptSubmitted
+  [ "$(fm_busy_record_read "$state" "$id")" = 'busy copilot-hook user-prompt-submitted 2' ] \
+    || fail "native prompt did not publish the busy record and sequence"
+  first_ack=$(cat "$state/$id.copilot-prompt-submitted")
+  case "$first_ack" in "$gen":*:* ) ;; *) fail "native prompt acknowledgement lost generation binding" ;; esac
+  [ ! -e "$state/$id.turn-ended" ] && [ ! -e "$state/$id.progress" ] || fail "native prompt fabricated a notification or progress"
+
+  native_worker_event agentStop
+  [ "$(fm_busy_record_read "$state" "$id")" = 'idle copilot-hook agent-stop 3' ] \
+    || fail "native stop did not publish the idle record and sequence"
+  [ -f "$state/$id.turn-ended" ] || fail "native stop omitted the turn-ended notification"
+  [ "$(cat "$state/$id.copilot-prompt-submitted")" = "$first_ack" ] || fail "native stop changed submission acknowledgement"
+
+  rm -f "$state/$id.turn-ended"
+  native_worker_event userPromptSubmitted
+  second_ack=$(cat "$state/$id.copilot-prompt-submitted")
+  [ "$second_ack" != "$first_ack" ] || fail "native second prompt did not advance its acknowledgement"
+  native_worker_event sessionEnd
+  [ "$(fm_busy_record_read "$state" "$id")" = 'idle copilot-hook session-end 5' ] \
+    || fail "native session end lost lifecycle sequence"
+  [ -f "$state/$id.turn-ended" ] || fail "native session end omitted its notification"
+
+  old_gen=$gen
+  gen=$("$ROOT/bin/fm-busy-event.sh" arm "$state" "$id") || fail "native worker re-arm failed"
+  [ "$gen" != "$old_gen" ] || fail "native stale-generation fixture did not replace its generation"
+  cp "$state/$id.busy-state" "$dir/before"
+  rm -f "$state/$id.turn-ended"
+  native_worker_event agentStop
+  native_worker_event userPromptSubmitted
+  cmp -s "$dir/before" "$state/$id.busy-state" || fail "native stale event changed the replacement"
+  [ ! -e "$state/$id.turn-ended" ] || fail "native refused event emitted a notification"
+  [ "$(cat "$state/$id.copilot-prompt-submitted")" = "$second_ack" ] || fail "native refused event changed acknowledgement"
+
+  fm_harness_owned_wiring copilot render "$native_root" "$native_state" "$id" "$gen" "$native_turnend" \
+    > "$dir/hooks.json" || fail "native replacement hook rendering failed"
+  rm -f "$state/$id.busy-gen"
+  native_worker_event userPromptSubmitted
+  cmp -s "$dir/before" "$state/$id.busy-state" || fail "native unarmed event changed the record"
+  [ "$(cat "$state/$id.copilot-prompt-submitted")" = "$second_ack" ] || fail "native unarmed event acknowledged submission"
+  [ ! -e "$state/$id.busy-state.lock" ] || fail "native worker event retained the writer lock"
+  unset -f native_worker_event
+  pass "native Windows worker hooks preserve busy/idle, literal paths, sequence, notifications, acknowledgements, and refusal"
+}
+
 test_worker_hook_semantic_lifecycle() {
   local dir fakebin id=worker-copilot gen stale_gen out prompt_token_1 prompt_token_2
   dir="$TMP_ROOT/worker"
@@ -691,6 +763,7 @@ fm_test_run_cases \
   test_legacy_copilot_park_entry_redirects_without_parking \
   test_shell_completion_notification_routes_supervision \
   test_primary_repair_continuation_restores_parent_busy \
-  test_worker_hook_semantic_lifecycle
+  test_worker_hook_semantic_lifecycle \
+  test_windows_worker_hook_semantic_lifecycle
 
 echo "all fm-copilot-harness tests passed"

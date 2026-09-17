@@ -100,8 +100,8 @@ fi
 
 [ "$CMD" != progress ] || [ "$USE_CURRENT_GEN" = 0 ] || usage
 
-REC=$(fm_busy_record_path "$STATE" "$ID")
-GEN_FILE=$(fm_busy_gen_path "$STATE" "$ID")
+REC="$STATE/$ID.busy-state"
+GEN_FILE="$STATE/$ID.busy-gen"
 LOCK="$REC.lock"
 
 # Portable mtime in epoch seconds. macOS (BSD) stat uses `-f <fmt>`; Linux (GNU)
@@ -226,6 +226,8 @@ if [ "$CMD" = progress ]; then
 fi
 OLD_SEQ=0
 if [ -f "$REC" ]; then
+  # Keep command-substitution diagnostics for NUL-containing input on modern
+  # Bash; a built-in read would silently discard those bytes instead.
   old_line=$(head -n 1 "$REC" 2>/dev/null || true)
   case "$old_line" in
     *" gen=$GEN "*)

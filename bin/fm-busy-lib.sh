@@ -176,7 +176,7 @@ fm_busy_token_valid() {  # <value>
 # contract has never been armed for this task.
 fm_busy_current_gen() {  # <state-dir> <id>
   local gen_file gen
-  gen_file=$(fm_busy_gen_path "$1" "$2")
+  gen_file="$1/$2.busy-gen"
   [ -f "$gen_file" ] || return 1
   IFS= read -r gen < "$gen_file" 2>/dev/null || gen=
   fm_busy_token_valid "$gen" || return 1
