@@ -117,6 +117,33 @@ record_body() { # <record>
   bash -c '. "$1"; fm_task_inbox_body "$2"' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$2"
 }
 
+test_windows_home_spellings_enqueue_once() {
+  local dir form home state rec index=0 body
+  local message=$'keep literal $value & [x]\nsecond line, café'
+  case "${OS:-}" in Windows_NT) ;; *) return 0 ;; esac
+  dir=$(setup_case "home café '[x] & aliases")
+  for form in posix mixed native; do
+    home="$dir/home" state="$dir/home/state"
+    case "$form" in
+      mixed) home=$(cygpath -m "$home"); state=$(cygpath -m "$state");;
+      native) home=$(cygpath -w "$home"); state=$(cygpath -w "$state");;
+    esac
+    run_send "$dir" "$dir/error" "FM_HOME=$home" "FM_ROOT_OVERRIDE=$home" "FM_STATE_OVERRIDE=$state" \
+      -- t1 "$message" || fail "$form send path failed: $(cat "$dir/error")"
+    index=$((index + 1))
+    printf -v rec '%s/home/state/t1.inbox/%03d.msg' "$dir" "$index"
+    body=$(record_body _ "$rec") || fail "$form send record could not be read"
+    assert_equals "$message" "$body" "$form send changed literal instructions"
+    [ "$(find "$dir/home/state/t1.inbox" -maxdepth 1 -name '*.msg' | wc -l)" -eq "$index" ] \
+      || fail "$form send enqueued duplicate instructions"
+  done
+  if run_send "$dir" "$dir/error" 'FM_HOME=C:ambiguous' -- t1 "$message"; then
+    fail "an ambiguous home path was silently accepted"
+  fi
+  [ ! -e "$dir/home/state/t1.inbox/004.msg" ] || fail "invalid home changed a valid inbox"
+  pass "Windows and POSIX home spellings enqueue each literal instruction exactly once"
+}
+
 test_text_steer_rides_inbox() {
   local dir err rc rec body typed
   dir=$(setup_case rides)
@@ -411,16 +438,18 @@ test_empty_message_refused() {
   pass "fm-send: an empty or whitespace-only text steer refuses before marking, recording, or typing"
 }
 
-test_text_steer_rides_inbox
-test_multiline_steer_is_legal
-test_resend_enqueues_new_sequence
-test_pending_composer_skips_ring_advisorily
-test_failed_ring_is_still_sent
-test_harness_invocations_stay_typed
-test_explicit_target_stays_typed
-test_key_path_never_touches_inbox
-test_secondmate_marker_and_enqueue_delivery
-test_post_enqueue_bookkeeping_failure_is_not_retryable
-test_meta_lock_contention_fails_bounded
-test_unwritable_inbox_fails_loudly
-test_empty_message_refused
+fm_test_run_cases \
+  test_text_steer_rides_inbox \
+  test_multiline_steer_is_legal \
+  test_resend_enqueues_new_sequence \
+  test_pending_composer_skips_ring_advisorily \
+  test_failed_ring_is_still_sent \
+  test_harness_invocations_stay_typed \
+  test_explicit_target_stays_typed \
+  test_key_path_never_touches_inbox \
+  test_secondmate_marker_and_enqueue_delivery \
+  test_post_enqueue_bookkeeping_failure_is_not_retryable \
+  test_meta_lock_contention_fails_bounded \
+  test_unwritable_inbox_fails_loudly \
+  test_empty_message_refused \
+  test_windows_home_spellings_enqueue_once

@@ -73,6 +73,41 @@ private_native_fixture() {
     ' >/dev/null || fail "could not construct native ACL fixture: $2"
 }
 
+test_private_native_module_path_spellings() {
+  local tmp layout file module form out
+  case "$(uname -s)" in
+    MSYS*|MINGW*|CYGWIN*) ;;
+    *) printf 'skip - native module path spellings require Windows\n'; return ;;
+  esac
+  tmp=$(fm_test_tmproot fm-private-module-paths)
+  layout="$tmp/code café '[x] & space"
+  file="$tmp/artifact café '[x] & dollar\$"
+  # shellcheck source=tests/private-path-helpers.sh
+  . "$ROOT/tests/private-path-helpers.sh"
+  fm_test_install_private_paths "$layout" || fail "module path fixture dependencies"
+  : > "$file"
+  for form in posix mixed native; do
+    module="$layout/bin/fm-private-path-lib.sh"
+    case "$form" in
+      mixed) module=$(cygpath -m "$module") ;;
+      native) module=$(cygpath -w "$module") ;;
+    esac
+    out=$(bash -c '
+      set -eu
+      . "$1" || exit 1
+      fm_private_path_native pr secure file "$2" || exit 1
+      fm_private_path_native pr validate any "$2"
+    ' _ "$module" "$file" 2>&1) || fail "$form module source path could not execute its tracked native helper: $out"
+    [ -z "$out" ] || fail "$form module source changed its successful output"
+    private_native_fixture "$file" allow
+    if bash -c '. "$1" || exit 2; fm_private_path_native pr validate any "$2"' \
+      _ "$module" "$file" >/dev/null 2>&1; then
+      fail "$form module source reused a previous ACL verdict"
+    fi
+  done
+  pass "native and POSIX module spellings load the same helper and recheck real ACL changes"
+}
+
 test_private_native_policy_variants() {
   local tmp file dir action expected x_expected
   case "$(uname -s)" in
@@ -263,7 +298,7 @@ test_private_missing_dependencies() (
     fail "copied caller accepted a missing Bash dependency"
   fi
   assert_contains "$output" fm-private-path-lib.sh "missing Bash helper must be named"
-  cp "$ROOT/bin/fm-private-path-lib.sh" "$tmp/bin/"
+  cp "$ROOT/bin/fm-private-path-lib.sh" "$ROOT/bin/fm-path-lib.sh" "$tmp/bin/"
   if output=$(bash -c '
     . "$1/bin/fm-private-path-lib.sh"
     fm_private_path_native worker validate directory "$1"
@@ -358,4 +393,5 @@ fm_test_run_cases \
   test_private_transport_bounds \
   test_private_missing_dependencies \
   test_private_posix_policy \
-  test_private_tracked_layouts
+  test_private_tracked_layouts \
+  test_private_native_module_path_spellings

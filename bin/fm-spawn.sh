@@ -382,6 +382,8 @@ esac
 
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+# shellcheck source=bin/fm-path-lib.sh
+. "$SCRIPT_DIR/fm-path-lib.sh" || exit 1
 
 # shellcheck source=bin/fm-tasks-axi-lib.sh
 . "$SCRIPT_DIR/fm-tasks-axi-lib.sh"
@@ -398,7 +400,8 @@ resolve_directory_input() {
   case "$path" in
     /*) printf '%s\n' "$path"; return 0 ;;
   esac
-  resolved=$(CDPATH='' cd -- "$path" 2>/dev/null && pwd -P) || {
+  fm_path_absolute "$path" resolved || return 1
+  resolved=$(CDPATH='' cd -- "$resolved" 2>/dev/null && pwd -P) || {
     echo "error: $name directory cannot be resolved: $path" >&2
     return 1
   }
@@ -412,6 +415,9 @@ fi
 if [ -n "${FM_DATA_OVERRIDE:-}" ]; then
   FM_DATA_OVERRIDE=$(resolve_directory_input FM_DATA_OVERRIDE "$FM_DATA_OVERRIDE") || exit 1
 fi
+# Existing relative-directory existence checks above remain spawn policy;
+# shared spelling covers native roots and every declared context override.
+fm_path_normalize_context || exit 1
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
@@ -2569,7 +2575,7 @@ real_path_or_raw() {  # <path>
 SPAWN_WT_TOP=
 SPAWN_WT_REASON=
 spawn_worktree_isolated() {  # <path>
-  local path=$1 wt_real wt_top_real wt_git_dir proj_common
+  local path=$1 wt_real wt_top_real wt_git_dir proj_common git_path git_project
   SPAWN_WT_TOP=
   SPAWN_WT_REASON=
   wt_real=
@@ -2580,7 +2586,11 @@ spawn_worktree_isolated() {  # <path>
     SPAWN_WT_REASON="it is not a readable directory"
     return 1
   fi
-  SPAWN_WT_TOP=$(git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)
+  if ! fm_path_native_argument "$wt_real" git_path || ! fm_path_native_argument "$PROJ_ABS_REAL" git_project; then
+    SPAWN_WT_REASON="its Git path arguments could not be resolved"
+    return 1
+  fi
+  SPAWN_WT_TOP=$(git -C "$git_path" rev-parse --show-toplevel 2>/dev/null || true)
   # A path in no repository leaves the toplevel empty, and that empty value must
   # never reach `cd`: bash before 5.3 accepts `cd ""` as a successful no-op, so
   # it would resolve to fm-spawn's OWN cwd and report the path as a subdirectory
@@ -2593,26 +2603,26 @@ spawn_worktree_isolated() {  # <path>
     SPAWN_WT_REASON="it is not inside a git worktree"
     return 1
   fi
-  if [ "$wt_real" != "$wt_top_real" ]; then
+  if ! fm_platform_same_directory "$wt_real" "$wt_top_real"; then
     SPAWN_WT_REASON="it is a subdirectory of worktree root '$wt_top_real', not a worktree root"
     return 1
   fi
-  if [ "$wt_real" = "$PROJ_ABS_REAL" ]; then
+  if fm_platform_same_directory "$wt_real" "$PROJ_ABS_REAL"; then
     SPAWN_WT_REASON="it is the spawning project itself"
     return 1
   fi
   # The primary checkout uses the repository's common git dir as its own git
   # dir. A linked spawning home has a different top-level, but the same common
   # dir, so comparing only the two working directories cannot protect primary.
-  wt_git_dir=$(git -C "$path" rev-parse --absolute-git-dir 2>/dev/null) \
+  wt_git_dir=$(git -C "$git_path" rev-parse --absolute-git-dir 2>/dev/null) \
     && wt_git_dir=$(cd "$wt_git_dir" 2>/dev/null && pwd -P) || wt_git_dir=
-  proj_common=$(git -C "$PROJ_ABS" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) \
+  proj_common=$(git -C "$git_project" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) \
     && proj_common=$(cd "$proj_common" 2>/dev/null && pwd -P) || proj_common=
   if [ -z "$wt_git_dir" ] || [ -z "$proj_common" ]; then
     SPAWN_WT_REASON="its git directory could not be resolved"
     return 1
   fi
-  if [ "$wt_git_dir" = "$proj_common" ]; then
+  if fm_platform_same_directory "$wt_git_dir" "$proj_common"; then
     SPAWN_WT_REASON="it is the repository's primary checkout (its git dir is the spawning project's common git dir)"
     return 1
   fi
@@ -3592,7 +3602,8 @@ STATE_REAL=$(cd "$STATE" && pwd -P)
 TURNEND="$STATE_REAL/$ID.turn-ended"
 exclude_path() {
   local rel=$1 EXCL
-  EXCL=$(git -C "$WT" rev-parse --git-path info/exclude 2>/dev/null || true)
+  fm_path_native_argument "$(real_path_or_raw "$WT")" SPAWN_GIT_WT_PATH || exit 1
+  EXCL=$(git -C "$SPAWN_GIT_WT_PATH" rev-parse --git-path info/exclude 2>/dev/null || true)
   [ -n "$EXCL" ] || return 0
   mkdir -p "$(dirname "$EXCL")"
   grep -qxF "$rel" "$EXCL" 2>/dev/null || echo "$rel" >> "$EXCL"

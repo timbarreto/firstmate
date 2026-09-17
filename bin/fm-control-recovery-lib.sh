@@ -115,9 +115,10 @@ fm_control_recovery_plan() {  # <current-meta> <prior-record> <task> <state> <da
   local current_project current_wt current_harness current_kind current_mode current_yolo
   local candidate_project candidate_wt candidate_harness candidate_kind candidate_mode candidate_yolo
   local current_common candidate_common current_lease candidate_lease pool cwd top branch head dirty
+  local git_project git_worktree
   local current_state candidate_state bindings token
   fm_control_recovery_cleanup
-  case "$candidate" in [A-Za-z]:*) candidate=${candidate//\\//} ;; esac
+  fm_path_absolute "$candidate" candidate || return 1
   [ -f "$candidate" ] && [ ! -L "$candidate" ] || fm_control_recovery_error "candidate must be a regular home-local record" || return 1
   candidate_dir=$(cd -- "${candidate%/*}" 2>/dev/null && pwd -P) || return 1
   candidate_path="$candidate_dir/${candidate##*/}"
@@ -158,15 +159,17 @@ fm_control_recovery_plan() {  # <current-meta> <prior-record> <task> <state> <da
     || { fm_control_recovery_error "candidate changes the task kind, harness, or delivery authority"; return 1; }
   fm_platform_same_directory "$current_project" "$candidate_project" \
     || { fm_control_recovery_error "candidate belongs to another project"; return 1; }
-  current_common=$(git -C "$current_project" rev-parse --path-format=absolute --git-common-dir) || return 1
-  candidate_common=$(git -C "$candidate_wt" rev-parse --path-format=absolute --git-common-dir) || return 1
-  top=$(git -C "$candidate_wt" rev-parse --show-toplevel) || return 1
+  fm_path_native_argument "$(CDPATH='' cd -- "$current_project" && pwd -P)" git_project || return 1
+  fm_path_native_argument "$(CDPATH='' cd -- "$candidate_wt" && pwd -P)" git_worktree || return 1
+  current_common=$(git -C "$git_project" rev-parse --path-format=absolute --git-common-dir) || return 1
+  candidate_common=$(git -C "$git_worktree" rev-parse --path-format=absolute --git-common-dir) || return 1
+  top=$(git -C "$git_worktree" rev-parse --show-toplevel) || return 1
   if ! fm_platform_same_directory "$current_common" "$candidate_common" \
      || ! fm_platform_same_directory "$candidate_wt" "$top"; then
     fm_control_recovery_error "candidate is not an exact worktree of the recorded project"
     return 1
   fi
-  branch=$(git -C "$candidate_wt" symbolic-ref --quiet --short HEAD) || return 1
+  branch=$(git -C "$git_worktree" symbolic-ref --quiet --short HEAD) || return 1
   [ "$branch" = "fm/$task" ] || { fm_control_recovery_error "candidate branch does not name this exact task"; return 1; }
   current_state=$(fm_backend_agent_state herdr "$current_target") || return 1
   [ "$current_state" = missing ] || { fm_control_recovery_error "recorded endpoint is not positively missing"; return 1; }
@@ -205,8 +208,8 @@ fm_control_recovery_plan() {  # <current-meta> <prior-record> <task> <state> <da
     token=$(printf '%s' "$bindings" | shasum -a 256) || return 1
   fi
   FM_CONTROL_RECOVERY_TOKEN=${token%% *}
-  head=$(git -C "$candidate_wt" rev-parse --verify HEAD) || return 1
-  dirty=$(GIT_OPTIONAL_LOCKS=0 git -C "$candidate_wt" status --porcelain) || return 1
+  head=$(git -C "$git_worktree" rev-parse --verify HEAD) || return 1
+  dirty=$(GIT_OPTIONAL_LOCKS=0 git -C "$git_worktree" status --porcelain) || return 1
   # shellcheck disable=SC2034 # Same-process outputs consumed by fm-control.sh.
   FM_CONTROL_RECOVERY_TARGET=$candidate_target
   # shellcheck disable=SC2034 # Revalidated by the caller immediately before exit.
@@ -261,17 +264,22 @@ fm_control_recovery_apply() {  # <meta> <state> <task>; caller holds serializati
 }
 
 fm_control_recovery_read_receipt() {  # <state> <task> <home> <approval>
-  local state=$1 task=$2 home=$3 token=$4 file
+  local state=$1 task=$2 home=$3 token=$4 file record bound_home
   case "$token" in *[!0-9a-f]*) return 1 ;; esac
   [ "${#token}" = 64 ] || return 1
   file="$state/$task.control-recovery/$token/receipt.json"
   [ ! -L "$state/$task.control-recovery" ] && [ ! -L "${file%/*}" ] \
     && [ -f "$file" ] && [ ! -L "$file" ] && [ "$(fm_pr_file_link_count "$file")" = 1 ] || return 1
-  jq -ce --arg task "$task" --arg home "$home" --arg token "$token" '
+  record=$(jq -ce --arg task "$task" --arg token "$token" '
     select(.schema == "fm-control-recovery-plan.v1" and .approval == $token
-      and .bindings.task == $task and .bindings.home == $home
+      and .bindings.task == $task and (.bindings.home | type) == "string"
       and (.phase == "prepared" or .phase == "bound" or .phase == "complete"))
-  ' "$file"
+  ' "$file") || return 1
+  bound_home=$(printf '%s' "$record" | jq -er '.bindings.home | select(length > 0 and (explode | all(. >= 32 and . != 127)))') || return 1
+  # Receipts retain their original bound bytes; a path spelling change
+  # must not strand them or authorize a different physical home.
+  fm_platform_same_directory "$bound_home" "$home" || return 1
+  printf '%s\n' "$record"
 }
 
 fm_control_recovery_receipt_phase() {  # <phase>

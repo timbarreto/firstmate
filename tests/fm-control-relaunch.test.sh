@@ -333,6 +333,62 @@ test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint() {
   pass "fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree"
 }
 
+windows_relaunch_path_case() {  # <native|posix|mixed>
+  local form=$1 dir id="windows-path-$1-$$" home state data config code wt project out head
+  # shellcheck disable=SC2016 # Instructions must remain literal data.
+  local note='Continue the preserved task; literal $value & [x] stay instructions.'
+  case "${OS:-}" in Windows_NT) ;; *) return 0 ;; esac
+  dir=$(new_case "path context café '[x] &" "$id")
+  # Native Git needs an explicit native fixture path when its name contains
+  # glob metacharacters; do not rely on MSYS argument guessing for setup.
+  add_ship_task "$(cygpath -m "$dir")" "$id" copilot
+  [ -d "$dir/wt" ] || fail "native Git did not create the isolated fixture"
+  fm_fake_exit0 "$dir/fakebin" copilot
+  mkdir -p "$dir/home/config" "$dir/home/projects" "$dir/user-home"
+  # Match recovery of an already-exited worker; the existing lifecycle cases
+  # independently cover stopping a live agent before replacement.
+  printf zsh > "$dir/fake/command"
+  printf copilot > "$dir/fake/becomes"
+  printf 'preserved unfinished work\n' > "$dir/wt/unfinished.txt"
+  head=$(git -C "$(cygpath -m "$dir/wt")" rev-parse HEAD) || fail "fixture HEAD unavailable"
+  home="$dir/home" state="$dir/home/state" data="$dir/home/data"
+  config="$dir/home/config" code="$ROOT" wt="$dir/wt" project="$dir/proj"
+  case "$form" in
+    native)
+      home=$(cygpath -w "$home"); state=$(cygpath -w "$state"); data=$(cygpath -w "$data")
+      config=$(cygpath -w "$config"); code=$(cygpath -w "$code")
+      wt=$(cygpath -w "$wt"); project=$(cygpath -w "$project")
+      ;;
+    mixed)
+      home=$(cygpath -m "$home"); state=$(cygpath -m "$state"); data=$(cygpath -m "$data")
+      config=$(cygpath -m "$config"); code=$(cygpath -m "$code")
+      wt=$(cygpath -m "$wt"); project=$(cygpath -m "$project")
+      ;;
+  esac
+  # The persisted copy and a backend's fresh cwd may use different spellings.
+  awk '!/^worktree=|^project=/' "$dir/home/state/$id.meta" > "$dir/prior.meta"
+  printf 'worktree=%s\nproject=%s\npr=https://github.com/example/repo/pull/42\n' "$wt" "$project" >> "$dir/prior.meta"
+  mv "$dir/prior.meta" "$dir/home/state/$id.meta"
+  out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$code" FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$data" \
+    FM_CONFIG_OVERRIDE="$config" FM_PROJECTS_OVERRIDE="$(cygpath -w "$dir/home/projects")" \
+    FM_FAKE_DIR="$dir/fake" PATH="$dir/fakebin:$PATH" HOME="$dir/user-home" \
+    USERPROFILE="$(cygpath -w "$dir/user-home")" CLAUDE_CONFIG_DIR='' FM_SPAWN_NO_GUARD=1 \
+    FM_CONTROL_EXIT_WAIT=20 FM_CONTROL_LAUNCH_WAIT=20 \
+    "$CONTROL" "$id" relaunch --note "$note" 2>&1) || fail "native context relaunch failed: $out"
+  assert_grep 'phase=complete' "$dir/home/state/$id.control-relaunch" "native context relaunch did not complete"
+  assert_grep 'pr=https://github.com/example/repo/pull/42' "$dir/home/state/$id.meta" "path conversion lost PR identity"
+  assert_equals "$head" "$(git -C "$(cygpath -m "$dir/wt")" rev-parse HEAD)" "path conversion reset committed work"
+  assert_grep 'preserved unfinished work' "$dir/wt/unfinished.txt" "path conversion discarded unfinished work"
+  assert_grep "$note" "$dir/home/data/$id/brief.md" "path conversion evaluated the note"
+  [ "$(meta_field "$dir" "$id" worktree)" -ef "$dir/wt" ] || fail "relaunch changed the recorded directory identity"
+  [ "$(grep -c 'encode launch-brief' "$dir/fake/literal")" = 1 ] || fail "path handling needed a duplicate launch"
+  pass "$form recorded paths relaunch once while preserving work and literal instructions"
+}
+
+test_windows_relaunch_path_context_preserves_work() { windows_relaunch_path_case native; }
+test_windows_relaunch_posix_paths_preserve_work() { windows_relaunch_path_case posix; }
+test_windows_relaunch_mixed_paths_preserve_work() { windows_relaunch_path_case mixed; }
+
 test_control_inspect_is_read_only_during_another_action() {
   local dir out before
   dir=$(new_case inspect rl46)
@@ -1782,6 +1838,9 @@ fm_test_run_cases \
   test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint \
   test_relaunch_defers_home_summary_until_after_delivery \
   test_control_inspect_is_read_only_during_another_action \
+  test_windows_relaunch_path_context_preserves_work \
+  test_windows_relaunch_posix_paths_preserve_work \
+  test_windows_relaunch_mixed_paths_preserve_work \
   test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text \
   test_relaunch_refuses_before_exit_when_the_composer_state_is_unproven \
   test_relaunch_from_linked_home_preserves_recorded_worktree \
