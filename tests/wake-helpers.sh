@@ -296,8 +296,14 @@ SH
   printf '%s\n' "$dir"
 }
 
+# wait_for_exit <owned-child-pid> [exit-polls=50] [cleanup-polls=100]
+# Preserve the child's status on a natural exit. After the deadline, bound both
+# TERM and KILL cleanup and always return 124, even when forced cleanup succeeds.
+# Never wait on a still-live process or signal a replacement process identity.
 wait_for_exit() {
-  local pid=$1 limit=${2:-50} i=0
+  local pid=$1 limit=${2:-50} cleanup_limit=${3:-100} i=0 identity current signal
+  case "$pid" in ''|*[!0-9]*|0|1) return 2 ;; esac
+  identity=$(fm_test_pid_identity "$pid" 2>/dev/null) || identity=
   while [ "$i" -lt "$limit" ]; do
     if ! is_live_non_zombie "$pid"; then
       wait "$pid"
@@ -306,8 +312,26 @@ wait_for_exit() {
     sleep 0.1
     i=$((i + 1))
   done
-  kill "$pid" 2>/dev/null || true
-  wait "$pid" 2>/dev/null || true
+  printf 'wake fixture: pid %s exceeded %s exit polls\n' "$pid" "$limit" >&2
+  ps -p "$pid" -o pid=,ppid=,stat=,wchan= >&2 2>/dev/null || true
+  for signal in TERM KILL; do
+    current=$(fm_test_pid_identity "$pid" 2>/dev/null) || current=
+    if [ -z "$identity" ] || [ "$current" != "$identity" ]; then
+      printf 'wake fixture: pid %s identity unavailable or changed; refusing %s\n' "$pid" "$signal" >&2
+      return 124
+    fi
+    kill -s "$signal" "$pid" 2>/dev/null || true
+    i=0
+    while [ "$i" -lt "$cleanup_limit" ]; do
+      if ! is_live_non_zombie "$pid"; then
+        wait "$pid" 2>/dev/null || true
+        return 124
+      fi
+      sleep 0.1
+      i=$((i + 1))
+    done
+    printf 'wake fixture: pid %s still alive after %s cleanup\n' "$pid" "$signal" >&2
+  done
   return 124
 }
 

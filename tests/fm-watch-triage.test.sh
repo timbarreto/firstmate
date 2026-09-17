@@ -21,6 +21,8 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/wake-helpers.sh"
 # shellcheck source=/dev/null
 . "$ROOT/bin/fm-classify-lib.sh"
+# shellcheck source=bin/fm-timeout-lib.sh
+. "$ROOT/bin/fm-timeout-lib.sh"
 
 WATCH="$ROOT/bin/fm-watch.sh"
 DRAIN="$ROOT/bin/fm-wake-drain.sh"
@@ -30,12 +32,17 @@ TMP_ROOT=$(fm_test_tmproot fm-watch-triage-tests)
 ack_stopped_cycle() {  # <state>
   local state=$1 err sequence generation
   err="$state/.test-cycle-drain.err"
-  FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null 2> "$err" || return 1
+  # Fixture shutdown must not turn a failed cleanup into an unbounded drain.
+  if ! FM_STATE_OVERRIDE="$state" fm_run_timed 30 "$DRAIN" >/dev/null 2> "$err"; then
+    printf 'wake fixture: stopped-cycle drain failed or exceeded its bound\n' >&2
+    cat "$err" >&2
+    return 1
+  fi
   sequence=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation [A-Za-z0-9._-][A-Za-z0-9._-]*$/\1/p' "$err")
   generation=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through [0-9][0-9]* --recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' "$err")
   rm -f "$err"
   [ -n "$sequence" ] && [ -n "$generation" ] || return 1
-  FM_STATE_OVERRIDE="$state" "$DRAIN" --ack-through "$sequence" \
+  FM_STATE_OVERRIDE="$state" fm_run_timed 30 "$DRAIN" --ack-through "$sequence" \
     --recovery-generation "$generation"
 }
 
@@ -174,7 +181,13 @@ record_pi_busy() {  # <state-dir> <id>
     --source pi-ext --event agent-start
 }
 
-reap() { kill "$1" 2>/dev/null || true; wait "$1" 2>/dev/null || true; }
+reap() {
+  local pid=$1 rc=0
+  kill "$pid" 2>/dev/null || true
+  wait_for_exit "$pid" 300 || rc=$?
+  [ "$rc" -ne 124 ] \
+    || fail "${FUNCNAME[1]:-watcher fixture}: pid $pid did not stop gracefully; bounded cleanup was required"
+}
 
 # --- pure classifier predicates (fm-classify-lib.sh) ------------------------
 

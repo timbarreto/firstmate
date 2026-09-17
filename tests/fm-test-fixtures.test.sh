@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Behavior tests for tests/lib.sh primitives and tests/fixtures.sh builders.
+# Behavior tests for shared test primitives and fixture builders.
 #
 # Cases call shared primitives directly or write stubs into a fakebin and exec
 # them as a test would. Assertions are on observable output, exit status, and
@@ -156,6 +156,67 @@ SH
   pass "runner and shared helpers isolate host Git config and preserve explicit config and outside commits"
 )
 
+test_wake_wait_bounds_child_cleanup() (
+  local dir="$TMP_ROOT/wake-wait" out="$TMP_ROOT/wake-wait.out" err="$TMP_ROOT/wake-wait.err"
+  mkdir -p "$dir/tmp"
+  cat > "$dir/fixture.sh" <<'SH'
+#!/usr/bin/env bash
+set -u
+export TMPDIR="$2/tmp" FM_TEST_SKIP_ORPHAN_REAP=1
+. "$1/tests/wake-helpers.sh"
+dir=$2
+(exit 7) &
+pid=$!
+rc=0
+wait_for_exit "$pid" 100 || rc=$?
+[ "$rc" -eq 7 ] || exit 1
+sleep 30 &
+peer=$!
+for mode in graceful stubborn; do
+  ready="$dir/$mode.ready"
+  (
+    if [ "$mode" = graceful ]; then
+      trap 'printf "handled\n" > "$ready.stopped"; exit 0' TERM
+    else
+      trap '' TERM
+    fi
+    printf 'ready\n' > "$ready"
+    while :; do sleep 0.1; done
+  ) &
+  pid=$!
+  i=0
+  while [ "$i" -lt 100 ] && [ ! -s "$ready" ]; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  [ -s "$ready" ] || exit 1
+  rc=0
+  wait_for_exit "$pid" 1 20 > "$dir/$mode.out" 2> "$dir/$mode.err" || rc=$?
+  [ "$rc" -eq 124 ] || exit 1
+  if is_live_non_zombie "$pid"; then exit 1; fi
+  if [ "$mode" = graceful ]; then
+    [ -s "$ready.stopped" ] || exit 1
+  else
+    grep -F 'still alive after TERM cleanup' "$dir/$mode.err" >/dev/null || exit 1
+  fi
+  kill -0 "$peer" 2>/dev/null || exit 1
+done
+kill "$peer" 2>/dev/null || true
+wait_for_exit "$peer" 100 >/dev/null 2>&1 || true
+if is_live_non_zombie "$peer"; then exit 1; fi
+printf 'bounded-wake-wait-ok\n'
+SH
+  # The outer bound independently catches the old unbounded wait and reaps the
+  # fixture's process group if the helper regresses. Only task-owned fixture
+  # processes are signaled.
+  # shellcheck source=bin/fm-timeout-lib.sh
+  . "$ROOT/bin/fm-timeout-lib.sh"
+  fm_run_timed 30 bash "$dir/fixture.sh" "$ROOT" "$dir" > "$out" 2> "$err" \
+    || fail "wake wait fixture exceeded its bound or lost cleanup semantics: $(cat "$err")"
+  [ "$(cat "$out")" = bounded-wake-wait-ok ] || fail "wake wait fixture did not finish"
+  pass "wake waits retain exit codes, bound TERM-resistant cleanup, and preserve other children"
+)
+
 test_touch_epoch_preserves_repeated_dst_hour() {
   local TZ=Europe/Paris epoch path actual
   export TZ
@@ -283,6 +344,7 @@ test_spawn_home_layout() {
 }
 
 test_git_config_isolation || fail "Git fixture config isolation"
+test_wake_wait_bounds_child_cleanup
 test_touch_epoch_preserves_repeated_dst_hour
 test_no_mistakes_version_constant
 test_no_mistakes_init_doctor_markers
