@@ -1,0 +1,11 @@
+{
+  "artifact": "Microsoft/Windows/PowerShell/ModuleAnalysisCache",
+  "sourceCopy": "candidate",
+  "bytes": 201923,
+  "birthtime": "2026-09-17T05:08:11.093Z",
+  "mtime": "2026-09-17T05:08:11.198Z",
+  "discoveredAfterBothBatches": true,
+  "contentsRead": false,
+  "contentsPublished": false,
+  "scope": "PowerShell runtime cache outside fixture state, not covered by tracked-Git dirty checks"
+}

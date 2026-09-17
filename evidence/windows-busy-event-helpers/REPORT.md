@@ -18,7 +18,7 @@ The PR remains available as a draft, not a verified latency win or an authorized
 | Base code root | `C:/src/firstmate-base-busy-event-helpers` |
 | Candidate code root | `C:/src/firstmate-perf-busy-event-helpers` |
 
-Both new source copies are clean, equal-length siblings.
+Both source copies began as clean, equal-length siblings; the post-run untracked-cache limitation below is separate from their unchanged tracked source.
 The prior metadata change is present in both versions and is not credited to this patch.
 Production changes are only the quoted record/generation path assignments in `bin/fm-busy-event.sh` and the inner path assignment in `fm_busy_current_gen` in `bin/fm-busy-lib.sh`.
 No parser, callback, public interface, Bash executable, login flag, dependency, profile, global PATH, security setting, deadline, or concurrency admission changed.
@@ -137,6 +137,12 @@ Tools were Node `24.19.0`, Git `2.55.0.windows.5`, Bash `5.3.15(2)-release`, Win
 The existing Copilot resolver selected `C:\Program Files\Git\bin\bash.exe`.
 Manifests retain exact versions, paths, path digests, generated artifacts, seeds, and per-operation load observations.
 No other processes or private fleet state were inspected, and no machine setting was adjusted.
+
+Post-run inspection found an untracked `Microsoft/Windows/PowerShell/ModuleAnalysisCache` file only in the candidate source copy, created at `2026-09-17T05:08:11.093Z` during the second batch.
+The driver verified tracked source and fixture state but did not cover this additional runtime-cache location, so it does not establish equivalent cache state for every operation.
+[File metadata](packet/local-checks/runtime-cache-observation.json) is retained; the contents were neither read nor published, and the file was moved to private task artifacts after both batches.
+No sample was deleted or remeasured, and no causal attribution to the optimization or a particular delay is made.
+This is an additional comparison limitation, not grounds for treating the results as qualifying.
 
 The controls and tails are variable, but no specific external cause is established and no control time was subtracted.
 All maxima remain in the raw summaries, including the candidate's 26,115.2 ms Copilot-busy completion in batch 2.
