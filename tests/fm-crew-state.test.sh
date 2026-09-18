@@ -175,9 +175,14 @@ case "${1:-}" in
     # A successful but empty inventory: it omits the crew's window, so absence
     # is proved by the answer rather than by an addressed call failing. Only
     # reached once display-message has already failed.
+    [ -z "${FM_FAKE_TMUX_AGENT_COMMAND:-}" ] || printf 'fm-revived\n'
     ;;
   display-message)
     [ "${FM_FAKE_TMUX_MISSING:-0}" = 1 ] && exit 1
+    if [[ "$*" = *pane_current_command* ]] && [ -n "${FM_FAKE_TMUX_AGENT_COMMAND:-}" ]; then
+      printf '%s\n' "$FM_FAKE_TMUX_AGENT_COMMAND"
+      exit 0
+    fi
     printf '%%1\n' ;;
   capture-pane)
     [ "${FM_FAKE_TMUX_MISSING:-0}" = 1 ] && exit 1
@@ -638,10 +643,14 @@ EOF
 # (a) active run-step is authoritative
 test_active_run_is_authoritative() {
   reset_fakes
-  local d; d=$(new_case active)
+  local d boundary gen; d=$(new_case active)
   make_repo_on_branch "$d/wt" fm/feat-a
   make_fakebin "$d" >/dev/null
-  fm_write_meta "$d/state/feat-a.meta" "window=fm:fm-feat-a" "worktree=$d/wt" "kind=ship"
+  boundary=$(status_launch_boundary "$d/state/feat-a.status" replacement)
+  gen=$("$ROOT/bin/fm-busy-event.sh" arm "$d/state" feat-a)
+  fm_write_meta "$d/state/feat-a.meta" "window=fm:fm-feat-a" "worktree=$d/wt" "kind=ship" \
+    "harness=copilot" "spawn_gen=replacement" "launch_status=$boundary" "busy_gen=$gen"
+  printf 'done: replacement finished implementation\n' > "$d/state/feat-a.status"
   FM_FAKE_AXI_STATUS="$(run_running fm/feat-a)"
   local out; out=$(run_crew_state "$d" feat-a)
   assert_contains "$out" "state: working" "active run -> working"
@@ -2209,6 +2218,122 @@ test_no_run_idle_secondmate_resolved_event_not_state() {
   pass "a trailing resolved: event does not corrupt state render (idle stays idle)"
 }
 
+make_launch_report_case() {  # <dir> <harness> [kind]
+  local d=$1 harness=$2 kind=${3:-scout} boundary gen
+  mkdir -p "$d/wt"
+  make_fakebin "$d" >/dev/null
+  printf 'done: predecessor outcome\n' > "$d/state/revived.status"
+  boundary=$(status_launch_boundary "$d/state/revived.status" replacement)
+  gen=$("$ROOT/bin/fm-busy-event.sh" arm "$d/state" revived)
+  fm_write_meta "$d/state/revived.meta" "window=fm:fm-revived" "worktree=$d/wt" \
+    "kind=$kind" "harness=$harness" "spawn_gen=replacement" "busy_gen=$gen" "launch_status=$boundary"
+}
+
+test_current_launch_report_beats_only_launch_seed() {
+  reset_fakes
+  local d out gen verb
+  d=$(new_case launch-report-seed)
+  make_launch_report_case "$d" copilot
+  out=$(FM_FAKE_TMUX_AGENT_COMMAND=copilot run_crew_state "$d" revived)
+  assert_contains "$out" 'state: working' "a predecessor report overrode a verified live replacement"
+  cp "$d/state/revived.busy-state" "$d/busy-before"
+  for verb in "done" failed; do
+    printf '%s: replacement outcome\n' "$verb" >> "$d/state/revived.status"
+    printf 'note: outcome evidence\nresolved [key=followup]: acknowledged\n' >> "$d/state/revived.status"
+    out=$(run_crew_state "$d" revived)
+    assert_contains "$out" "state: $verb" "launch seed hid the replacement's $verb report"
+    assert_contains "$out" 'source: status-log' "current report did not identify its evidence"
+    cmp -s "$d/busy-before" "$d/state/revived.busy-state" || fail "reading completion rewrote busy lifecycle state"
+  done
+  cp "$d/state/revived.meta" "$d/captured.meta"
+  cp "$d/state/revived.status" "$d/captured.status"
+  out=$(FM_CREW_STATE_META_OVERRIDE="$d/captured.meta" FM_CREW_STATE_STATUS_OVERRIDE="$d/captured.status" \
+    run_crew_state "$d" revived)
+  assert_contains "$out" 'state: failed' "a fleet snapshot lost the bound terminal result"
+  if PATH="$d/fakebin:$PATH" FM_HOME="$d" FM_ROOT_OVERRIDE="$d" FM_STATE_OVERRIDE="$d/state" \
+    FM_CREW_STATE_BIN="$CREW_STATE" crew_is_provably_working revived; then
+    fail "notification triage absorbed the completed replacement as still working"
+  fi
+  gen=$(cat "$d/state/revived.busy-gen")
+  "$ROOT/bin/fm-busy-event.sh" apply "$d/state" revived idle --gen "$gen" \
+    --source copilot-hook --event session-end
+  out=$(run_crew_state "$d" revived)
+  assert_contains "$out" 'state: failed' "annotations hid the terminal report after a real idle hook"
+  "$ROOT/bin/fm-busy-event.sh" apply "$d/state" revived busy --gen "$gen" \
+    --source copilot-hook --event user-prompt-submitted
+  out=$(run_crew_state "$d" revived)
+  assert_contains "$out" 'state: working' "a terminal report hid a later live adapter-owned turn"
+  pass "fresh terminal reports settle launch seeds without clearing lifecycle evidence or hiding later busy turns"
+}
+
+test_current_launch_without_report_requires_live_agent() {
+  reset_fakes
+  local d out
+  d=$(new_case launch-without-report)
+  make_launch_report_case "$d" copilot
+  cp "$d/state/revived.busy-state" "$d/busy-before"
+  out=$(FM_FAKE_TMUX_AGENT_COMMAND=zsh run_crew_state "$d" revived)
+  assert_contains "$out" 'state: unknown' "a launch seed proved work continued after an unreported exit"
+  assert_contains "$out" 'replacement exited without a current terminal report' "the early exit was not distinguished"
+  out=$(FM_FAKE_TMUX_UNREADABLE=1 run_crew_state "$d" revived)
+  assert_contains "$out" 'state: unknown' "a launch seed proved an unreadable agent was working"
+  cmp -s "$d/busy-before" "$d/state/revived.busy-state" || fail "reconciling an early exit cleared lifecycle evidence"
+  pass "launch intent cannot hide an unreported early exit or prove an unreadable replacement is working"
+}
+
+test_current_launch_report_reaches_bounded_snapshot() {
+  reset_fakes
+  local d
+  d=$(new_case launch-report-snapshot)
+  make_launch_report_case "$d" copilot
+  mkdir -p "$d/data" "$d/config"
+  printf 'manual\n' > "$d/config/backlog-backend"
+  printf 'done: replacement completed\n' >> "$d/state/revived.status"
+  (
+    unset FM_SNAPSHOT_CREW_STATE_TIMEOUT FM_SNAPSHOT_CREW_STATE_BIN
+    PATH="$d/fakebin:$PATH" FM_HOME="$d" FM_ROOT_OVERRIDE="$d" \
+      FM_STATE_OVERRIDE="$d/state" FM_DATA_OVERRIDE="$d/data" FM_CONFIG_OVERRIDE="$d/config" \
+      "$ROOT/bin/fm-fleet-snapshot.sh" --json > "$d/fleet.json"
+  ) || fail "the bounded fleet snapshot failed"
+  jq -e '.tasks | length == 1 and .[0].id == "revived"
+    and .[0].current_state.state == "done"
+    and .[0].current_state.source == "status-log"' "$d/fleet.json" >/dev/null \
+    || fail "the default bounded fleet read lost completion: $(cat "$d/fleet.json")"
+  pass "a captured replacement report reaches the real fleet snapshot within its default state-read bound"
+}
+
+test_current_launch_report_survives_dead_endpoint() {
+  reset_fakes
+  local d out
+  d=$(new_case launch-report-dead)
+  make_launch_report_case "$d" codex
+  "$ROOT/bin/fm-busy-event.sh" retire "$d/state" revived --current-gen
+  FM_FAKE_TMUX_MISSING=1
+  out=$(run_crew_state "$d" revived)
+  assert_contains "$out" 'state: unknown' "an old report or early exit proved task success"
+  printf 'done: replacement completed before exiting\n' >> "$d/state/revived.status"
+  out=$(run_crew_state "$d" revived)
+  assert_contains "$out" 'state: done' "dead endpoint hid its current-generation terminal report"
+  assert_contains "$out" 'replacement completed before exiting' "terminal outcome detail was lost"
+  printf 'working: next requirement\n' >> "$d/state/revived.status"
+  out=$(run_crew_state "$d" revived)
+  assert_contains "$out" 'state: unknown' "later work retained stale terminal completion"
+  pass "dead endpoints retain generation-bound outcomes, never predecessor or superseded results"
+}
+
+test_launch_report_does_not_retire_secondmate() {
+  reset_fakes
+  local d out
+  d=$(new_case launch-report-secondmate)
+  make_launch_report_case "$d" copilot secondmate
+  printf 'done: one routed request\n' >> "$d/state/revived.status"
+  FM_FAKE_TMUX_MISSING=1
+  out=$(run_crew_state "$d" revived)
+  assert_contains "$out" 'state: unknown' "a routed completion replaced a persistent secondmate's liveness"
+  assert_not_contains "$out" 'current launch report' "a secondmate was treated as a terminal worker"
+  pass "a secondmate's per-request result is not its lifecycle terminal outcome"
+}
+
 test_dead_window_ignores_stale_status_log() {
   reset_fakes
   local d; d=$(new_case dead-window)
@@ -3761,144 +3886,151 @@ test_captured_completed_history() {
 
 report_full_suite=true
 [ -z "${FM_TEST_ONLY:-}" ] && [ "${FM_TEST_LIST_CASES:-0}" = 0 ] || report_full_suite=false
-fm_test_run_cases \
-  test_captured_axi_status_shapes \
-  test_captured_inventory_replay \
-  test_captured_authority_transition \
-  test_captured_completed_history \
-  test_active_run_is_authoritative \
-  test_stale_needs_decision_superseded \
-  test_stale_blocked_superseded \
-  test_daemon_claim_over_live_run_reads_run_alive \
-  test_socket_refusal_over_stale_fixing_run_reports_blocked \
-  test_socket_refusal_over_terminal_run_reports_blocked \
-  test_socket_refusal_override_expires_when_the_crew_moves_on \
-  test_ordinary_blocked_over_live_run_keeps_plain_superseded \
-  test_genuine_daemon_down_reports_blocked \
-  test_secondmate_open_block_survives_unrelated_append \
-  test_newest_open_decision_supplies_the_reported_detail \
-  test_single_owner_terminal_declaration_supersedes_stale_decision \
-  test_latest_status_preserves_legacy_completions \
-  test_latest_status_subshell_work_does_not_grow_with_history \
-  test_genuine_parked_not_superseded \
-  test_scalar_gate_parked_not_superseded \
-  test_gate_block_parked_not_superseded \
-  test_ci_ready_done_log_beats_monitoring_run \
-  test_ci_monitoring_checks_green_surfaces_done \
-  test_top_level_ci_checks_green_surfaces_done \
-  test_ci_monitoring_no_checks_terminal_surfaces_done \
-  test_ci_monitoring_green_then_rearm_stays_working \
-  test_ci_monitoring_no_checks_yet_stays_working \
-  test_ci_monitoring_still_waiting_stays_working \
-  test_ci_monitoring_green_then_new_issue_stays_working \
-  test_ci_ready_done_log_relapse_stays_working \
-  test_ci_fixing_after_green_stays_working \
-  test_top_level_fixing_ci_running_after_green_stays_working \
-  test_top_level_fixing_done_log_stays_working \
-  test_terminal_passed \
-  test_terminal_passed_uses_matching_retirement_receipt_without_forge \
-  test_terminal_passed_no_forge_switch_skips_read_but_keeps_receipt \
-  test_terminal_passed_with_open_pr_does_not_claim_merged \
-  test_terminal_passed_run_pr_overrides_stale_metadata \
-  test_terminal_passed_without_readable_pr_identity_reports_unknown \
-  test_terminal_passed_with_open_gitlab_mr_does_not_claim_merged \
-  test_terminal_passed_with_merged_gitlab_mr_reports_merged \
-  test_terminal_passed_with_failed_gitlab_read_reports_unknown \
-  test_terminal_failed \
-  test_terminal_failed_ci_orphan_after_green_reads_done \
-  test_terminal_failed_ci_orphan_status_only_reads_done \
-  test_terminal_failed_ci_genuine_red_stays_failed \
-  test_terminal_failed_ci_orphan_second_failed_step_stays_failed \
-  test_cross_branch_attribution_via_runs_list \
-  test_coarse_socket_refusal_reports_blocked \
-  test_coarse_failed_ledger_with_daemon_down_reports_unknown \
-  test_cross_branch_attribution_picks_most_recent_row \
-  test_terminal_run_keeps_newer_failure_over_live_sibling \
-  test_runs_list_newer_failure_outranks_older_live_row \
-  test_unfetched_older_live_sibling_does_not_hide_failure \
-  test_only_terminal_rows_keep_newest_first_precedence \
-  test_unknown_status_row_keeps_newest_first_precedence \
-  test_terminal_run_without_live_sibling_is_unchanged \
-  test_coarse_run_does_not_probe_other_branch_ci_log_for_ready_status \
-  test_other_branch_run_ignored \
-  test_no_run_busy_pane \
-  test_no_run_footer_text_alone_is_not_working \
-  test_no_run_grok_uses_isolated_fallback \
-  test_no_run_herdr_unknown_uses_backend_capture \
-  test_no_run_herdr_cli_failure_reads_unreachable_not_gone \
-  test_no_run_herdr_alive_with_failed_read_stays_live \
-  test_no_run_herdr_husk_dead_still_reads_gone \
-  test_no_run_herdr_idle_agent_status_outranked_by_record \
-  test_no_run_herdr_idle_agent_status_and_idle_record_stays_idle \
-  test_no_run_idle_pane_uses_log \
-  test_no_run_idle_pane_uses_keyed_log \
-  test_no_run_idle_pane_paused \
-  test_no_run_idle_pane_custom_paused_verb \
-  test_no_run_idle_secondmate_resolved_event_not_state \
-  test_dead_window_ignores_stale_status_log \
-  test_no_run_tmux_unreadable_reads_unreachable_not_gone \
-  test_dead_window_still_reports_terminal_run_step \
-  test_dead_window_still_reports_active_run_step \
-  test_no_timeout_uses_perl_bound \
-  test_scout_skips_run_lookup \
-  test_torn_down_worktree \
-  test_remote_alive_with_log_uses_status_log \
-  test_remote_alive_idle_is_healthy_not_gone \
-  test_remote_unreachable_is_unknown_remote_not_dead \
-  test_remote_dead_reports_remote_verdict \
-  test_missing_meta \
-  test_provably_working_via_runs_list_fallback \
-  test_not_provably_working_when_stopped \
-  test_usage_error \
-  test_historical_same_branch_rewritten_head_not_current \
-  test_active_run_descendant_fix_head_remains_current \
-  test_local_advanced_past_run_head_invalidates \
-  test_pipeline_owned_active_run_beats_superseded_failed_row \
-  test_failed_run_with_no_later_run_still_surfaces \
-  test_coarse_unresolvable_active_row_never_falls_to_older_row \
-  test_coarse_mismatched_anchor_falls_to_pane_not_older_row \
-  test_non_pipeline_owned_unresolvable_head_not_attributed \
-  test_pipeline_owned_terminal_run_not_exempt \
-  test_missing_run_head_falls_back_to_current_state \
-  test_active_fix_round_unfetched_pipeline_head_reports_current \
-  test_unanchored_unfetched_active_row_does_not_match \
-  test_unresolved_terminal_row_is_history_not_current \
-  test_runs_list_continuation_found_when_axi_answers_other_branch \
-  test_no_run_herdr_stale_registration_over_shell_reads_agent_gone \
-  test_no_run_herdr_stale_working_record_is_never_busy \
-  test_capped_competing_live_runs_report_both_ids \
-  test_capped_overview_without_branch_rows_reports_both_ids \
-  test_capped_replacement_keeps_gate_and_inventory_unchanged \
-  test_capped_inventory_failures_report_unknown \
-  test_complete_inventory_ignores_unrelated_semantics \
-  test_requested_branch_has_no_character_whitelist \
-  test_capped_inventory_ignores_unrelated_semantics \
-  test_capped_requested_semantics_do_not_hide_ids \
-  test_capped_requested_branch_with_comma_names_both_ids \
-  test_inventory_structure_and_requested_semantics_remain_checked \
-  test_complete_inventory_without_python_keeps_gate \
-  test_complete_ambiguity_without_python_names_both_ids \
-  test_capped_without_python_preserves_available_ids \
-  test_capped_without_sqlite_preserves_available_ids \
-  test_live_to_terminal_inventory_disagreement_is_unknown \
-  test_capped_stable_inventory_uses_one_reader \
-  test_capped_rerun_between_inventory_and_status_keeps_replacement_gate \
-  test_capped_transition_without_successor_is_unknown_then_stable_cancellation_is_visible \
-  test_capped_refresh_preserves_a_genuinely_newer_failure \
-  test_capped_refresh_churn_stops_without_a_false_failure \
-  test_capped_refresh_failure_retains_hidden_candidate_ids \
-  test_capped_refresh_refuses_ambiguous_or_unverifiable_successors \
-  test_capped_pending_predecessor_keeps_replacement_gate \
-  test_capped_rerun_keeps_liveness_before_complete_head_validation \
-  test_uninitialized_busy_worker_uses_pane \
-  test_uninitialized_idle_worker_uses_status \
-  test_historical_inventory_uses_current_pane \
-  test_historical_inventory_uses_current_status \
-  test_superseded_cancelled_run_preserves_replacement_gate \
-  test_competing_live_runs_report_unknown_with_both_ids \
-  test_newer_failed_run_is_not_hidden_by_older_live_run \
-  test_unverifiable_run_selection_reports_unknown \
-  test_legacy_conflicting_run_records_report_unknown
+crew_state_cases=(
+test_captured_axi_status_shapes
+test_captured_inventory_replay
+test_captured_authority_transition
+test_captured_completed_history
+test_active_run_is_authoritative
+test_stale_needs_decision_superseded
+test_stale_blocked_superseded
+test_daemon_claim_over_live_run_reads_run_alive
+test_socket_refusal_over_stale_fixing_run_reports_blocked
+test_socket_refusal_over_terminal_run_reports_blocked
+test_socket_refusal_override_expires_when_the_crew_moves_on
+test_ordinary_blocked_over_live_run_keeps_plain_superseded
+test_genuine_daemon_down_reports_blocked
+test_secondmate_open_block_survives_unrelated_append
+test_newest_open_decision_supplies_the_reported_detail
+test_single_owner_terminal_declaration_supersedes_stale_decision
+test_latest_status_preserves_legacy_completions
+test_latest_status_subshell_work_does_not_grow_with_history
+test_genuine_parked_not_superseded
+test_scalar_gate_parked_not_superseded
+test_gate_block_parked_not_superseded
+test_ci_ready_done_log_beats_monitoring_run
+test_ci_monitoring_checks_green_surfaces_done
+test_top_level_ci_checks_green_surfaces_done
+test_ci_monitoring_no_checks_terminal_surfaces_done
+test_ci_monitoring_green_then_rearm_stays_working
+test_ci_monitoring_no_checks_yet_stays_working
+test_ci_monitoring_still_waiting_stays_working
+test_ci_monitoring_green_then_new_issue_stays_working
+test_ci_ready_done_log_relapse_stays_working
+test_ci_fixing_after_green_stays_working
+test_top_level_fixing_ci_running_after_green_stays_working
+test_top_level_fixing_done_log_stays_working
+test_terminal_passed
+test_terminal_passed_uses_matching_retirement_receipt_without_forge
+test_terminal_passed_no_forge_switch_skips_read_but_keeps_receipt
+test_terminal_passed_with_open_pr_does_not_claim_merged
+test_terminal_passed_run_pr_overrides_stale_metadata
+test_terminal_passed_without_readable_pr_identity_reports_unknown
+test_terminal_passed_with_open_gitlab_mr_does_not_claim_merged
+test_terminal_passed_with_merged_gitlab_mr_reports_merged
+test_terminal_passed_with_failed_gitlab_read_reports_unknown
+test_terminal_failed
+test_terminal_failed_ci_orphan_after_green_reads_done
+test_terminal_failed_ci_orphan_status_only_reads_done
+test_terminal_failed_ci_genuine_red_stays_failed
+test_terminal_failed_ci_orphan_second_failed_step_stays_failed
+test_cross_branch_attribution_via_runs_list
+test_coarse_socket_refusal_reports_blocked
+test_coarse_failed_ledger_with_daemon_down_reports_unknown
+test_cross_branch_attribution_picks_most_recent_row
+test_terminal_run_keeps_newer_failure_over_live_sibling
+test_runs_list_newer_failure_outranks_older_live_row
+test_unfetched_older_live_sibling_does_not_hide_failure
+test_only_terminal_rows_keep_newest_first_precedence
+test_unknown_status_row_keeps_newest_first_precedence
+test_terminal_run_without_live_sibling_is_unchanged
+test_coarse_run_does_not_probe_other_branch_ci_log_for_ready_status
+test_other_branch_run_ignored
+test_no_run_busy_pane
+test_no_run_footer_text_alone_is_not_working
+test_no_run_grok_uses_isolated_fallback
+test_no_run_herdr_unknown_uses_backend_capture
+test_no_run_herdr_cli_failure_reads_unreachable_not_gone
+test_no_run_herdr_alive_with_failed_read_stays_live
+test_no_run_herdr_husk_dead_still_reads_gone
+test_no_run_herdr_idle_agent_status_outranked_by_record
+test_no_run_herdr_idle_agent_status_and_idle_record_stays_idle
+test_no_run_idle_pane_uses_log
+test_no_run_idle_pane_uses_keyed_log
+test_no_run_idle_pane_paused
+test_no_run_idle_pane_custom_paused_verb
+test_no_run_idle_secondmate_resolved_event_not_state
+test_dead_window_ignores_stale_status_log
+test_current_launch_report_beats_only_launch_seed
+test_current_launch_without_report_requires_live_agent
+test_current_launch_report_reaches_bounded_snapshot
+test_current_launch_report_survives_dead_endpoint
+test_launch_report_does_not_retire_secondmate
+test_no_run_tmux_unreadable_reads_unreachable_not_gone
+test_dead_window_still_reports_terminal_run_step
+test_dead_window_still_reports_active_run_step
+test_no_timeout_uses_perl_bound
+test_scout_skips_run_lookup
+test_torn_down_worktree
+test_remote_alive_with_log_uses_status_log
+test_remote_alive_idle_is_healthy_not_gone
+test_remote_unreachable_is_unknown_remote_not_dead
+test_remote_dead_reports_remote_verdict
+test_missing_meta
+test_provably_working_via_runs_list_fallback
+test_not_provably_working_when_stopped
+test_usage_error
+test_historical_same_branch_rewritten_head_not_current
+test_active_run_descendant_fix_head_remains_current
+test_local_advanced_past_run_head_invalidates
+test_pipeline_owned_active_run_beats_superseded_failed_row
+test_failed_run_with_no_later_run_still_surfaces
+test_coarse_unresolvable_active_row_never_falls_to_older_row
+test_coarse_mismatched_anchor_falls_to_pane_not_older_row
+test_non_pipeline_owned_unresolvable_head_not_attributed
+test_pipeline_owned_terminal_run_not_exempt
+test_missing_run_head_falls_back_to_current_state
+test_active_fix_round_unfetched_pipeline_head_reports_current
+test_unanchored_unfetched_active_row_does_not_match
+test_unresolved_terminal_row_is_history_not_current
+test_runs_list_continuation_found_when_axi_answers_other_branch
+test_no_run_herdr_stale_registration_over_shell_reads_agent_gone
+test_no_run_herdr_stale_working_record_is_never_busy
+test_capped_competing_live_runs_report_both_ids
+test_capped_overview_without_branch_rows_reports_both_ids
+test_capped_replacement_keeps_gate_and_inventory_unchanged
+test_capped_inventory_failures_report_unknown
+test_complete_inventory_ignores_unrelated_semantics
+test_requested_branch_has_no_character_whitelist
+test_capped_inventory_ignores_unrelated_semantics
+test_capped_requested_semantics_do_not_hide_ids
+test_capped_requested_branch_with_comma_names_both_ids
+test_inventory_structure_and_requested_semantics_remain_checked
+test_complete_inventory_without_python_keeps_gate
+test_complete_ambiguity_without_python_names_both_ids
+test_capped_without_python_preserves_available_ids
+test_capped_without_sqlite_preserves_available_ids
+test_live_to_terminal_inventory_disagreement_is_unknown
+test_capped_stable_inventory_uses_one_reader
+test_capped_rerun_between_inventory_and_status_keeps_replacement_gate
+test_capped_transition_without_successor_is_unknown_then_stable_cancellation_is_visible
+test_capped_refresh_preserves_a_genuinely_newer_failure
+test_capped_refresh_churn_stops_without_a_false_failure
+test_capped_refresh_failure_retains_hidden_candidate_ids
+test_capped_refresh_refuses_ambiguous_or_unverifiable_successors
+test_capped_pending_predecessor_keeps_replacement_gate
+test_capped_rerun_keeps_liveness_before_complete_head_validation
+test_uninitialized_busy_worker_uses_pane
+test_uninitialized_idle_worker_uses_status
+test_historical_inventory_uses_current_pane
+test_historical_inventory_uses_current_status
+test_superseded_cancelled_run_preserves_replacement_gate
+test_competing_live_runs_report_unknown_with_both_ids
+test_newer_failed_run_is_not_hidden_by_older_live_run
+test_unverifiable_run_selection_reports_unknown
+test_legacy_conflicting_run_records_report_unknown
+)
+fm_test_run_cases "${crew_state_cases[@]}"
 
 if [ "$report_full_suite" = true ]; then
   echo "all fm-crew-state tests passed"

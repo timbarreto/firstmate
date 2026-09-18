@@ -36,6 +36,10 @@ Use `treehouse status` for treehouse-backed tmux, herdr, zellij, or cmux tasks, 
 Do not sweep another home's endpoints or infer ownership from a matching window label.
 
 Use `bin/fm-control.sh <task-id> inspect` for the current lifecycle observation and any retained recovery receipt before deciding to relaunch.
+A terminal report attributable to the current replacement is a work outcome even when its endpoint has already exited; handle that outcome rather than recovering it again.
+An accepted but unconfirmed relaunch is not a failed replacement.
+Inspect its `launch_report` and reconcile the retained transaction through the same control plane; do not infer failure from an unreadable observation or allocate another worker.
+`docs/agent-control.md` and the command header own the distinction between live confirmation, worker-reported completion, unconfirmed delivery, and genuine launch failure.
 When a Windows Copilot task points to a missing Herdr endpoint but this task has a preserved prior record, use that command's `--recover-from` inspection and review the exact endpoint, process instances, task-held leases, and copies it proposes to preserve.
 Only after explicit approval of that plan, use the inspection digest with the same owner's guarded relaunch; changed evidence or an incomplete prior attempt requires inspection rather than a duplicate action.
 The script's header owns the syntax, supported recovery shape, and transaction mechanics; record repair does not authorize returning either lease or discarding either copy.
@@ -75,4 +79,5 @@ Escalate in order:
    Genuine wedging means looping, unresponsive, repeating the same obstacle, or truly dead.
    A low context reading is not wedging; modern harnesses auto-compact and keep going.
    The worktree and commits persist, so relaunch is cheap.
-5. If a second relaunch fails too, write `failed` to the backlog and tell the captain the plain failure, preserved work, and consequence using `AGENTS.md` section 9; do not mention metadata, harness, window, or worktree unless the path itself is needed for action.
+5. If a second relaunch genuinely fails too, write `failed` to the backlog and tell the captain the plain failure, preserved work, and consequence using `AGENTS.md` section 9; do not mention metadata, harness, window, or worktree unless the path itself is needed for action.
+   Unconfirmed delivery and a replacement's terminal work report are not failed relaunch attempts.

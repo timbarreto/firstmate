@@ -347,7 +347,7 @@ fm_control_recovery_apply() {  # <meta> <state> <task>; caller holds serializati
     key=${line%%=*}
     case "$key" in
       control_recovery_token) continue ;;
-      window|endpoint_task_id|worktree|backend|herdr_session|herdr_workspace_id|herdr_tab_id|herdr_pane_id|busy_gen|spawn_gen)
+      window|endpoint_task_id|worktree|backend|herdr_session|herdr_workspace_id|herdr_tab_id|herdr_pane_id|busy_gen|spawn_gen|launch_status)
         value=$(fm_meta_get "$FM_CONTROL_RECOVERY_CANDIDATE_SNAPSHOT" "$key")
         [ -z "$value" ] || printf '%s=%s\n' "$key" "$value" >> "$tmp"
         ;;

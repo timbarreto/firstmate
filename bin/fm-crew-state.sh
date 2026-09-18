@@ -91,6 +91,12 @@
 #      backend's pane busy state, then the resolved status declaration
 #      when its verb maps to a recognized run-state. Decision-only events such as
 #      `resolved` never become current state or detail.
+#      A complete terminal report bound to this spawn by launch_status= (owned
+#      by fm-classify-lib.sh) outranks the untouched launch-busy seed and
+#      survives a positively dead/missing endpoint. It does not override an
+#      attributed run or a later adapter-owned busy turn.
+#      Without such a report, an untouched launch seed alone cannot prove
+#      working when the recovery-grade backend cannot prove a live agent.
 #   5. Missing meta or torn-down worktree: report unknown · none. If no run is
 #      attributed to this crew, a dead endpoint also reports unknown · none rather
 #      than trusting a stale status log. On tmux and herdr, which own a
@@ -160,8 +166,9 @@ emit() {  # <state> <source> [detail]
 # consume much of a Windows snapshot's current-state deadline before any actual
 # worker observation could begin. Initialize the destinations for source-aware
 # static analysis, which cannot infer printf -v assignments across the helper.
-WT='' KIND='' HARNESS='' REMOTE_HOST=''
-fm_meta_read "$META" worktree WT kind KIND harness HARNESS remote_host REMOTE_HOST
+WT='' KIND='' HARNESS='' REMOTE_HOST='' SPAWN_GEN='' LAUNCH_STATUS='' BUSY_GEN=''
+fm_meta_read "$META" worktree WT kind KIND harness HARNESS remote_host REMOTE_HOST \
+  spawn_gen SPAWN_GEN launch_status LAUNCH_STATUS busy_gen BUSY_GEN
 [ -n "$KIND" ] || KIND=ship
 
 # A torn-down (or never-created) worktree has no current state to read. A
@@ -953,9 +960,28 @@ fi
 # liveness, so a finished-but-pane-closed crew never reaches here. Down here there
 # is no run to consult, so only positive evidence that the target is gone may
 # read as death - a backend that failed to answer is unknown, never death, for
-# both classifier-backed backends (tmux and herdr) - and every death-class
-# verdict reports unknown rather than trusting a possibly-stale status log as
-# the current state.
+# both classifier-backed backends (tmux and herdr). Death without a bound
+# current-generation report remains unknown, never a historical completion.
+LAUNCH_TERMINAL_LINE=
+LAUNCH_TERMINAL_VERB=
+launch_seed_is_current() {
+  [ -n "$LAUNCH_STATUS" ] && [ -n "$BUSY_GEN" ] \
+    && fm_busy_source_trusted "$HARNESS" fm-spawn \
+    && [ "$(fm_busy_current_gen "$STATE" "$ID" 2>/dev/null)" = "$BUSY_GEN" ] \
+    && [ "$(fm_busy_record_read "$STATE" "$ID" 2>/dev/null)" = 'busy fm-spawn launch-brief 1' ]
+}
+if [ "$KIND" != secondmate ] && [ -n "$LAUNCH_STATUS" ]; then
+  LAUNCH_TERMINAL_LINE=$(status_launch_current "$LOG" "$LAUNCH_STATUS" "$SPAWN_GEN" "$STATE/$ID.status") || LAUNCH_TERMINAL_LINE=
+  LAUNCH_TERMINAL_VERB=$(status_line_verb "$LAUNCH_TERMINAL_LINE")
+  case "$LAUNCH_TERMINAL_VERB" in
+    done|failed)
+      if launch_seed_is_current; then
+        emit "$LAUNCH_TERMINAL_VERB" status-log "$(status_line_note "$LAUNCH_TERMINAL_LINE")${SEP}current launch report"
+      fi
+      ;;
+    *) LAUNCH_TERMINAL_LINE=; LAUNCH_TERMINAL_VERB= ;;
+  esac
+fi
 [ -n "$BACKEND_TARGET" ] || emit unknown none "no backend target recorded"
 if ! pane_readable "$BACKEND_TARGET"; then
   # A failed probe is not itself evidence the pane is gone: the herdr CLI can
@@ -992,9 +1018,13 @@ if ! pane_readable "$BACKEND_TARGET"; then
     tmux:alive|herdr:alive)
       ;;
     tmux:missing|herdr:missing)
+      [ -z "$LAUNCH_TERMINAL_VERB" ] \
+        || emit "$LAUNCH_TERMINAL_VERB" status-log "$(status_line_note "$LAUNCH_TERMINAL_LINE")${SEP}current launch report; endpoint gone"
       emit unknown none "backend target gone: $BACKEND_TARGET"
       ;;
     tmux:dead|herdr:dead)
+      [ -z "$LAUNCH_TERMINAL_VERB" ] \
+        || emit "$LAUNCH_TERMINAL_VERB" status-log "$(status_line_note "$LAUNCH_TERMINAL_LINE")${SEP}current launch report; agent exited"
       emit unknown none "backend target gone: $BACKEND_TARGET (agent gone, pane shell remains)"
       ;;
     tmux:*|herdr:*)
@@ -1014,9 +1044,40 @@ fi
 if [ "$KIND" != secondmate ]; then
   BUSY_VERDICT=$(crew_busy_verdict "$BACKEND_TARGET")
   case "${BUSY_VERDICT%% *}" in
-    busy) emit working pane "harness busy (${BUSY_VERDICT#* })" ;;
-    idle) ;;
-    *) emit unknown pane "harness state unavailable ($BUSY_VERDICT)" ;;
+    busy)
+      if launch_seed_is_current; then
+        case "$TASK_BACKEND" in
+          tmux|herdr)
+            AGENT_STATE=$(fm_backend_agent_state "$TASK_BACKEND" "$BACKEND_TARGET")
+            case "$AGENT_STATE" in
+              alive) ;;
+              dead|missing) emit unknown none "replacement exited without a current terminal report" ;;
+              *) emit unknown pane "launch unconfirmed (endpoint state: $AGENT_STATE)" ;;
+            esac
+            ;;
+        esac
+      fi
+      emit working pane "harness busy (${BUSY_VERDICT#* })"
+      ;;
+    idle)
+      if [ -n "$LAUNCH_TERMINAL_VERB" ]; then
+        emit "$LAUNCH_TERMINAL_VERB" status-log "$(status_line_note "$LAUNCH_TERMINAL_LINE")${SEP}current launch report"
+      fi
+      ;;
+    *)
+      if [ -n "$LAUNCH_TERMINAL_VERB" ]; then
+        case "$TASK_BACKEND" in
+          tmux|herdr)
+            case "$(fm_backend_agent_state "$TASK_BACKEND" "$BACKEND_TARGET")" in
+              dead|missing)
+                emit "$LAUNCH_TERMINAL_VERB" status-log "$(status_line_note "$LAUNCH_TERMINAL_LINE")${SEP}current launch report; agent exited"
+                ;;
+            esac
+            ;;
+        esac
+      fi
+      emit unknown pane "harness state unavailable ($BUSY_VERDICT)"
+      ;;
   esac
 fi
 
