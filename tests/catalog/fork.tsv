@@ -12,6 +12,7 @@ map	route-lock-fast	59	bin/fm-lock-fast.pl	watcher-wake-lock,__script__:fm-lock-
 test	tests/fm-pr-local-cost.test.sh	pure-contract-unit
 test	tests/fm-herdr-unregistered-agent.test.sh	pure-contract-unit
 test	tests/fm-control-recovery.test.sh	pure-contract-unit
+test	tests/fm-spawn-queue.test.sh	backend-dispatch
 test	tests/fm-launch-status.test.sh	pure-contract-unit
 map	route-control-recovery	58	bin/fm-control.sh|bin/fm-control-recovery-lib.sh	backend-dispatch,pure-contract-unit
 map	route-pr-local-cost	2580	bin/fm-pr-lib.sh|bin/fm-pr-poll.sh	pr-forge,__script__:fm-pr-local-cost.test.sh
