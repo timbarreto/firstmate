@@ -30,7 +30,7 @@ Missing or incomplete registered adapters report an error rather than selecting 
 
 `bin/fm-harness.sh` owns marker-versus-ancestry arbitration while the pilot adapters retain their staged identity mechanics.
 Core callers retain configuration structure and diagnostic ordering, recorded-name normalization, and the lifecycle transaction.
-Bootstrap verification, local control, and remote launch/relaunch support remain distinct operation-specific capabilities.
+Bootstrap verification, typed dispatch profile validation, local control, and remote launch/relaunch support consume the pilot capabilities without making their operation-specific support interchangeable.
 The interface does not introduce a resume contract or broaden the existing remote Copilot relaunch restriction.
 Spawn retains role/profile resolution, generation allocation, exact-file publication, worktrees, endpoint delivery, and rollback.
 Control, sending, restart, and teardown consume the same pilot-owned mechanics and artifact paths rather than reproducing them.
@@ -176,7 +176,7 @@ The existing update and restart owners retain their authority.
 | `tests/catalog-helpers.sh` | Real catalog loader, valid fixture catalogs, and the required proof-list dependency |
 
 Synthetic catalogs may describe a minimal test world; they are not another production registry.
-Pi type checks preserve repository-relative module depth rather than flattening libraries, including the Claude-owned Calm sprite target reached by the Pi symlink; the Calm rendering fixture keeps the same layout.
+Pi type checks preserve repository-relative module depth rather than flattening libraries, including the Claude-owned Calm sprite and text-preservation targets reached by Pi symlinks; the Calm rendering fixture keeps the same layout.
 Copied startup and hook fixtures must install the complete dependency closure even when the exercised case does not launch either pilot.
 Missing tracked code remains an explicit error rather than permission to continue with a partially loaded fixture.
 

@@ -16,11 +16,11 @@ map	route-control-recovery	58	bin/fm-control-recovery-lib.sh	backend-dispatch,pu
 map	route-pr-local-cost	2580	bin/fm-pr-lib.sh|bin/fm-pr-poll.sh	pr-forge,__script__:fm-pr-local-cost.test.sh
 # Shared paths keep their existing owner routes; supplemental regressions are
 # appended to those routes rather than shadowing them with a test-only match.
-override-map	route-bin-fm-control-lib-sh	2800	bin/fm-control-lib.sh	backend-dispatch,session-bootstrap,__script__:fm-quota-choose.test.sh	2800	bin/fm-control-lib.sh	backend-dispatch,session-bootstrap,__script__:fm-quota-choose.test.sh,__script__:fm-control-recovery.test.sh
+override-map	route-bin-fm-control-lib-sh	2800	bin/fm-control-lib.sh	backend-dispatch,session-bootstrap,__script__:fm-quota-choose.test.sh	2800	bin/fm-control-lib.sh	backend-dispatch,session-bootstrap,__script__:fm-quota-choose.test.sh,__script__:fm-control-recovery.test.sh,__script__:fm-dispatch-resolve.test.sh
 override-map	route-bin-fm-herdr-session-cleanup-sh	600	bin/fm-herdr-session-cleanup.sh	session-bootstrap,real-herdr-gated,backend-dispatch	600	bin/fm-herdr-session-cleanup.sh	session-bootstrap,real-herdr-gated,backend-dispatch,__script__:fm-startup-performance.test.sh
 override-map	route-bin-fm-backend-sh	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh	backend-dispatch,real-herdr-gated	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh	backend-dispatch,real-herdr-gated,__script__:fm-startup-performance.test.sh
 map	route-startup-status-fold	1080	bin/fm-classify-lib.sh|bin/fm-wake-lib.sh	watcher-wake-lock,__script__:fm-startup-performance.test.sh,__script__:fm-lock-fast.test.sh,__script__:fm-copilot-harness.test.sh
-override-map	route-bin-fm-bearings-snapshot-sh	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-home-summary-refresh.sh	snapshot-bearings	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-home-summary-refresh.sh	snapshot-bearings,__script__:fm-startup-performance.test.sh,__script__:fm-home-summary-request.test.sh
+override-map	route-bin-fm-bearings-snapshot-sh	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-contributions.sh|bin/fm-contributions.jq|bin/fm-home-summary-refresh.sh	snapshot-bearings	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-contributions.sh|bin/fm-contributions.jq|bin/fm-home-summary-refresh.sh	snapshot-bearings,__script__:fm-startup-performance.test.sh,__script__:fm-home-summary-request.test.sh
 test	tests/fm-platform-process.test.sh	pure-contract-unit
 test	tests/fm-harness-contract.test.sh	pure-contract-unit
 test	tests/fm-procevent-stop-proof.test.sh	standalone
@@ -50,6 +50,9 @@ map	route-github-workflows-fork-ci-yml	3800	.github/workflows/fork-ci.yml	pure-c
 override-map	route-github	4100	.github/*|.gitattributes|.tasks.toml|AGENTS.md|CLAUDE.md|CONTRIBUTING.md|docs/configuration.md|docs/supervision-protocols/*	pure-contract-unit	4100	.github/*|.tasks.toml|AGENTS.md|CLAUDE.md|CONTRIBUTING.md|docs/configuration.md|docs/supervision-protocols/*	pure-contract-unit
 map	route-gitattributes	4200	.gitattributes	pure-contract-unit,__script__:fm-gitignore-config.test.sh
 map	route-gitignore	4300	.gitignore	__script__:fm-gitignore-config.test.sh
+map	route-grok-bot	4400	GROK_BOT.md	pure-contract-unit
+map	route-nm-captures	220	tests/captures/no-mistakes-v1.70.1/*	__script__:fm-crew-state.test.sh
+map	route-foreign-owner-repro	210	tests/fm-turnend-foreign-owner-repro.py	__script__:fm-turnend-foreign-owner-arm-fix.test.sh
 override-duration	tests/fm-afk-contract.test.sh	3000	10536
 override-duration	tests/fm-afk-inject-e2e.test.sh	35792	35736
 override-duration	tests/fm-afk-return.test.sh	1837	17336

@@ -30,9 +30,10 @@ trap cleanup EXIT
 
 mkdir -p "$TMP_ROOT/.pi/extensions" "$TMP_ROOT/node_modules/@earendil-works" "$TMP_ROOT/node_modules/@types"
 cp -R "$ROOT/.pi/extensions/." "$TMP_ROOT/.pi/extensions/" || exit 1
-# Preserve the target of the Pi sprite symlink alongside the copied extensions.
+# Preserve the targets of the Pi Calm symlinks alongside the copied extensions.
 mkdir -p "$TMP_ROOT/.claude/mods/firstmate-calm/lib"
 cp "$ROOT/.claude/mods/firstmate-calm/lib/fm-calm-working-ship-sprite.ts" \
+  "$ROOT/.claude/mods/firstmate-calm/lib/fm-calm-preservation.ts" \
   "$TMP_ROOT/.claude/mods/firstmate-calm/lib/" || exit 1
 fm_test_install_process_module "$TMP_ROOT" || exit 1
 ln -s "$PI_PACKAGE_DIR" "$TMP_ROOT/node_modules/@earendil-works/pi-coding-agent"

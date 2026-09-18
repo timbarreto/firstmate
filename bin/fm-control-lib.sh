@@ -66,6 +66,12 @@ fm_control_verb_allowed() {  # <verb>
 # The harnesses whose control mechanics are verified. Mirrors AGENTS.md
 # section 4's verified-adapter list; an unverified adapter is refused rather
 # than guessed at, exactly as a spawn on it would be.
+fm_control_harnesses() {
+  fm_harness_describe copilot control-supported || return $?
+  fm_harness_describe pi control-supported || return $?
+  printf '%s\n' claude codex copilot opencode pi pi-signed grok kimi cursor gemini muse rovo omp agy
+}
+
 fm_control_harness_supported() {  # <harness>
   if fm_harness_registered "${1-}"; then fm_harness_describe "$1" control-supported; return $?; fi
   case "${1-}" in

@@ -455,8 +455,10 @@ test_calm_mod_and_sprite_select_all_consumers() {
   for path in .agents/skills/firstmate-calm \
     .claude/mods/firstmate-calm/hooks/register.ts \
     .claude/mods/firstmate-calm/lib/fm-calm-working-ship-sprite.ts \
+    .claude/mods/firstmate-calm/lib/fm-calm-preservation.ts \
     .pi/extensions/lib/fm-calm-working-ship.ts \
-    .pi/extensions/lib/fm-calm-working-ship-sprite.ts; do
+    .pi/extensions/lib/fm-calm-working-ship-sprite.ts \
+    .pi/extensions/lib/fm-calm-preservation.ts; do
     : > "$repo/$path"
   done
   git -C "$repo" add .
@@ -470,8 +472,10 @@ test_calm_mod_and_sprite_select_all_consumers() {
   for path in .agents/skills/firstmate-calm \
     .claude/mods/firstmate-calm/hooks/register.ts \
     .claude/mods/firstmate-calm/lib/fm-calm-working-ship-sprite.ts \
+    .claude/mods/firstmate-calm/lib/fm-calm-preservation.ts \
     .pi/extensions/lib/fm-calm-working-ship.ts \
-    .pi/extensions/lib/fm-calm-working-ship-sprite.ts; do
+    .pi/extensions/lib/fm-calm-working-ship-sprite.ts \
+    .pi/extensions/lib/fm-calm-preservation.ts; do
     printf '\n' > "$repo/$path"
     listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
       || fail "Calm dependency lacks changed-test routing: $path"
@@ -486,6 +490,58 @@ test_calm_mod_and_sprite_select_all_consumers() {
   assert_not_contains "$listed" 'tests/fm-calm-claude-mod.test.sh' \
     "catalog registration must not grant concurrency admission"
   pass "Calm module, loader entry and shared sprite select all consumers without changing proof admission"
+}
+
+test_reconciled_modules_select_their_consumers() {
+  local tmp repo script path listed
+  tmp=$(fm_test_tmproot fm-test-run-reconciled-modules)
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  for script in fm-dispatch-resolve.test.sh fm-contributions.test.sh fm-crew-state.test.sh \
+    fm-codex-hook-layer-live-e2e.test.sh fm-turnend-foreign-owner-arm-fix.test.sh; do
+    printf '#!/usr/bin/env bash\n' > "$repo/tests/$script"
+  done
+  fm_test_install_catalog "$repo"
+  git -C "$repo" add .
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm reconciled-module-fixture
+  for path in bin/fm-dispatch-resolve.sh bin/fm-env-lib.sh bin/fm-quota-axi-lib.sh bin/fm-control-lib.sh; do
+    printf '\n' > "$repo/$path"
+    listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+      || fail "$path lacks dispatch-consumer routing"
+    assert_contains "$listed" 'tests/fm-dispatch-resolve.test.sh' "$path selects typed dispatch"
+    if [ "$path" = bin/fm-env-lib.sh ]; then
+      assert_contains "$listed" 'tests/fm-pr-merge.test.sh' "shared environment accessor retains PR/Relay consumers"
+    fi
+    rm "$repo/$path"
+  done
+  for path in bin/fm-contributions.sh bin/fm-contributions.jq; do
+    printf '\n' > "$repo/$path"
+    listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+      || fail "$path lacks contribution-consumer routing"
+    assert_contains "$listed" 'tests/fm-contributions.test.sh' "$path selects contribution coverage"
+    assert_contains "$listed" 'tests/fm-bearings-snapshot.test.sh' "$path retains snapshot consumers"
+    rm "$repo/$path"
+  done
+  mkdir -p "$repo/tests/captures/no-mistakes-v1.70.1"
+  for path in GROK_BOT.md tests/captures/no-mistakes-v1.70.1/overview.toon \
+    tests/fm-turnend-foreign-owner-repro.py; do
+    printf '\n' > "$repo/$path"
+    listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
+      || fail "$path lacks explicit source routing"
+    case "$path" in
+      GROK_BOT.md) script=fm-test-run.test.sh ;;
+      tests/captures/*) script=fm-crew-state.test.sh ;;
+      *) script=fm-turnend-foreign-owner-arm-fix.test.sh ;;
+    esac
+    assert_contains "$listed" "tests/$script" "$path selects its executable consumer"
+    rm "$repo/$path"
+  done
+  listed=$("$repo/bin/fm-test-run.sh" --list --proven-isolated)
+  for script in fm-dispatch-resolve.test.sh fm-contributions.test.sh \
+    fm-codex-hook-layer-live-e2e.test.sh fm-turnend-foreign-owner-arm-fix.test.sh; do
+    assert_not_contains "$listed" "tests/$script" "new registration must not grant concurrency admission"
+  done
+  pass "reconciled dispatch, environment, and contribution owners retain routing without new proof admission"
 }
 
 test_process_modules_select_all_consumers() {
@@ -2326,6 +2382,7 @@ fm_test_run_cases \
   test_changed_runner_surfaces_select_their_family \
   test_fork_workflow_selects_its_contracts \
   test_calm_mod_and_sprite_select_all_consumers \
+  test_reconciled_modules_select_their_consumers \
   test_process_modules_select_all_consumers \
   test_harness_modules_select_all_consumers \
   test_shell_line_ending_policy_selects_runner_contract \
