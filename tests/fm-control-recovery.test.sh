@@ -36,6 +36,9 @@ fm_backend_herdr_agent_state() {
     fixture:w1:p1)
       if [ -f "$FM_TEST_CASE/launch-observed" ]; then
         printf 'probe\n' >> "$FM_TEST_CASE/probes"
+        if [ -n "${FM_TEST_REPORT_DURING_PROBE:-}" ]; then
+          printf '%s\n' "$FM_TEST_REPORT_DURING_PROBE" >> "$FM_STATE_OVERRIDE/task-a.status"
+        fi
         if [ "${FM_TEST_PROBE_MODE:-}" = stuck ]; then
           # This function is already inside the real query subshell. Avoid
           # spending the fixture deadline loading another Bash executable.
@@ -101,6 +104,8 @@ set -eu
 [ "$1" = task-a ] && [ "$2" = --relaunch ] || exit 2
 printf 'launch\n' >> "$FM_TEST_CASE/actions"
 [ "${FM_TEST_SPAWN_FAIL:-0}" != 1 ] || exit 1
+. "$FM_TEST_REAL_ROOT/bin/fm-classify-lib.sh"
+boundary=$(status_launch_boundary "$FM_STATE_OVERRIDE/task-a.status" new-generation)
 if [ "${FM_TEST_PROBE_MODE:-}" = ready ]; then
   printf alive > "$FM_TEST_CASE/agent"
   : > "$FM_TEST_CASE/launch-observed"
@@ -110,8 +115,11 @@ elif [ -n "${FM_TEST_PROBE_DELAY:-}${FM_TEST_PROBE_MODE:-}" ]; then
 else
   printf alive > "$FM_TEST_CASE/agent"
 fi
-awk '$0 ~ /^spawn_gen=/ {$0="spawn_gen=new-generation"} {print}' "$FM_STATE_OVERRIDE/task-a.meta" > "$FM_STATE_OVERRIDE/next.meta"
+awk '$0 !~ /^(spawn_gen|launch_status|control_relaunch_tx)=/' "$FM_STATE_OVERRIDE/task-a.meta" > "$FM_STATE_OVERRIDE/next.meta"
+printf 'spawn_gen=new-generation\nlaunch_status=%s\ncontrol_relaunch_tx=%s\n' \
+  "$boundary" "$FM_CONTROL_RELAUNCH_TX" >> "$FM_STATE_OVERRIDE/next.meta"
 mv "$FM_STATE_OVERRIDE/next.meta" "$FM_STATE_OVERRIDE/task-a.meta"
+[ -z "${FM_TEST_LAUNCH_REPORT:-}" ] || printf '%s\n' "$FM_TEST_LAUNCH_REPORT" >> "$FM_STATE_OVERRIDE/task-a.status"
 SH
 chmod +x "$CODE/bin/fm-spawn.sh"
 
@@ -283,19 +291,19 @@ test_relaunch_slow_probe_consumes_deadline() {
   printf dead > "$dir/agent"
   out=$(FM_TEST_PROBE_DELAY=4 FM_TEST_CONTROL_POLL=2 FM_TEST_CONTROL_LAUNCH_WAIT=2 \
     control "$dir" relaunch --note 'A failed replacement must not multiply its wait by query cost.' 2>&1) || rc=$?
-  expect_code 1 "$rc" "slow launch confirmation must report failure: $out"
+  expect_code 3 "$rc" "unreadable confirmation must retain launch uncertainty: $out"
   [ -f "$dir/launch-observed" ] && [ -s "$dir/probes" ] || fail "slow probe did not run after launch"
   count=$(wc -l < "$dir/probes")
   [ "$count" -eq 1 ] || fail "a two-second wait made $count queries despite each taking at least four seconds"
   [ ! -s "$dir/completed-probes" ] || fail "the status query outlived the shared deadline"
-  assert_contains "$out" 'did not come up within 2s' "timeout must retain the existing recovery refusal"
-  assert_grep 'phase=failed:launching' "$dir/home/state/task-a.control-relaunch" "failed launch phase missing"
-  assert_grep 'rollback=none-new-record-kept' "$dir/home/state/task-a.control-relaunch" "replacement record was not preserved"
+  assert_contains "$out" 'relaunch-unconfirmed' "timeout must distinguish uncertainty from failure"
+  assert_grep 'phase=launch-unconfirmed' "$dir/home/state/task-a.control-relaunch" "unconfirmed launch phase missing"
+  assert_grep 'delivery=accepted' "$dir/home/state/task-a.control-relaunch" "accepted delivery evidence was lost"
   assert_grep 'spawn_gen=new-generation' "$dir/home/state/task-a.meta" "timed-out replacement reverted its record"
   assert_grep 'unfinished original work' "$dir/original/preserved.txt" "timeout discarded the original work"
   [ ! -e "$dir/home/state/.control-task-a.lock" ] && [ ! -L "$dir/home/state/.control-task-a.lock" ] \
     || fail "timed-out recovery retained lifecycle authority"
-  pass "relaunch charges slow observations to one deadline and preserves failed replacement state"
+  pass "relaunch charges slow observations to one deadline and preserves unconfirmed replacement state"
 }
 
 test_relaunch_stuck_probe_is_bounded_and_reaped() {
@@ -307,12 +315,12 @@ test_relaunch_stuck_probe_is_bounded_and_reaped() {
   # must not become launch confirmation, even when their output pipe stays open.
   out=$(FM_TEST_PROBE_MODE=stuck FM_TEST_CONTROL_POLL=2 FM_TEST_CONTROL_LAUNCH_WAIT=4 \
     control "$dir" relaunch --note 'An unfinished observation must not confirm the replacement.' 2>&1) || rc=$?
-  expect_code 1 "$rc" "a stuck observation must fail recovery: $out"
+  expect_code 3 "$rc" "a stuck observation must leave recovery unconfirmed: $out"
   [ -s "$dir/probe-pid" ] && [ -s "$dir/probe-child" ] || fail "TERM-resistant probe did not reach its child"
   [ ! -e "$dir/probe-escaped" ] || fail "stuck probe completed outside the configured deadline"
-  assert_contains "$out" "endpoint reads 'unreadable'" "partial alive output was accepted as a completed observation"
-  assert_grep 'phase=failed:launching' "$dir/home/state/task-a.control-relaunch" "stuck query lost failed-launch phase"
-  assert_grep 'rollback=none-new-record-kept' "$dir/home/state/task-a.control-relaunch" "stuck query reverted its replacement"
+  assert_contains "$out" 'endpoint_state=unreadable' "partial alive output was accepted as a completed observation"
+  assert_grep 'phase=launch-unconfirmed' "$dir/home/state/task-a.control-relaunch" "stuck query lost unconfirmed phase"
+  assert_grep 'delivery=accepted' "$dir/home/state/task-a.control-relaunch" "stuck query lost its delivery evidence"
   for pid in "$(cat "$dir/probe-pid")" "$(cat "$dir/probe-child")"; do
     i=0
     while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 30 ]; do
@@ -351,6 +359,86 @@ test_relaunch_completed_probe_keeps_parent_transaction() {
   pass "a complete pre-deadline observation confirms launch without inheriting parent rollback"
 }
 
+test_relaunch_report_during_unfinished_observation() {
+  local dir out
+  dir=$(make_case terminal-during-probe)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  printf 'done: previous incarnation\n' > "$dir/home/state/task-a.status"
+  out=$(FM_TEST_PROBE_MODE=stuck FM_TEST_CONTROL_LAUNCH_WAIT=4 \
+    FM_TEST_REPORT_DURING_PROBE='done: replacement completed the requested change' \
+    control "$dir" relaunch --note 'Report the real outcome even when confirmation cannot finish.' 2>&1) \
+    || fail "terminal report during a stuck query was lost: $out"
+  assert_contains "$out" 'outcome=reported-done' "task completion was not distinguished from live-agent proof"
+  assert_contains "$out" 'replacement completed the requested change' "replacement outcome was not returned"
+  assert_grep 'phase=complete' "$dir/home/state/task-a.control-relaunch" "terminal replacement kept a failed transaction"
+  assert_grep 'launch_outcome=reported-done' "$dir/home/state/task-a.control-relaunch" "report outcome was not persisted"
+  [ ! -e "$dir/probe-escaped" ] || fail "terminal evidence disabled observation cleanup"
+  [ "$(cat "$dir/actions")" = launch ] || fail "terminal reconciliation launched another worker"
+  pass "a generation-bound terminal report survives an unfinished backend observation"
+}
+
+test_unconfirmed_relaunch_reconciles_without_duplicate() {
+  local dir out rc=0
+  dir=$(make_case late-terminal)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  out=$(FM_TEST_PROBE_MODE=stuck FM_TEST_CONTROL_LAUNCH_WAIT=4 \
+    control "$dir" relaunch --note 'Continue exactly once.' 2>&1) || rc=$?
+  expect_code 3 "$rc" "accepted but unreadable launch must remain unconfirmed: $out"
+  cp "$dir/home/state/task-a.meta" "$dir/accepted.meta"
+  cp "$dir/home/data/task-a/brief.md" "$dir/accepted.brief"
+  sed 's/^spawn_gen=.*/spawn_gen=foreign-generation/' "$dir/accepted.meta" > "$dir/home/state/task-a.meta"
+  if out=$(control "$dir" relaunch --note 'Must not reach another incarnation.' 2>&1); then
+    fail "an unconfirmed transaction adopted a different replacement"
+  fi
+  assert_contains "$out" 'unconfirmed launch binding changed' "generation drift did not refuse specifically"
+  cp "$dir/accepted.meta" "$dir/home/state/task-a.meta"
+  printf 'done: late replacement report\n' >> "$dir/home/state/task-a.status"
+  out=$(control "$dir" inspect) || fail "late report could not be inspected"
+  printf '%s' "$out" | jq -e '.transaction_phase == "launch-unconfirmed" and .launch_report == "done: late replacement report"' \
+    >/dev/null || fail "inspection hid the outcome arriving after confirmation"
+  out=$(control "$dir" relaunch --note 'This new note must not be delivered while reconciling.' 2>&1) \
+    || fail "late completion was not reconciled: $out"
+  assert_contains "$out" 'relaunch-reconciled' "repeat did not identify reconciliation"
+  assert_contains "$out" 'outcome=reported-done' "late completion did not settle launch"
+  [ "$(cat "$dir/actions")" = launch ] || fail "repeat launched or stopped another worker"
+  cmp -s "$dir/accepted.brief" "$dir/home/data/task-a/brief.md" || fail "repeat appended an undelivered note"
+  assert_grep 'new_note_delivered=false' "$dir/home/state/task-a.control-relaunch" "reconciliation claimed another delivery"
+  assert_grep 'phase=complete' "$dir/home/state/task-a.control-relaunch" "late result did not settle the journal"
+  pass "unconfirmed launch keeps its exact identity and late completion settles without another worker"
+}
+
+test_relaunch_reported_failure_is_not_launch_failure() {
+  local dir out
+  dir=$(make_case reported-failure)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  out=$(FM_TEST_PROBE_MODE=early-exit FM_TEST_LAUNCH_REPORT='failed: requested operation refused' \
+    control "$dir" relaunch --note 'Return the actual task failure.' 2>&1) \
+    || fail "a worker-reported failure was mistaken for failed launch: $out"
+  assert_contains "$out" 'outcome=reported-failed' "task failure was reported as success or as live-agent proof"
+  assert_contains "$out" 'failed: requested operation refused' "task failure detail disappeared"
+  assert_grep 'phase=complete' "$dir/home/state/task-a.control-relaunch" "a verified report retained a failed launch"
+  pass "a launched worker's failed outcome is preserved without inventing a launch failure"
+}
+
+test_relaunch_early_exit_without_report_is_failure() {
+  local dir out rc=0
+  dir=$(make_case no-report)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  printf 'done: stale predecessor result\n' > "$dir/home/state/task-a.status"
+  out=$(FM_TEST_PROBE_MODE=early-exit FM_TEST_CONTROL_LAUNCH_WAIT=8 FM_TEST_CONTROL_POLL=30 \
+    control "$dir" relaunch --note 'An old terminal event must not bless a failed replacement.' 2>&1) || rc=$?
+  expect_code 1 "$rc" "positive exit without a fresh report must fail: $out"
+  assert_contains "$out" 'exited without a current terminal report' "early exit had no actionable explanation"
+  assert_grep 'phase=failed:launching' "$dir/home/state/task-a.control-relaunch" "a genuine failure was hidden"
+  assert_grep 'launch_outcome=exited-without-report' "$dir/home/state/task-a.control-relaunch" "early exit evidence was not retained"
+  assert_grep 'unfinished original work' "$dir/original/preserved.txt" "failed replacement discarded existing work"
+  pass "positive early exit without a new report remains a genuine launch failure"
+}
+
 test_windows_relaunch_query_deadline_reaps_native_process() {
   local dir out rc=0 native_record
   case "${OS:-}" in Windows_NT) ;; *) return 0 ;; esac
@@ -368,10 +456,10 @@ Set-Content -LiteralPath ($env:FM_TEST_NATIVE_RECORD + '.escaped') -Value 'escap
 PS
   out=$(FM_TEST_PROBE_MODE=native-stuck FM_TEST_CONTROL_LAUNCH_WAIT=8 \
     control "$dir" relaunch --note 'Bound the native status query, not the worker it observes.' 2>&1) || rc=$?
-  expect_code 1 "$rc" "unfinished native observation must not confirm recovery: $out"
+  expect_code 3 "$rc" "unfinished native observation must not confirm recovery: $out"
   [ -f "$dir/native-process.json" ] || fail "native process did not start inside the fixture's query window"
   [ ! -e "$dir/native-process.json.escaped" ] || fail "native query escaped its deadline"
-  assert_contains "$out" "endpoint reads 'unreadable'" "native partial output became a liveness verdict"
+  assert_contains "$out" 'endpoint_state=unreadable' "native partial output became a liveness verdict"
   native_record=$(cygpath -m "$dir/native-process.json")
   # Read only the exact PID/birth tuple created by this fixture; never signal
   # the worker or scan another process tree to compensate for failed cleanup.
@@ -385,8 +473,8 @@ PS
     }
     exit 0
   ' || fail "the native query process survived the observation deadline"
-  assert_grep 'phase=failed:launching' "$dir/home/state/task-a.control-relaunch" "native query timeout lost failed phase"
-  assert_grep 'rollback=none-new-record-kept' "$dir/home/state/task-a.control-relaunch" "native query timeout reverted the task"
+  assert_grep 'phase=launch-unconfirmed' "$dir/home/state/task-a.control-relaunch" "native query timeout lost unconfirmed phase"
+  assert_grep 'delivery=accepted' "$dir/home/state/task-a.control-relaunch" "native query timeout lost delivery evidence"
   pass "Windows recovery bounds and reaps its native observation without claiming partial alive output"
 }
 
@@ -497,12 +585,16 @@ pass "live replacements and foreign lease ownership refuse recovery"
 test_recovery_pid_drift_and_partial_replay() {
 local dir out token
 dir=$(make_case pid-reused)
+printf 'launch_status=v1|original-generation|0|-|-\n' >> "$dir/home/data/task-a/original.meta"
+printf 'launch_status=v1|replacement-generation|0|-|-\n' >> "$dir/home/state/task-a.meta"
 out=$(plan "$dir") || fail "could not inspect PID-reuse fixture"
 token=$(printf '%s' "$out" | jq -er '.recovery.approval')
 if FM_TEST_RECOVERY_DRIFT=1 recover "$dir" "$token" > "$dir/out" 2>&1; then fail "PID birth drift was accepted at exit"; fi
 [ ! -s "$dir/actions" ] || fail "PID reuse delivered input to a replacement process"
 assert_grep 'approved native process instances changed' "$dir/out" "PID drift refusal was not explicit"
 assert_grep "worktree=$dir/original" "$dir/home/state/task-a.meta" "proven binding was lost after process drift"
+assert_grep 'launch_status=v1|original-generation|0|-|-' "$dir/home/state/task-a.meta" \
+  "record recovery mixed one generation with another generation's report boundary"
 if recover "$dir" "$token" > "$dir/replay" 2>&1; then fail "partial recovery silently launched on retry"; fi
 out=$(control "$dir" inspect) || fail "partial recovery could not be inspected"
 printf '%s' "$out" | jq -e '.recovery.phase == "bound"' >/dev/null || fail "partial receipt was not returned by inspection"
@@ -562,6 +654,10 @@ fm_test_run_cases \
   test_relaunch_slow_probe_consumes_deadline \
   test_relaunch_stuck_probe_is_bounded_and_reaped \
   test_relaunch_completed_probe_keeps_parent_transaction \
+  test_relaunch_report_during_unfinished_observation \
+  test_unconfirmed_relaunch_reconciles_without_duplicate \
+  test_relaunch_reported_failure_is_not_launch_failure \
+  test_relaunch_early_exit_without_report_is_failure \
   test_windows_relaunch_query_deadline_reaps_native_process \
   test_control_inspect_accepts_windows_path_context \
   test_recovery_receipt_home_aliases_remain_readable

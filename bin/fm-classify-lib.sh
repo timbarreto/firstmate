@@ -942,6 +942,167 @@ _fm_status_read_span() {  # <status-file> <start-offset> <byte-length>
   ' "$f" "$start" "$length"
 }
 
+# A launch boundary binds reports to one spawn generation, not to the last
+# event left by the previous worker. fm-spawn records it as launch_status=.
+# Wire format: v1|spawn-gen|byte-offset|sha256-of-prefix|file-identity.
+# An absent log uses offset 0 and "-" for both digest and identity. Existing
+# logs must be regular, readable, single-link files; rotation, truncation, prefix
+# replacement, a partial line, or a mismatched generation proves no report.
+# Readers are read-only. A report proves what the worker declared, never that
+# an endpoint is alive or that unlanded work may be removed.
+_status_launch_prefix_digest() {  # <status-file> <byte-length>
+  perl -MFcntl=:DEFAULT -MDigest::SHA -e '
+    my ($path, $length) = @ARGV;
+    sysopen(my $file, $path, O_RDONLY | O_NOFOLLOW) or exit 1;
+    my @stat = stat($file);
+    -f $file && $stat[3] == 1 or exit 1;
+    my $sha = Digest::SHA->new(256);
+    while ($length > 0) {
+      my $read = sysread($file, my $chunk, $length > 65536 ? 65536 : $length);
+      defined($read) && $read > 0 or exit 1;
+      $sha->add($chunk);
+      $length -= $read;
+    }
+    print $sha->hexdigest;
+  ' "$1" "$2"
+}
+
+status_launch_boundary() {  # <status-file> <spawn-gen>
+  local file=$1 gen=$2 size ident digest
+  case "$gen" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac
+  if [ ! -e "$file" ] && [ ! -L "$file" ]; then
+    printf 'v1|%s|0|-|-' "$gen"
+    return 0
+  fi
+  [ -f "$file" ] && [ -r "$file" ] && [ ! -L "$file" ] || return 1
+  _fm_status_file_facts "$file" || return 1
+  size=$FM_STATUS_FILE_SIZE ident=$FM_STATUS_FILE_IDENT
+  digest=$(_status_launch_prefix_digest "$file" "$size") || return 1
+  _fm_status_file_facts "$file" || return 1
+  [ "$ident" = "$FM_STATUS_FILE_IDENT" ] && [ "$size" = "$FM_STATUS_FILE_SIZE" ] || return 1
+  printf 'v1|%s|%s|%s|%s' "$gen" "$size" "$digest" "$ident"
+}
+
+# Only complete state-bearing lines participate. Notes, resolution records and
+# continuation prose cannot hide an outcome; later work or a new decision can.
+_status_launch_state_scan() {
+  local line verb latest=
+  while IFS= read -r line; do
+    case "$line" in *:*) ;; *) continue ;; esac
+    status_line_verb "$line" verb
+    case "$verb" in
+      working|needs-decision|blocked|done|failed|\
+      "${FM_CLASSIFY_PAUSED_VERB:-$FM_CLASSIFY_PAUSED_VERB_DEFAULT}") latest=$line ;;
+    esac
+  done
+  [ -z "$line" ] || return 1
+  [ -n "$latest" ] || return 1
+  printf '%s' "$latest"
+}
+
+_status_launch_checked_span() {  # <source> <copy> <offset> <size> <digest> <identity> [external-span]
+  perl -MFcntl=:DEFAULT -MDigest::SHA -e '
+    my ($source, $copy, $offset, $size, $digest, $identity, $external) = @ARGV;
+    my ($device, $inode) = $identity =~ /\A(?:strong|weak):([0-9]+):([0-9]+)(?::.*)?\z/;
+    defined($device) or exit 1;
+    my $payload;
+    if ($external) {
+      local $/;
+      $payload = <STDIN>;
+      defined($payload) or exit 1;
+    }
+    for my $path ($source, $copy eq $source ? () : $copy) {
+      sysopen(my $file, $path, O_RDONLY | O_NOFOLLOW) or exit 1;
+      binmode($file) or exit 1;
+      my @before = stat($file);
+      -f $file && $before[3] == 1 && $before[7] == $size or exit 1;
+      if ($path eq $source) {
+        $before[0] eq $device && $before[1] eq $inode or exit 1;
+      }
+      my $prefix = Digest::SHA->new(256);
+      my $whole = Digest::SHA->new(256);
+      my ($last, $span) = ("", "");
+      for my $is_prefix (1, 0) {
+        my $left = $is_prefix ? $offset : $size - $offset;
+        while ($left > 0) {
+          my $read = sysread($file, my $chunk, $left > 65536 ? 65536 : $left);
+          defined($read) && $read > 0 or exit 1;
+          $whole->add($chunk);
+          if ($is_prefix) { $prefix->add($chunk); $last = substr($chunk, -1); }
+          else { $span .= $chunk; }
+          $left -= $read;
+        }
+      }
+      $digest eq "-" || $prefix->hexdigest eq $digest or exit 1;
+      $span = $last . $span if $offset;
+      if (defined($payload)) { $payload eq $span or exit 1; }
+      else { $payload = $span; }
+      sysseek($file, 0, 0) == 0 or exit 1;
+      my $again = Digest::SHA->new(256);
+      my $left = $size;
+      while ($left > 0) {
+        my $read = sysread($file, my $chunk, $left > 65536 ? 65536 : $left);
+        defined($read) && $read > 0 or exit 1;
+        $again->add($chunk);
+        $left -= $read;
+      }
+      $whole->hexdigest eq $again->hexdigest or exit 1;
+      my @after = stat($file);
+      my @current = lstat($path);
+      -l _ and exit 1;
+      for my $field (0, 1, 2, 3, 7, 9, 10) {
+        defined($current[$field]) && $before[$field] == $after[$field]
+          && $after[$field] == $current[$field] or exit 1;
+      }
+    }
+    print $payload;
+  ' "$@"
+}
+
+status_launch_current() {  # <status-file> <launch-boundary> <spawn-gen> [<snapshot-source>]
+  local file=$1 boundary=$2 gen=$3 version bound_gen offset digest ident extra
+  local size current_ident line start source=${4:-$1}
+  IFS='|' read -r version bound_gen offset digest ident extra <<< "$boundary"
+  [ "$version" = v1 ] && [ -n "$gen" ] && [ "$bound_gen" = "$gen" ] && [ -z "$extra" ] || return 1
+  case "$gen" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  case "$offset" in ''|*[!0-9]*) return 1 ;; esac
+  [ -f "$file" ] && [ -r "$file" ] && [ ! -L "$file" ] \
+    && [ -f "$source" ] && [ ! -L "$source" ] || return 1
+  _fm_status_file_facts "$source" || return 1
+  size=$FM_STATUS_FILE_SIZE current_ident=$FM_STATUS_FILE_IDENT
+  [ "$size" -gt "$offset" ] || return 1
+  if [ "$ident" = - ]; then
+    [ "$offset" = 0 ] && [ "$digest" = - ] || return 1
+  else
+    [ "$ident" = "$current_ident" ] || return 1
+    case "$digest" in ''|*[!a-f0-9]*) return 1 ;; esac
+    [ "${#digest}" -eq 64 ] || return 1
+  fi
+  start=$offset
+  [ "$offset" -eq 0 ] || start=$((offset - 1))
+  # Batch file proofs so a captured fleet read does not spend its deadline
+  # repeating native stat/hash processes for the source and its copy.
+  line=$(
+    set -o pipefail
+    if [ -n "${FM_STATUS_SPAN_READER:-}" ]; then
+      _fm_status_read_span "$file" "$start" "$((size - start))" \
+        | _status_launch_checked_span "$source" "$file" "$offset" "$size" "$digest" "$current_ident" external
+    else
+      _status_launch_checked_span "$source" "$file" "$offset" "$size" "$digest" "$current_ident"
+    fi | {
+        # Consume the boundary newline, or the predecessor partial line that
+        # the replacement finished; neither is a new-generation declaration.
+        if [ "$offset" -gt 0 ]; then
+          IFS= read -r _ || exit 1
+        fi
+        _status_launch_state_scan
+      }
+  ) || return 1
+  _fm_status_file_facts "$source" || return 1
+  [ "$current_ident" = "$FM_STATUS_FILE_IDENT" ] && [ "$size" = "$FM_STATUS_FILE_SIZE" ] || return 1
+  printf '%s' "$line"
+}
+
 status_open_decisions_incremental() {  # <status-file> [<captured-end-offset>]
   local f=$1 captured_end=${2:-} cf offset ident open='' trusted_open='' cursor_data first rest offset_line ident_line
   local version='' size actual_size cur_ident resolve held chunk_file chunk_size line cursor_dirty=0

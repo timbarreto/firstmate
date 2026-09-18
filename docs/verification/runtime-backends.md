@@ -121,6 +121,52 @@ The portable Windows-fact regression covers missing, ambiguous, and shell-only o
 These checks do not authorize or exercise repair of a live fleet record; approved record recovery is separately covered through the control interface's isolated transaction tests.
 [Copilot supervision](../supervision-protocols/copilot.md) owns scheduling, and [agent control](../agent-control.md) owns lifecycle and recovery policy.
 
+## Replacement outcome reconciliation
+
+Verified on 2026-09-18 with Git for Windows 2.55.0.windows.5, Bash 5.3.15(2), and Perl 5.42.3.
+The command-interface regressions exercise real control, spawn, report attribution, current-state, and fleet-snapshot code with fixture transports; they are not native-harness certification.
+The [agent-control guide](../agent-control.md) owns lifecycle behavior, and `bin/fm-classify-lib.sh` owns the report-boundary format and integrity checks.
+
+```sh
+bin/fm-test-run.sh tests/fm-launch-status.test.sh
+FM_TEST_ONLY=test_terminal_report_during_launch_confirmation \
+  bin/fm-test-run.sh tests/fm-control-relaunch.test.sh
+FM_TEST_ONLY=test_relaunch_early_exit_without_report_is_failure \
+  bin/fm-test-run.sh tests/fm-control-recovery.test.sh
+FM_TEST_ONLY=test_unconfirmed_relaunch_reconciles_without_duplicate \
+  bin/fm-test-run.sh tests/fm-control-recovery.test.sh
+FM_TEST_ONLY=test_current_launch_report_beats_only_launch_seed \
+  bin/fm-test-run.sh tests/fm-crew-state.test.sh
+FM_TEST_ONLY=test_current_launch_report_reaches_bounded_snapshot \
+  bin/fm-test-run.sh tests/fm-crew-state.test.sh
+```
+
+Relevant output:
+
+```text
+ok - launch reports exclude prior generations and follow later state declarations
+ok - fresh terminal reports settle launch seeds without clearing lifecycle evidence or hiding later busy turns
+ok - a captured replacement report reaches the real fleet snapshot within its default state-read bound
+```
+
+The snapshot case uses its unchanged default per-task deadline, rather than an unbounded direct read as a proxy.
+The current-state case also exercises notification triage, a real idle-event publication, and a later adapter-owned busy turn.
+Separate cases retain active validation authority, reject predecessor and partial reports, preserve secondmate liveness semantics, and verify native Windows observation-process cleanup.
+
+Integration review covered the following existing source boundaries; none gains a newly trusted vendor signal.
+
+| Harness group inspected | Retained boundary |
+| --- | --- |
+| claude, copilot, opencode, pi, pi-signed, omp, gemini | Only a valid, matching first launch seed receives the terminal-report exception; later adapter-owned busy activity remains authoritative. |
+| codex, kimi | Existing semantic-source verification gates still decide whether a stored launch seed is trusted. |
+| cursor, muse | Their on-demand activity readers retain ownership of busy classification. |
+| grok, rovo, agy | Existing adapter-specific fallback readers remain unchanged; report attribution does not create a new trusted stored busy source. |
+
+All five runtime integrations were inspected.
+Tmux and Herdr retain exclusive eligibility for exit/relaunch confirmation and positive-death reconciliation through `bin/fm-control-lib.sh`.
+Zellij, Orca, and cmux remain ineligible for those lifecycle verbs, but still share ordinary spawn metadata and applicable launch-seed classification.
+`tests/fm-control.test.sh` exercises the capability matrix and unsupported-backend refusals.
+
 ## Harness detection precedence
 
 Firstmate's own harness comes from two kinds of evidence, and `bin/fm-harness.sh` owns how they combine: an environment marker names its harness, and the nearest harness process in the parent chain proves who owns the process tree.
