@@ -1222,6 +1222,73 @@ SH
   pass "concurrent watchers observe only complete private poll publications"
 }
 
+test_reregistered_poll_is_not_rejected_mid_publication() {
+  local dir state publisher rc=0 i=0 block_seconds=120
+  case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) block_seconds=600 ;; esac
+  dir=$(make_case reregister-publication)
+  state="$dir/home/state"
+  write_task_meta "$dir"
+  run_check_entry "$dir" task-a https://github.com/o/r/pull/1 >/dev/null \
+    || fail "could not seed the original registration"
+  cat > "$dir/fakebin/mv" <<'SH'
+#!/usr/bin/env bash
+"$FM_TEST_REAL_MV" "$@" || exit $?
+case "${*: -1}" in
+  */task-a.pr-poll)
+    : > "$FM_TEST_PUBLICATION_READY"
+    deadline=$((SECONDS + FM_TEST_STUB_MAX_BLOCK_SECONDS))
+    while [ ! -e "$FM_TEST_PUBLICATION_RELEASE" ]; do
+      [ "$SECONDS" -lt "$deadline" ] || { echo "publication release timed out" >&2; exit 1; }
+      /bin/sleep 0.1
+    done
+    ;;
+esac
+SH
+  chmod +x "$dir/fakebin/mv"
+  FM_TEST_STUB_MAX_BLOCK_SECONDS="$block_seconds" FM_TEST_REAL_MV="$REAL_MV" FM_TEST_PUBLICATION_READY="$dir/ready" \
+    FM_TEST_PUBLICATION_RELEASE="$dir/release" \
+    run_check_entry "$dir" task-a https://github.com/o/r/pull/2 > "$dir/publish.out" 2> "$dir/publish.err" &
+  publisher=$!
+  while [ ! -e "$dir/ready" ] && kill -0 "$publisher" 2>/dev/null && [ "$i" -lt 1000 ]; do
+    /bin/sleep 0.1
+    i=$((i + 1))
+  done
+  if [ ! -e "$dir/ready" ]; then
+    : > "$dir/release"
+    wait "$publisher" || true
+    fail "replacement registration did not reach the partial publication boundary"
+  fi
+  printf 'done: publication probe completed\n' > "$state/task-a.status"
+  FM_TEST_REAL_MV="$REAL_MV" run_watcher_bounded "$dir/home" "$dir/fakebin" \
+    > "$dir/watch.out" 2> "$dir/watch.err" || rc=$?
+  : > "$dir/release"
+  wait "$publisher" || fail "replacement registration failed: $(cat "$dir/publish.err")"
+  [ "$rc" -eq 0 ] || fail "watcher failed during registration (rc=$rc): $(cat "$dir/watch.err" "$dir/watch.out")"
+  assert_no_grep 'rejected unauthenticated' "$dir/watch.out" "in-progress replacement produced a false trust alert"
+  assert_no_grep 'rejected unauthenticated' "$state/.wake-queue" "false trust alert was queued durably"
+  assert_grep 'signal:' "$dir/watch.out" "watcher did not progress past the busy registration"
+  assert_grep 'check registration for task-a is being updated' "$state/.watch-triage.log" "watcher did not defer the partial registration"
+  fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "completed replacement was not authenticated"
+  pass "re-registration never exposes a partial publication as an unauthenticated check"
+}
+
+test_watcher_rejects_tampered_registration_after_publication() {
+  local dir state rc=0
+  dir=$(make_case tampered-published-check)
+  state="$dir/home/state"
+  write_task_meta "$dir"
+  run_check_entry "$dir" task-a https://github.com/o/r/pull/1 >/dev/null \
+    || fail "could not seed the authenticated poll"
+  printf 'printf compromised > "%s"\n' "$dir/untrusted-executed" >> "$state/task-a.check.sh"
+  run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err" || rc=$?
+  [ "$rc" -eq 0 ] || fail "watcher failed while rejecting a tampered check (rc=$rc): $(cat "$dir/watch.err")"
+  assert_grep 'rejected unauthenticated' "$dir/watch.out" "a tampered completed registration was silently skipped"
+  assert_grep 'rejected unauthenticated' "$state/.wake-queue" "tampered registration rejection was not durable"
+  [ ! -e "$dir/untrusted-executed" ] || fail "the tampered check was executed"
+  [ -f "$state/task-a.check.sh" ] || fail "the rejected check was removed without authority"
+  pass "completed but tampered registrations still raise a durable trust alert without execution"
+}
+
 test_poll_publication_refuses_unsafe_destinations() {
   local artifact kind dir state destination
   for artifact in task-a.pr-poll task-a.pr-poll-registration task-a.check.sh; do
@@ -2963,6 +3030,8 @@ fm_test_run_cases \
   test_static_poll_contract \
   test_atomic_interruption_leaves_no_partial_artifact \
   test_concurrent_watcher_sees_only_complete_publication \
+  test_reregistered_poll_is_not_rejected_mid_publication \
+  test_watcher_rejects_tampered_registration_after_publication \
   test_poll_publication_refuses_unsafe_destinations \
   test_live_artifact_single_link_and_privacy_validation \
   test_windows_pr_registration_path_spellings \

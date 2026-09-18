@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Internal record-recovery implementation consumed only by fm-control.sh.
 # The public inspect/relaunch interface, authority, and transaction belong there.
-# Recovery is deliberately narrow: an absent Herdr endpoint, a home-local prior
-# record, the same project/profile, and an exact task-held Treehouse lease.
+# Recovery is deliberately narrow: a missing Herdr ship/scout terminal may be
+# recreated around its unused task-held copy. Rebinding a contradictory record
+# additionally requires a home-local prior record and the same project/profile.
 # The proposed Windows endpoint must really be in that copy. Native root/agent
 # PID birth identities and both lease IDs bind the approval, not process names
 # or terminal labels alone. Nothing here closes a pane or returns a lease.
@@ -99,6 +100,7 @@ fm_control_recovery_pool_binding() {  # <pool-json> <copy> <task> <must-be-unuse
     | [.path,.status,(.lease_id // ""),(.lease_holder // ""),(.processes | length | tostring)]
     | if any(.[]; test("[[:cntrl:]]")) then error("pool field") else join("\u001f") end
   ') || return 1
+  rows=${rows//$'\r'/}
   while IFS=$'\x1f' read -r path status lease holder count; do
     fm_platform_same_directory "$path" "$copy" || continue
     found=$((found + 1))
@@ -107,6 +109,102 @@ fm_control_recovery_pool_binding() {  # <pool-json> <copy> <task> <must-be-unuse
     FM_CONTROL_RECOVERY_LEASE=$lease
   done <<< "$rows"
   [ "$found" = 1 ]
+}
+
+# Recreate only the terminal, never acquire another copy or return its lease.
+# Called by the relaunch transaction with lifecycle authority already held.
+fm_control_recreate_endpoint() {
+  local project git_project git_worktree common wt_common branch pool other target copy session
+  local tmp line key new_target cwd
+  RECOVERY_META_LOCK=$(fm_meta_lock_path "$META") || return 1
+  fm_lock_try_acquire "$RECOVERY_META_LOCK" \
+    || { fm_control_recovery_error "task metadata is busy"; return 1; }
+  RECOVERY_META_LOCK_HELD=1
+  RECOVERY_SET_LOCK=$(fm_task_set_lock_path "$STATE") || return 1
+  fm_lock_try_acquire "$RECOVERY_SET_LOCK" \
+    || { fm_control_recovery_error "the task set is changing"; return 1; }
+  RECOVERY_SET_LOCK_HELD=1
+  fm_control_recovery_snapshot "$META" FM_CONTROL_RECOVERY_CURRENT_SNAPSHOT || return 1
+  fm_backend_validate_task_endpoint "$FM_CONTROL_RECOVERY_CURRENT_SNAPSHOT" "$ID" || return 1
+  [ "$FM_BACKEND_VALIDATED_BACKEND" = herdr ] && [ "$FM_BACKEND_VALIDATED_TARGET" = "$T" ] \
+    && [ "$(fm_meta_get "$META" worktree)" = "$WT" ] \
+    || { fm_control_recovery_error "task identity changed before recovery"; return 1; }
+  [ ! -e "$STATE/$ID.backlog-close" ] && [ ! -L "$STATE/$ID.backlog-close" ] \
+    || { fm_control_recovery_error "the task has a pending close"; return 1; }
+  project=$(fm_backend_meta_exact_value "$META" project) || return 1
+  fm_path_native_argument "$project" git_project || return 1
+  fm_path_native_argument "$WT" git_worktree || return 1
+  common=$(git -C "$git_project" rev-parse --path-format=absolute --git-common-dir) || return 1
+  wt_common=$(git -C "$git_worktree" rev-parse --path-format=absolute --git-common-dir) || return 1
+  branch=$(git -C "$git_worktree" symbolic-ref --quiet --short HEAD) || return 1
+  fm_platform_same_directory "$common" "$wt_common" && [ "$branch" = "fm/$ID" ] \
+    || { fm_control_recovery_error "the preserved copy does not belong to this project and task branch"; return 1; }
+  for other in "$STATE/"*.meta; do
+    [ "$other" != "$META" ] || continue
+    [ -e "$other" ] || [ -L "$other" ] || continue
+    [ -f "$other" ] && [ ! -L "$other" ] || return 1
+    target=$(fm_backend_meta_exact_value "$other" window) || return 1
+    copy=$(fm_backend_meta_exact_value "$other" worktree) || return 1
+    if [ "$target" = "$T" ] || fm_platform_same_directory "$copy" "$WT"; then
+      fm_control_recovery_error "another task claims the endpoint or preserved copy"
+      return 1
+    fi
+  done
+  session=$(fm_backend_meta_exact_value "$META" herdr_session) || return 1
+  fm_backend_source herdr || return 1
+  fm_backend_herdr_server_ensure "$session" || return 1
+  RECOVERY_SESSION_LOCK=$(fm_backend_herdr_presentation_session_lock_path "$session") || return 1
+  fm_lock_try_acquire "$RECOVERY_SESSION_LOCK" \
+    || { fm_control_recovery_error "the runtime session is changing"; return 1; }
+  RECOVERY_SESSION_LOCK_HELD=1
+  # Starting a stopped server can restore the original terminal. Never create
+  # a second one based on the pre-start absence observation.
+  case "$(agent_state)" in
+    dead) ;;
+    missing)
+      command -v treehouse >/dev/null 2>&1 \
+        || { fm_control_recovery_error "Treehouse is required to verify the preserved lease"; return 1; }
+      pool=$(cd "$project" && treehouse status --json) || return 1
+      fm_control_recovery_pool_binding "$pool" "$WT" "$ID" 1 \
+        || { fm_control_recovery_error "the preserved copy is not a unique unused task-held lease"; return 1; }
+      RECREATE_FROM=$T
+      journal_write recreating "${CHECKPOINT_LINES[@]}" || return 1
+      # Fresh response-derived IDs only: no label search, adoption, or closing
+      # of another task's terminal. The existing helper preserves active focus.
+      HERDR_SESSION="$session" fm_backend_herdr_projection_create_task "$WT" "fm-$ID" "fm-$ID" || return 1
+      new_target="$session:$FM_BACKEND_HERDR_PROJECTION_PANE_ID"
+      [ "$(fm_backend_agent_state herdr "$new_target")" = dead ] || return 1
+      cwd=$(fm_backend_herdr_current_path "$new_target") || return 1
+      fm_platform_same_directory "$cwd" "$WT" || return 1
+      tmp=$(umask 077; mktemp "$STATE/.fm-control-endpoint.XXXXXX") || return 1
+      if ! fm_pr_private_file_secure "$tmp" 600; then rm -f -- "$tmp"; return 1; fi
+      while IFS= read -r line || [ -n "$line" ]; do
+        key=${line%%=*}
+        case "$key" in
+          window) line="window=$new_target" ;;
+          herdr_workspace_id) line="herdr_workspace_id=$FM_BACKEND_HERDR_PROJECTION_WORKSPACE_ID" ;;
+          herdr_tab_id) line="herdr_tab_id=$FM_BACKEND_HERDR_PROJECTION_TAB_ID" ;;
+          herdr_pane_id) line="herdr_pane_id=$FM_BACKEND_HERDR_PROJECTION_PANE_ID" ;;
+        esac
+        printf '%s\n' "$line" >> "$tmp" || { rm -f -- "$tmp"; return 1; }
+      done < "$FM_CONTROL_RECOVERY_CURRENT_SNAPSHOT"
+      if ! fm_backend_validate_task_endpoint "$tmp" "$ID" \
+         || ! cmp -s "$META" "$FM_CONTROL_RECOVERY_CURRENT_SNAPSHOT" \
+         || ! mv -f -- "$tmp" "$META"; then
+        rm -f -- "$tmp"
+        return 1
+      fi
+      T=$new_target
+      ;;
+    *) fm_control_recovery_error "the original endpoint is no longer proven missing or agent-free"; return 1 ;;
+  esac
+  journal_write exited "${CHECKPOINT_LINES[@]}" || return 1
+  fm_lock_release "$RECOVERY_SESSION_LOCK" || return 1
+  RECOVERY_SESSION_LOCK_HELD=0
+  fm_lock_release "$RECOVERY_SET_LOCK" || return 1
+  RECOVERY_SET_LOCK_HELD=0
+  fm_lock_release "$RECOVERY_META_LOCK" || return 1
+  RECOVERY_META_LOCK_HELD=0
 }
 
 fm_control_recovery_plan() {  # <current-meta> <prior-record> <task> <state> <data> <home>

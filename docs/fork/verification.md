@@ -74,7 +74,7 @@ The existing arm/cd and turn-end suites retain semantic policy, supervision, and
 `tests/fm-herdr-unregistered-agent.test.sh` exercises the Windows missing-registration case with native descendant evidence, including shell-only, unknown, and unavailable observations.
 The native process suite tests birth-bound descendant traversal and refusal instead of truncated absence proof.
 
-`tests/fm-control-recovery.test.sh` covers approved recovery, preservation of both copies and current PR records, stale and foreign evidence, competing claims, PID birth drift, and completed/partial replay.
+`tests/fm-control-recovery.test.sh` covers missing-terminal recovery and retry, approved recovery, preservation of both copies and current PR records, stale and foreign evidence, competing claims, PID birth drift, and completed/partial replay.
 Its backend, native-fact, pool, and launch adapters are fixtures; they do not establish live vendor behavior.
 `Windows Copilot management` owns the focused native management cases, while portable CI owns the complete subjects.
 The separately gated `tests/fm-copilot-management-live-e2e.test.sh` exercises the real installed Copilot transport; [runtime backend verification](../verification/runtime-backends.md) records its actual scope and result.
@@ -84,6 +84,7 @@ The separately gated `tests/fm-copilot-management-live-e2e.test.sh` exercises th
 `tests/fm-fleet-sync.test.sh` exercises real clone refresh, including native Git/Git Bash root aliases, local-only argument aliases, wrong-root refusal, dirty/diverged work, and preservation of unique branches after upstream deletion.
 The Windows core job selects the clone-root identity, local-only argument-alias, and deleted-upstream safety cases; a native run must actually observe different Git and Bash path strings, rather than passing a vacuous alias fixture.
 `tests/fm-pr-check-security.test.sh` covers Azure registration, response validation, actual notification, replay, interrupted publication, source/identity binding, and poll-only retirement alongside GitHub/GitLab controls.
+Its paused re-registration case verifies that the watcher defers partial publication while still delivering an unrelated wake; its tampered-publication case retains durable rejection without execution.
 `tests/azure-pr-helpers.sh` supplies only synthetic identities and a strict read-only CLI fixture; those cases require no Azure credential or live PR mutation.
 The Windows PR-completion job selects the notification/replay case, real tasks-axi cleanup-link preservation, and native review-head resolution.
 Teardown retains the unlanded-work refusal matrix; inactive reconciliation and fleet-view suites verify that actual non-GitHub URLs survive downstream presentation without new forge calls.

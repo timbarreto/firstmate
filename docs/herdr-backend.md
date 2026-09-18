@@ -322,6 +322,7 @@ Native registration still identifies Pi by name where tmux would see a generic i
 `tests/fm-backend-herdr-agent-exit-shell-e2e.test.sh` pins the live-Pi versus leftover-shell distinction; [`verification/runtime-backends.md`](verification/runtime-backends.md#agent-lifecycle-control) owns the versioned evidence.
 
 The session-start sweep uses this probe.
+For a preserved ship or scout whose terminal is positively missing, [agent lifecycle control](agent-control.md#transactional-relaunch) owns guarded terminal recreation without acquiring another copy or closing an existing endpoint.
 Mid-session secondmate agent-process liveness is not implemented because idle secondmates are deliberately exempt from stale-pane escalation and need a separate periodic identity signal.
 
 ## Push events and polling fallback
