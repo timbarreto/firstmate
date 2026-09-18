@@ -37,13 +37,16 @@ Status, outcome, steps, findings, and gate bytes remain unchanged.
 The inventory replay substitutes its disposable repository key and path, preserves every captured same-branch row, and hashes the database before and after the state read to detect writes.
 Its ambiguity case explicitly changes one hidden cancelled row to running; this is a counterfactual, not a captured competing-live history.
 The original review-gate, rebased-head, unrelated-metadata, and malformed-input assertions remain unchanged.
+The capped-rerun regressions change only disposable fixture data after an actual read-only inventory lookup and before the next source observation.
+Their CLI and interpreter shims record invocation counts and drive missing, competing, malformed, disappearing, and repeatedly superseded candidates without sleeps or production-source mutation.
+These are controlled interleavings through the real state reader, not captures of a running no-mistakes rerun.
 
 | Required shape | Real anchor used | What remains unproven live |
 | --- | --- | --- |
 | Superseded cancellation yields to a parked replacement | Genuine cancellation/successor history plus separately captured parked-gate output | The captured successor was in CI, and the captured gate was at test on another branch; a same-rerun replacement parked specifically at review on an unfetched rebased head was not captured |
 | Competing live identities beyond the cap and beside unrelated metadata | Real capped overview and complete nine-row branch history | No real branch had two live rows; changing a hidden row to running and injecting unrelated unusual metadata are controlled fixtures |
 | Newer failure outranks an older live run | Genuine failed status and genuine live status | This relative ordering with both states on one branch was composed, not observed |
-| Changing or unverifiable authority | Genuine live and cancelled status formats | The transition between reads, malformed records, wrong identities, and unreadable inventory are injected; no live race or corrupt production inventory was captured |
+| Changing or unverifiable authority | Genuine live and cancelled status formats | Capped inventory/status interleavings, bounded refresh, malformed records, wrong identities, and unreadable inventory are injected; no live race or corrupt production inventory was captured |
 | Uninitialized repository preserves worker reporting | Actual uninitialized stdout; earlier live lifecycle-event/pane evidence | The portable test replays stdout and uses the existing pane fake |
 | Development continues after completed validation | Genuine completed status | Advancing Git and emitting worker events after completion are disposable-repository actions, not an observed recorded worker sequence |
 | Optional inventory dependencies are absent | Genuine gate output and capped inventory | Missing Python/SQLite and complete-inventory compositions are simulated; the captured host had both dependencies |
