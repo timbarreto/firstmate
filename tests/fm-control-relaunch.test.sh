@@ -78,6 +78,9 @@ case "${1:-}" in
           ;;
         *'encode launch-brief'*)
           cat "$D/becomes" > "$D/command"
+          if [ -n "${FM_FAKE_LAUNCH_STATUS_FILE:-}" ]; then
+            printf '%s\n' "$FM_FAKE_LAUNCH_STATUS" >> "$FM_FAKE_LAUNCH_STATUS_FILE"
+          fi
           [ -z "${FM_FAKE_LAUNCH_TRANSPORT_FAIL_AFTER_START:-}" ] || exit 1
           ;;
       esac
@@ -186,7 +189,7 @@ run_control() {  # <case-dir> <args...>
   env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
     HOME="$dir/user-home" CLAUDE_CONFIG_DIR='' \
     FM_SPAWN_NO_GUARD=1 GROK_HOME="$dir/grokhome" \
-    FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=20 FM_CONTROL_LAUNCH_WAIT=20 \
+    FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=20 FM_CONTROL_LAUNCH_WAIT="${FM_TEST_CONTROL_LAUNCH_WAIT:-20}" \
     FM_REAL_GIT="${FM_REAL_GIT:-}" FM_FAKE_GIT_FAILURE="${FM_FAKE_GIT_FAILURE:-}" \
     FM_REAL_MV="${FM_REAL_MV:-}" FM_FAKE_COMPLETE_JOURNAL_MV_FAIL="${FM_FAKE_COMPLETE_JOURNAL_MV_FAIL:-}" \
     FM_FAKE_META_PUBLISH_MV_FAIL="${FM_FAKE_META_PUBLISH_MV_FAIL:-}" \
@@ -1311,6 +1314,26 @@ test_checkpoint_refuses_uninspectable_head_and_status() {
 
 # --- 5. failure after the agent is stopped -----------------------------------
 
+test_terminal_report_during_launch_confirmation() {
+  local dir out rc
+  dir=$(new_case terminal-during-confirmation rl51)
+  add_ship_task "$dir" rl51 claude
+  printf 'zsh' > "$dir/fake/becomes"
+  out=$(FM_FAKE_LAUNCH_STATUS_FILE="$dir/home/state/rl51.status" \
+    FM_FAKE_LAUNCH_STATUS='done: replacement finished the requested update' \
+    FM_TEST_CONTROL_LAUNCH_WAIT=10 \
+    run_control "$dir" rl51 relaunch --note "Finish the requested update and report it."); rc=$?
+  expect_code 0 "$rc" "a replacement that reports completion before confirmation is not a failed launch"$'\n'"$out"
+  assert_contains "$out" "done" "confirmation must return the replacement's terminal outcome"
+  [ "$(journal_field "$dir" rl51 phase)" = complete ] \
+    || fail "a terminal replacement left a failed launch transaction"
+  [ "$(grep -c 'encode launch-brief' "$dir/fake/literal")" = 1 ] \
+    || fail "terminal confirmation launched a duplicate replacement"
+  assert_grep 'done: replacement finished' "$dir/home/state/rl51.status" \
+    "terminal confirmation lost the replacement's report"
+  pass "fm-control relaunch: a terminal report during confirmation completes one launch"
+}
+
 test_launch_failure_keeps_the_prior_record_and_reports_it() {
   local dir out rc before
   dir=$(new_case rollback rl13)
@@ -1876,6 +1899,7 @@ fm_test_run_cases \
   test_missing_instructions_refuse_before_stopping_anything \
   test_checkpoint_refusal_leaves_the_record_byte_identical \
   test_checkpoint_refuses_uninspectable_head_and_status \
+  test_terminal_report_during_launch_confirmation \
   test_launch_failure_keeps_the_prior_record_and_reports_it \
   test_prepublication_failure_keeps_concurrent_durable_metadata \
   test_post_publication_launch_failure_keeps_the_new_record \

@@ -12,14 +12,15 @@ map	route-lock-fast	59	bin/fm-lock-fast.pl	watcher-wake-lock,__script__:fm-lock-
 test	tests/fm-pr-local-cost.test.sh	pure-contract-unit
 test	tests/fm-herdr-unregistered-agent.test.sh	pure-contract-unit
 test	tests/fm-control-recovery.test.sh	pure-contract-unit
-map	route-control-recovery	58	bin/fm-control-recovery-lib.sh	backend-dispatch,pure-contract-unit
+test	tests/fm-launch-status.test.sh	pure-contract-unit
+map	route-control-recovery	58	bin/fm-control.sh|bin/fm-control-recovery-lib.sh	backend-dispatch,pure-contract-unit
 map	route-pr-local-cost	2580	bin/fm-pr-lib.sh|bin/fm-pr-poll.sh	pr-forge,__script__:fm-pr-local-cost.test.sh
 # Shared paths keep their existing owner routes; supplemental regressions are
 # appended to those routes rather than shadowing them with a test-only match.
 override-map	route-bin-fm-control-lib-sh	2800	bin/fm-control-lib.sh	backend-dispatch,session-bootstrap,__script__:fm-quota-choose.test.sh	2800	bin/fm-control-lib.sh	backend-dispatch,session-bootstrap,__script__:fm-quota-choose.test.sh,__script__:fm-control-recovery.test.sh,__script__:fm-dispatch-resolve.test.sh
 override-map	route-bin-fm-herdr-session-cleanup-sh	600	bin/fm-herdr-session-cleanup.sh	session-bootstrap,real-herdr-gated,backend-dispatch	600	bin/fm-herdr-session-cleanup.sh	session-bootstrap,real-herdr-gated,backend-dispatch,__script__:fm-startup-performance.test.sh
 override-map	route-bin-fm-backend-sh	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh	backend-dispatch,real-herdr-gated	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh	backend-dispatch,real-herdr-gated,__script__:fm-startup-performance.test.sh
-map	route-startup-status-fold	1080	bin/fm-classify-lib.sh|bin/fm-wake-lib.sh	watcher-wake-lock,__script__:fm-startup-performance.test.sh,__script__:fm-lock-fast.test.sh,__script__:fm-copilot-harness.test.sh
+map	route-startup-status-fold	1080	bin/fm-classify-lib.sh|bin/fm-wake-lib.sh	watcher-wake-lock,__script__:fm-startup-performance.test.sh,__script__:fm-lock-fast.test.sh,__script__:fm-copilot-harness.test.sh,__script__:fm-launch-status.test.sh,__script__:fm-crew-state.test.sh,__script__:fm-control-recovery.test.sh
 override-map	route-bin-fm-bearings-snapshot-sh	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-contributions.sh|bin/fm-contributions.jq|bin/fm-home-summary-refresh.sh	snapshot-bearings	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-contributions.sh|bin/fm-contributions.jq|bin/fm-home-summary-refresh.sh	snapshot-bearings,__script__:fm-startup-performance.test.sh,__script__:fm-home-summary-request.test.sh
 test	tests/fm-platform-process.test.sh	pure-contract-unit
 test	tests/fm-harness-contract.test.sh	pure-contract-unit

@@ -80,6 +80,16 @@
 #              place requires inspection rather than another create attempt.
 #              Once published, the fresh exact endpoint binding survives a
 #              failed launch and is reused by the ordinary relaunch path.
+#              Confirmation accepts either a verified live agent or a complete
+#              ship/scout terminal report bound to the new spawn generation
+#              (fm-classify-lib.sh owns launch_status=). A reported outcome is
+#              not a claim that the agent remains alive.
+#              Successful delivery with unreadable confirmation returns 3 and
+#              retains phase=launch-unconfirmed, never failed:launching. A
+#              repeated relaunch reconciles that same generation without
+#              delivering another note or launching another worker; inspect
+#              also returns its current launch_report. Positive death without
+#              a current report, and failed launch delivery, still return 1.
 #
 # Teardown and discard are NOT verbs here and never will be. `exit` stops an
 # agent and preserves everything else; removing a worktree, killing an
@@ -119,11 +129,14 @@
 #   FM_CONTROL_POLL              poll interval for postcondition waits (0.5)
 #   FM_CONTROL_SETTLE_WAIT       adapter acknowledgement wait after interrupt (5)
 #   FM_CONTROL_EXIT_WAIT         positive elapsed-time alive->dead bound (30)
-#   FM_CONTROL_LAUNCH_WAIT       positive elapsed-time dead->alive bound (90)
+#   FM_CONTROL_LAUNCH_WAIT       positive elapsed-time launch confirmation bound (90)
 #       Each postcondition bound includes its status queries and poll sleeps.
 #       An unfinished query at expiry is unreadable, never proof of agent exit
-#       or successful launch. Preparation and launch delivery are separate.
+#       or successful launch. Relaunch then performs one local report read,
+#       without another endpoint query. Preparation and delivery are separate.
 #   FM_CONTROL_EXIT_RETRIES      Enter retries for the exit command (3)
+# Exit codes: 0 verified action/outcome; 1 refused or failed; 2 usage;
+# 3 launch delivered but its outcome remains unconfirmed.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -166,6 +179,8 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-busy-lib.sh
 . "$SCRIPT_DIR/fm-busy-lib.sh" || exit 2
+# shellcheck source=bin/fm-classify-lib.sh
+. "$SCRIPT_DIR/fm-classify-lib.sh"
 # shellcheck source=bin/fm-control-lib.sh
 . "$SCRIPT_DIR/fm-control-lib.sh" || exit 2
 # shellcheck source=bin/fm-pr-lib.sh
@@ -409,15 +424,37 @@ busy_verdict() {
   fm_busy_classify_meta "$META" "$ID" "$STATE"
 }
 
+relaunch_terminal_report() {
+  local gen='' boundary='' kind='' transaction='' report verb
+  fm_meta_read "$META" spawn_gen gen launch_status boundary kind kind control_relaunch_tx transaction
+  case "$kind" in ship|scout) ;; *) return 1 ;; esac
+  [ -z "${RELAUNCH_TX:-}" ] || [ "$transaction" = "$RELAUNCH_TX" ] || return 1
+  [ -z "${RELAUNCH_SPAWN_GEN:-}" ] || [ "$gen" = "$RELAUNCH_SPAWN_GEN" ] || return 1
+  report=$(status_launch_current "$STATE/$ID.status" "$boundary" "$gen") || return 1
+  verb=$(status_line_verb "$report")
+  case "$verb" in done|failed) printf '%s' "$report" ;; *) return 1 ;; esac
+}
+
 # This read-only loop runs inside the timeout owner's isolated process group.
 # Publish unreadable before each query so a killed or partially printed query
 # cannot leave a previous observation masquerading as its completed result.
 wait_agent_state_observe() {  # <wanted>...
-  local state want
+  local state want report
   while :; do
+    if [ "$1" = launched ] && report=$(relaunch_terminal_report); then
+      printf 'reported-%s\n' "$(status_line_verb "$report")"
+      return 0
+    fi
     printf 'unreadable\n'
     state=$(agent_state) || return 1
     printf '%s\n' "$state"
+    if [ "$1" = launched ]; then
+      [ "$state" != alive ] || return 0
+      if report=$(relaunch_terminal_report); then
+        printf 'reported-%s\n' "$(status_line_verb "$report")"
+        return 0
+      fi
+    fi
     for want in "$@"; do
       [ "$state" != "$want" ] || return 0
     done
@@ -627,8 +664,8 @@ do_exit() {
 # prior metadata and brief preserved beside it. Every failure path runs through
 # relaunch_rollback (an EXIT trap, so a refusal raised deep inside a shared
 # helper is covered too) and leaves either the pre-relaunch durable record or a
-# concrete, named partial state - never a task whose record claims an agent
-# that is not running.
+# concrete, named partial state. Accepted delivery, a live agent, and a
+# terminal work report remain separate claims.
 
 JOURNAL="$STATE/$ID.control-relaunch"
 META_PRIOR="$JOURNAL.meta-prior"
@@ -636,6 +673,9 @@ BRIEF_PRIOR="$JOURNAL.brief-prior"
 NOTE_FILE="$JOURNAL.note"
 RELAUNCH_META_PUBLISHED=0
 RELAUNCH_AGENT_CONFIRMED=0
+RELAUNCH_DELIVERY_ACCEPTED=0
+RELAUNCH_OUTCOME=
+RELAUNCH_SPAWN_GEN=
 RELAUNCH_TX=
 RECREATE_FROM=
 RELAUNCH_BRIEF=
@@ -669,6 +709,9 @@ journal_write() {  # <phase> [extra-line]...
     echo "to_harness=$TARGET_HARNESS"
     echo "to_model=$TARGET_MODEL"
     echo "to_effort=$TARGET_EFFORT"
+    [ -z "$RELAUNCH_TX" ] || echo "relaunch_tx=$RELAUNCH_TX"
+    [ -z "$RELAUNCH_SPAWN_GEN" ] || echo "spawn_gen=$RELAUNCH_SPAWN_GEN"
+    [ -z "$RELAUNCH_OUTCOME" ] || echo "launch_outcome=$RELAUNCH_OUTCOME"
     local line
     for line in "$@"; do
       echo "$line"
@@ -719,10 +762,13 @@ relaunch_rollback() {
           ;;
       esac
       ;;
-    exited|launching)
+    exited|launching|launch-unconfirmed)
       if [ "$RELAUNCH_AGENT_CONFIRMED" = 1 ]; then
         journal_write "failed:$RELAUNCH_PHASE" "rollback=none-new-agent-confirmed" || true
         echo "error: $ID's replacement is running on $TARGET_HARNESS, but transaction completion could not be persisted; its published record was retained for reconciliation" >&2
+      elif [ "$RELAUNCH_DELIVERY_ACCEPTED" = 1 ]; then
+        journal_write "failed:$RELAUNCH_PHASE" "rollback=none-new-record-kept" || true
+        echo "error: $ID's replacement launch was delivered but its outcome could not be persisted or confirmed; inspect its current report and preserved work at $WT before any retry" >&2
       elif [ "$RELAUNCH_META_PUBLISHED" = 1 ] \
          || { [ -n "$RELAUNCH_TX" ] \
               && [ "$(fm_meta_get "$META" control_relaunch_tx)" = "$RELAUNCH_TX" ]; }; then
@@ -918,13 +964,68 @@ record_note() {
   esac
 }
 
+confirm_relaunch() {  # <result-prefix> [journal-lines...]
+  local prefix=$1 state report=
+  shift
+  state=$(wait_agent_state "$LAUNCH_WAIT" launched) || {
+    # A report may arrive while the final endpoint query is stuck. Reconcile
+    # local durable evidence once after that query's deadline, without another
+    # endpoint query or another launch attempt.
+    if report=$(relaunch_terminal_report); then
+      state="reported-$(status_line_verb "$report")"
+    else
+      case "$state" in
+        dead|missing)
+          RELAUNCH_OUTCOME=exited-without-report
+          die "the replacement agent for $ID exited without a current terminal report (endpoint reads '$state'); its work is preserved at $WT"
+          ;;
+        *)
+          RELAUNCH_OUTCOME=unconfirmed
+          journal_write launch-unconfirmed "$@" "delivery=accepted" "observation=$state"
+          RELAUNCH_ACTIVE=0
+          echo "relaunch-unconfirmed $ID delivery=accepted endpoint_state=$state; inspect the current report before retrying; worktree=$WT"
+          return 3
+          ;;
+      esac
+    fi
+  }
+  RELAUNCH_OUTCOME=$state
+  [ "$state" != alive ] || RELAUNCH_AGENT_CONFIRMED=1
+  journal_write complete "$@" "delivery=accepted"
+  RELAUNCH_ACTIVE=0
+  echo "$prefix $ID harness=$TARGET_HARNESS from=$PRIOR_RECORDED_HARNESS model=$TARGET_MODEL effort=$TARGET_EFFORT backend=$BACKEND endpoint=$T worktree=$WT outcome=$state"
+  if [ "$state" != alive ]; then
+    [ -n "$report" ] || report=$(relaunch_terminal_report) || report=
+    [ -z "$report" ] || printf 'report: %s\n' "$report"
+  fi
+}
+
 do_relaunch() {
-  local exit_result state note_line
+  local exit_result note_line prior_tx prior_gen
   local -a spawn_args
 
   require_state_verified_backend relaunch
   resolve_relaunch_profile
   case "$(fm_meta_get "$JOURNAL" phase)" in
+    launch-unconfirmed)
+      prior_tx=$(fm_meta_get "$JOURNAL" relaunch_tx)
+      prior_gen=$(fm_meta_get "$JOURNAL" spawn_gen)
+      [ -n "$prior_tx" ] && [ -n "$prior_gen" ] \
+        && [ "$(fm_meta_get "$META" control_relaunch_tx)" = "$prior_tx" ] \
+        && [ "$(fm_meta_get "$META" spawn_gen)" = "$prior_gen" ] \
+        || die "the unconfirmed launch binding changed; inspect $JOURNAL and the task record before another lifecycle action"
+      [ "$TARGET_HARNESS" = "$PRIOR_HARNESS" ] \
+        && [ "$TARGET_MODEL" = "$PRIOR_MODEL" ] && [ "$TARGET_EFFORT" = "$PRIOR_EFFORT" ] \
+        || die "the previous launch is unconfirmed; inspect it before choosing another replacement profile"
+      RELAUNCH_TX=$prior_tx
+      RELAUNCH_SPAWN_GEN=$prior_gen
+      RELAUNCH_META_PUBLISHED=1
+      RELAUNCH_DELIVERY_ACCEPTED=1
+      RELAUNCH_PHASE=launch-unconfirmed
+      RELAUNCH_ACTIVE=1
+      confirm_relaunch relaunch-reconciled "new_note_delivered=false"
+      return
+      ;;
     recreating|failed:recreating)
       [ "$(fm_meta_get "$JOURNAL" recreate_from)" != "$T" ] \
         || die "the prior endpoint creation is unconfirmed; inspect $JOURNAL before creating another terminal"
@@ -975,27 +1076,22 @@ do_relaunch() {
   # The launch owner (fm-spawn --relaunch) clears the previous incarnation's
   # per-task harness wiring before arming the new one, so nothing to do here.
   RELAUNCH_TX="${BASHPID:-$$}.$(date -u +%Y%m%dT%H%M%SZ).$RANDOM"
-  journal_write launching "${CHECKPOINT_LINES[@]}" "$note_line" "relaunch_tx=$RELAUNCH_TX"
+  journal_write launching "${CHECKPOINT_LINES[@]}" "$note_line"
   spawn_args=("$ID" --relaunch --harness "$TARGET_HARNESS")
   [ "$TARGET_MODEL" = default ] || spawn_args+=(--model "$TARGET_MODEL")
   [ "$TARGET_EFFORT" = default ] || spawn_args+=(--effort "$TARGET_EFFORT")
   if FM_CONTROL_RELAUNCH_TX="$RELAUNCH_TX" \
       "$SCRIPT_DIR/fm-spawn.sh" "${spawn_args[@]}" >/dev/null; then
     RELAUNCH_META_PUBLISHED=1
+    RELAUNCH_DELIVERY_ACCEPTED=1
+    RELAUNCH_SPAWN_GEN=$(fm_meta_get "$META" spawn_gen)
   else
     [ "$(fm_meta_get "$META" control_relaunch_tx)" != "$RELAUNCH_TX" ] \
       || RELAUNCH_META_PUBLISHED=1
     die "the replacement agent for $ID could not be launched on $TARGET_HARNESS"
   fi
 
-  state=$(wait_agent_state "$LAUNCH_WAIT" alive) || {
-    die "the replacement agent for $ID did not come up within ${LAUNCH_WAIT}s (endpoint reads '$state')"
-  }
-  RELAUNCH_AGENT_CONFIRMED=1
-
-  journal_write complete "${CHECKPOINT_LINES[@]}" "$note_line" "exit_result=$exit_result"
-  RELAUNCH_ACTIVE=0
-  echo "relaunched $ID harness=$TARGET_HARNESS from=$PRIOR_RECORDED_HARNESS model=$TARGET_MODEL effort=$TARGET_EFFORT backend=$BACKEND endpoint=$T worktree=$WT"
+  confirm_relaunch relaunched "${CHECKPOINT_LINES[@]}" "$note_line" "exit_result=$exit_result"
 }
 
 # --- inspection and explicitly approved record recovery ----------------------
@@ -1023,11 +1119,12 @@ if [ "$VERB" = inspect ]; then
   fi
   in_progress=false
   [ ! -e "$CONTROL_LOCK" ] && [ ! -L "$CONTROL_LOCK" ] || in_progress=true
+  launch_report=$(relaunch_terminal_report) || launch_report=
   jq -n --arg task "$ID" --arg backend "$BACKEND" --arg endpoint "$T" \
     --arg worktree "$WT" --arg harness "$HARNESS" --arg state "$(agent_state)" \
     --arg phase "$(fm_meta_get "$JOURNAL" phase)" --argjson progress "$in_progress" \
-    --argjson recovery "$recovery" \
-    '{schema:"fm-control-inspection.v1",task:$task,backend:$backend,endpoint:$endpoint,worktree:$worktree,harness:$harness,agent_state:$state,transaction_phase:$phase,action_in_progress:$progress,recovery:$recovery}'
+    --argjson recovery "$recovery" --arg report "$launch_report" \
+    '{schema:"fm-control-inspection.v1",task:$task,backend:$backend,endpoint:$endpoint,worktree:$worktree,harness:$harness,agent_state:$state,transaction_phase:$phase,action_in_progress:$progress,recovery:$recovery,launch_report:$report}'
   exit 0
 fi
 
