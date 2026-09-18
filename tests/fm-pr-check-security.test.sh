@@ -188,7 +188,7 @@ state_snapshot() {
         printf 'link %s %s\n' "$file" "$(readlink "$file")"
       else
         printf 'file %s %s ' "$file" "$(file_mode "$file")"
-        shasum -a 256 "$file" | awk '{print $1}'
+        fm_pr_sha256 "$file"
       fi
     done
   )
@@ -1484,6 +1484,77 @@ test_windows_pr_publication_removes_broad_inheritance() {
   fm_pr_poll_artifacts_valid "$state" task-a "$POLL" \
     || fail "PR publication left poll artifacts with broad Windows access"
   pass "PR publication removes broad inherited Windows ACLs"
+}
+
+test_contribution_monitor_publication_is_private() {
+  local dir state attempt probe
+  dir=$(make_case "contribution monitor '[x] & space")
+  state="$dir/home/state"
+  make_windows_directory_inheritance_broad "$state" \
+    || fail "could not create the contribution monitor inheritance fixture"
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*)
+      probe="$state/inherited.check.sh"
+      printf '#!/usr/bin/env bash\n' > "$probe"
+      ! fm_pr_native_windows_private_paths_valid "$probe" \
+        || fail "the contribution monitor fixture did not inherit broad Windows access"
+      rm -f -- "$probe"
+      ;;
+  esac
+
+  for attempt in 1 2; do
+    FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$state" \
+      FM_DATA_OVERRIDE="$dir/home/data" "$ROOT/bin/fm-contributions.sh" arm \
+      > "$dir/arm.out" 2> "$dir/arm.err" \
+      || fail "contribution monitor creation $attempt failed: $(cat "$dir/arm.err")"
+    fm_custom_check_registered "$state" contributions \
+      || fail "contribution monitor creation $attempt did not publish a private registered check"
+    fm_custom_check_snapshot_prepare "$state" contributions \
+      || fail "contribution monitor creation $attempt was refused by the execution boundary"
+    fm_custom_check_snapshot_cleanup
+  done
+
+  set_custom_check_privacy_fixture "$state/contributions.check.sh" broad \
+    || fail "could not broaden the published contribution monitor permissions"
+  ! fm_custom_check_registered "$state" contributions \
+    || fail "a contribution monitor with broadened permissions remained authenticated"
+  pass "contribution monitor creation and recreation publish private authenticated checks; later permission drift is refused"
+}
+
+test_contribution_monitor_permission_failure_preserves_state() {
+  local prior dir state tool before
+  tool='chmod'
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) tool=powershell.exe ;;
+  esac
+  for prior in absent registered; do
+    dir=$(make_case "contribution-permission-failure-$prior")
+    state="$dir/home/state"
+    if [ "$prior" = registered ]; then
+      FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$state" \
+        FM_DATA_OVERRIDE="$dir/home/data" "$ROOT/bin/fm-contributions.sh" arm >/dev/null \
+        || fail "could not create the prior contribution monitor"
+      fm_custom_check_registered "$state" contributions \
+        || fail "the prior contribution monitor was not authenticated"
+    fi
+    before=$(state_snapshot "$state")
+    printf '#!/usr/bin/env bash\nexit 1\n' > "$dir/fakebin/$tool"
+    chmod +x "$dir/fakebin/$tool"
+    if PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" \
+      FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$dir/home/data" \
+      "$ROOT/bin/fm-contributions.sh" arm > "$dir/arm.out" 2> "$dir/arm.err"; then
+      fail "contribution monitor creation succeeded despite a permission-setup failure ($prior)"
+    fi
+    assert_equals "$before" "$(state_snapshot "$state")" \
+      "permission-setup failure must preserve published state without leaving staging files ($prior)"
+    assert_grep 'could not secure contribution check' "$dir/arm.err" \
+      "permission-setup failure must explain why the monitor was not published"
+    if [ "$prior" = registered ]; then
+      fm_custom_check_registered "$state" contributions \
+        || fail "permission-setup failure invalidated the prior contribution monitor"
+    fi
+  done
+  pass "contribution monitor permission failures leave no staging files and preserve any registered monitor"
 }
 
 install_final_publication_fault() {
@@ -3415,6 +3486,8 @@ fm_test_run_cases \
   test_live_artifact_single_link_and_privacy_validation \
   test_windows_pr_registration_path_spellings \
   test_windows_pr_publication_removes_broad_inheritance \
+  test_contribution_monitor_publication_is_private \
+  test_contribution_monitor_permission_failure_preserves_state \
   test_device_rerecord_preserves_private_policy \
   test_device_renumbered_poll_stays_armed \
   test_device_rerecord_refuses_tampered_artifacts \

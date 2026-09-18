@@ -58,8 +58,8 @@
 # All mutations serialize on this home's .contributions.lock. Writes refuse
 # symlinks and publish by rename. No forge writes are performed.
 #
-# arm registers the existing authenticated custom-check path. Startup and PR
-# registration call it; when filing a linked upstream issue, call arm as well.
+# arm secures the generated check before publication and registration.
+# Startup and PR registration call it; when filing a linked upstream issue, call arm as well.
 # jq_lib receives literal jq programs, not shell expressions.
 # shellcheck disable=SC2016
 set -eu
@@ -366,12 +366,15 @@ arm() {
   device=$(fm_pr_file_device "$STATE")
   fm_pr_regular_destination_on_device_or_absent "$STATE/contributions.check.sh" "$device" || fail 'unsafe check destination'
   staged=$(umask 077; mktemp "$STATE/.contributions-check.XXXXXX")
+  fm_pr_private_file_secure "$staged" 700 || {
+    rm -f -- "$staged"
+    fail 'could not secure contribution check'
+  }
   printf '%s\n' '#!/usr/bin/env bash' \
     "export FM_HOME=$(printf '%q' "$FM_HOME")" \
     "export FM_STATE_OVERRIDE=$(printf '%q' "$STATE")" \
     "export FM_DATA_OVERRIDE=$(printf '%q' "$DATA")" \
     "exec $(printf '%q' "$SCRIPT_DIR/fm-contributions.sh") poll" > "$staged"
-  chmod 700 "$staged"
   mv -f -- "$staged" "$STATE/contributions.check.sh"
   "$SCRIPT_DIR/fm-check-register.sh" contributions
 }
