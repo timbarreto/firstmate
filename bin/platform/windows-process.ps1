@@ -102,8 +102,11 @@ if ($Operation -in @("parent-processes", "process-info", "descendant-processes")
             }
             # The two tables can prove the same child by different paths.
             # DFS colors deduplicate those paths but still refuse actual cycles.
+            $root = $byPid[$nativePid]
+            if ($MsysPs -and (-not $root.CreationDate -or
+                $root.CreationDate.ToUniversalTime() -gt $msysSnapshotAt)) { exit 2 }
             $pending = [System.Collections.Generic.Stack[object]]::new()
-            $pending.Push([pscustomobject]@{ Process = $byPid[$nativePid]; Leaving = $false })
+            $pending.Push([pscustomobject]@{ Process = $root; Leaving = $false })
             $colors = @{}
             $resultRows = [System.Collections.Generic.List[string]]::new()
             while ($pending.Count -gt 0) {

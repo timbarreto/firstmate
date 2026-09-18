@@ -423,6 +423,11 @@ JSON
   jq '.[1].CreationDate = "2026-01-06T00:00:00Z"' "$dir/exec.json" > "$dir/input.json"
   out=$(native_facts_query descendant-processes 8000 "$msys_probe") || fail "MSYS reused-parent check failed"
   [ "$(printf '%s\n' "$out" | cut -f1)" = $'8000\n8100' ] || fail "an old MSYS child attached to a reused native parent"
+  jq '.[0].CreationDate = "2100-01-01T00:00:00Z"' "$dir/exec.json" > "$dir/input.json"
+  rc=0
+  out=$(native_facts_query descendant-processes 8000 "$msys_probe") || rc=$?
+  expect_code 2 "$rc" "a root PID born after the MSYS observation must be treated as reused"
+  [ -z "$out" ] || fail "reused root PID leaked unrelated process evidence"
   jq '.[3].CreationDate = "2100-01-01T00:00:00Z"' "$dir/exec.json" > "$dir/input.json"
   rc=0
   out=$(native_facts_query descendant-processes 8000 "$msys_probe") || rc=$?
