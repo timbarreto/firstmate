@@ -491,12 +491,18 @@ finish_concurrent_teardown() {  # <id> <status> <stdout> <stderr>
 }
 
 normalize_meta() {  # <meta>
+  local generation launch_status
+  generation=$(sed -n 's/^spawn_gen=//p' "$1")
+  launch_status=$(sed -n 's/^launch_status=//p' "$1")
+  [[ -n "$generation" && "$launch_status" == "v1|$generation|"* ]] \
+    || fail "launch status is not bound to its own spawn generation in $1"
   sed -E \
     -e 's|^window=.*$|window=<herdr-container-id>|' \
     -e 's|^herdr_workspace_id=.*$|herdr_workspace_id=<herdr-container-id>|' \
     -e 's|^herdr_tab_id=.*$|herdr_tab_id=<herdr-container-id>|' \
     -e 's|^herdr_pane_id=.*$|herdr_pane_id=<herdr-container-id>|' \
     -e 's|^spawn_gen=.*$|spawn_gen=<spawn-incarnation>|' \
+    -e 's#^(launch_status=v1\|)[^|]+\|#\1<spawn-incarnation>|#' \
     "$1"
 }
 
@@ -932,8 +938,9 @@ PROJECTION_ORDER_START=$(log_line_count)
 [ "$OFF_WT" = "$ON_WT" ] || fail "Treehouse did not reuse the same fixture worktree, so byte comparison is inconclusive"
 normalize_meta "$OFF_META" > "$TMP_ROOT/off.meta.normalized"
 normalize_meta "$ON_META" > "$TMP_ROOT/on.meta.normalized"
-cmp -s "$TMP_ROOT/off.meta.normalized" "$TMP_ROOT/on.meta.normalized" \
-  || fail "metadata changed beyond Herdr container IDs between opted-out and projected paths"
+diff -u "$TMP_ROOT/off.meta.normalized" "$TMP_ROOT/on.meta.normalized" \
+  || fail "metadata changed beyond Herdr container IDs and spawn generation between opted-out and projected paths"
+pass "real Herdr lab: projection preserves task metadata and each launch's generation-bound reporting boundary"
 
 # Two real primary spawns begin concurrently.
 # The fresh-spawn task-set lock may fail closed for one while the other
