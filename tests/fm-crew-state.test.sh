@@ -24,6 +24,7 @@
 #   (e2) multiple runs: creation order preserves newer failures, replacement
 #        gates retain their run identity, and competing live runs read unknown
 #   (e3) an older live sibling with an unfetched head cannot hide a newer failure
+#   (e4) a capped overview cannot lose a live run's rerun transition between reads
 #   (f) no run + semantic busy                                    -> pane
 #   (g) no run + semantic idle falls to the status-log verb       -> status-log
 #   (h) dead pane: no run -> unknown/none; with a run -> run-step (not the shell)
@@ -3114,6 +3115,237 @@ PY
   FM_FAKE_AXI_STATUS_RUN="$(run_parked fm/competing | sed 's/01RUN/01NEW/')"
 }
 
+test_capped_stable_inventory_uses_one_reader() {
+  make_capped_runs_case capped-stable-reader running cancelled
+  local d=$TMP_ROOT/capped-stable-reader out real_python before
+  real_python=$(command -v python3) || fail 'Python is required for the inventory fixture'
+  before=$(git hash-object "$NM_HOME/state.sqlite")
+  cat > "$d/fakebin/python3" <<'SH'
+#!/usr/bin/env bash
+printf 'read\n' >> "$FM_RACE_DIR/reader-calls"
+exec "$FM_RACE_PYTHON" "$@"
+SH
+  chmod +x "$d/fakebin/python3"
+  out=$(FM_RACE_DIR="$d" FM_RACE_PYTHON="$real_python" run_crew_state "$d" competing)
+  assert_contains "$out" 'state: parked' 'a stable capped replacement lost its gate'
+  assert_contains "$out" '01NEW' 'a stable capped replacement lost its identity'
+  [ "$(wc -l < "$d/reader-calls" | tr -d '[:space:]')" = 1 ] \
+    || fail 'a stable capped inventory launched more than one reader'
+  [ "$(git hash-object "$NM_HOME/state.sqlite")" = "$before" ] \
+    || fail 'a stable state read changed the database'
+  pass 'a stable capped replacement retains its gate with one read-only inventory lookup'
+}
+
+# The interpreter shim changes only fixture data after the real read-only
+# inventory query has completed. No sleep or production-source mutation is
+# needed: the first lookup sees A cancelled, then B exists before status by ID.
+make_capped_rerun_case() {  # <name> [overview-status]
+  make_capped_runs_case "$1" "${2:-running}" cancelled
+  local d=$TMP_ROOT/$1
+  python3 - "$NM_HOME/state.sqlite" <<'PY'
+import sqlite3
+import sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("UPDATE runs SET status = 'cancelled' WHERE id = '01NEW'")
+    db.execute("UPDATE runs SET branch = 'fm/hidden-unrelated' WHERE id = '01OLD'")
+    db.execute("DELETE FROM runs WHERE repo_id != 'repo'")
+    db.execute("DELETE FROM repos WHERE id != 'repo'")
+PY
+  FM_FAKE_AXI_STATUS_RUN="$(run_parked fm/competing | sed 's/01RUN/01RERUN/')"
+  run_failed fm/competing | sed 's/01RUN/01NEW/; s/failed/cancelled/' > "$d/cancelled.toon"
+  mv "$d/fakebin/no-mistakes" "$d/fakebin/no-mistakes-default"
+  cat > "$d/fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+set -eu
+printf '%s\n' "$*" >> "$FM_RACE_DIR/cli-calls"
+case "${1:-} ${2:-} ${3:-} ${4:-}" in
+  'axi status --run 01NEW')
+    cat "$FM_RACE_DIR/cancelled.toon"
+    exit 0 ;;
+  'axi status --run 01RERUN')
+    if [ "$FM_RACE_SCENARIO" = churn ]; then
+      "$FM_RACE_PYTHON" - "$NM_HOME/state.sqlite" "$FM_FAKE_RUN_HEAD" <<'PY'
+import sqlite3
+import sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("UPDATE runs SET status = 'cancelled' WHERE id = '01RERUN'")
+    db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)",
+               ("01NEXT", "repo", "fm/competing", "running", sys.argv[2], 14))
+PY
+      : > "$FM_RACE_DIR/second-replacement-created"
+      sed 's/01NEW/01RERUN/' "$FM_RACE_DIR/cancelled.toon"
+      exit 0
+    fi ;;
+esac
+exec "$FM_RACE_DIR/fakebin/no-mistakes-default" "$@"
+SH
+  cat > "$d/fakebin/python3" <<'SH'
+#!/usr/bin/env bash
+set -eu
+printf 'read\n' >> "$FM_RACE_DIR/reader-calls"
+if [ "$FM_RACE_SCENARIO" = unavailable ] && [ -e "$FM_RACE_DIR/first-read-finished" ]; then
+  exit 1
+fi
+output=$("$FM_RACE_PYTHON" "$@") || exit $?
+if [ ! -e "$FM_RACE_DIR/first-read-finished" ]; then
+  printf '%s\n' "$output" > "$FM_RACE_DIR/first-inventory"
+  "$FM_RACE_PYTHON" - "$NM_HOME/state.sqlite" "$FM_FAKE_RUN_HEAD" "$FM_RACE_SCENARIO" <<'PY'
+import sqlite3
+import sys
+
+scenario = sys.argv[3]
+with sqlite3.connect(sys.argv[1]) as db:
+    if scenario not in ("no-successor", "unavailable"):
+        status = "failed" if scenario == "failed" else "running"
+        head = "invalid-head" if scenario == "malformed" else sys.argv[2]
+        db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)",
+                   ("01RERUN", "repo", "fm/competing", status, head, 13))
+    if scenario == "competing":
+        db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)",
+                   ("01NEXT", "repo", "fm/competing", "running", sys.argv[2], 14))
+    if scenario == "disappeared":
+        db.execute("DELETE FROM runs WHERE id = '01NEW'")
+PY
+  : > "$FM_RACE_DIR/first-read-finished"
+fi
+printf '%s\n' "$output"
+SH
+  chmod +x "$d/fakebin/no-mistakes" "$d/fakebin/python3"
+}
+
+run_capped_rerun_state() {  # <dir> [scenario]
+  local real_python
+  real_python=$(command -v python3) || fail 'Python is required for the inventory fixture'
+  FM_RACE_DIR="$1" FM_RACE_PYTHON="$real_python" FM_RACE_SCENARIO="${2:-replacement}" \
+    run_crew_state "$1" competing
+}
+
+assert_capped_refresh_count() {  # <dir>
+  [ -e "$1/first-read-finished" ] || fail 'the inventory/status interleaving was not exercised'
+  [ "$(wc -l < "$1/reader-calls" | tr -d '[:space:]')" = 2 ] \
+    || fail 'an unstable capped inventory did not stop after one refresh'
+}
+
+test_capped_rerun_between_inventory_and_status_keeps_replacement_gate() {
+  make_capped_rerun_case capped-rerun-between-reads
+  local d=$TMP_ROOT/capped-rerun-between-reads out
+  out=$(run_capped_rerun_state "$d")
+  assert_capped_refresh_count "$d"
+  assert_grep '"01NEW","fm/competing","cancelled"' "$d/first-inventory" \
+    'the first complete read did not observe the formerly live predecessor cancelled'
+  assert_no_grep '01RERUN' "$d/first-inventory" 'the replacement appeared before the raced inventory read'
+  assert_no_grep '01OLD' "$d/first-inventory" 'unrelated history leaked into the minimal same-branch snapshot'
+  assert_not_contains "$out" 'state: failed' 'a superseded cancellation was reported while its replacement was live'
+  assert_contains "$out" 'state: parked' 'the fresh replacement must retain its review gate'
+  assert_contains "$out" '01RERUN' 'the state read did not identify the replacement'
+  assert_contains "$out" 'parked at review: 2 finding(s)' 'the replacement lost its own gate details'
+  [ "$(wc -l < "$d/cli-calls" | tr -d '[:space:]')" = 3 ] \
+    || fail 'inventory recovery added CLI calls to the existing status/overview/status sequence'
+  assert_no_grep 'axi status --run 01NEW' "$d/cli-calls" 'the cancelled predecessor was still queried as authoritative'
+  pass 'a capped rerun between inventory and status preserves the fresh replacement gate'
+}
+
+test_capped_transition_without_successor_is_unknown_then_stable_cancellation_is_visible() {
+  make_capped_rerun_case capped-no-successor
+  local d=$TMP_ROOT/capped-no-successor out before
+  before=$(git hash-object "$NM_HOME/state.sqlite")
+  out=$(run_capped_rerun_state "$d" no-successor)
+  assert_capped_refresh_count "$d"
+  assert_contains "$out" 'state: unknown' 'an unproven successor must not become a terminal verdict'
+  assert_contains "$out" 'run changed during capped inventory lookup' 'the unresolved transition was not explained'
+  assert_contains "$out" '01NEW' 'the changing predecessor identity was lost'
+  [ "$(git hash-object "$NM_HOME/state.sqlite")" = "$before" ] || fail 'the read-only retry modified the database'
+  FM_FAKE_AXI_HOME=$(printf '%s\n' "$FM_FAKE_AXI_HOME" | sed '/01NEW/s/,running,/,cancelled,/')
+  : > "$d/reader-calls"
+  out=$(run_capped_rerun_state "$d" no-successor)
+  assert_contains "$out" 'state: failed' 'a subsequent stable cancellation was hidden'
+  assert_contains "$out" 'run cancelled' 'the stable terminal result changed'
+  [ "$(wc -l < "$d/reader-calls" | tr -d '[:space:]')" = 1 ] || fail 'a stable cancellation was retried'
+  pass 'a missing successor reports uncertainty once while a later stable cancellation remains visible'
+}
+
+test_capped_refresh_preserves_a_genuinely_newer_failure() {
+  make_capped_rerun_case capped-newer-failure
+  local d=$TMP_ROOT/capped-newer-failure out
+  FM_FAKE_AXI_STATUS_RUN="$(run_failed fm/competing | sed 's/01RUN/01RERUN/')"
+  out=$(run_capped_rerun_state "$d" failed)
+  assert_capped_refresh_count "$d"
+  assert_contains "$out" 'state: failed' 'the refreshed newer failure was hidden'
+  assert_contains "$out" '01RERUN' 'the failure was attributed to the cancelled predecessor'
+  assert_not_contains "$out" 'run cancelled' 'the old cancellation replaced the genuine newer failure'
+  pass 'a capped refresh preserves the newest genuine failure instead of hiding all terminal outcomes'
+}
+
+test_capped_refresh_churn_stops_without_a_false_failure() {
+  make_capped_rerun_case capped-churn
+  local d=$TMP_ROOT/capped-churn out
+  out=$(run_capped_rerun_state "$d" churn)
+  assert_capped_refresh_count "$d"
+  [ -e "$d/second-replacement-created" ] || fail 'the replacement did not change before its status read'
+  assert_contains "$out" 'state: unknown' 'continued rerun churn became a false terminal verdict'
+  assert_contains "$out" 'status disagrees with inventory' 'the final liveness guard was bypassed'
+  assert_contains "$out" '01NEW' 'continued churn lost the original observed id'
+  assert_contains "$out" '01RERUN' 'continued churn lost the selected replacement id'
+  pass 'continued rerun churn keeps the existing final-status refusal and never loops through replacements'
+}
+
+test_capped_refresh_failure_retains_hidden_candidate_ids() {
+  make_capped_rerun_case capped-refresh-unavailable
+  local d=$TMP_ROOT/capped-refresh-unavailable out
+  python3 - "$NM_HOME/state.sqlite" <<'PY'
+import sqlite3
+import sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("UPDATE runs SET branch = 'fm/competing' WHERE id = '01OLD'")
+PY
+  out=$(run_capped_rerun_state "$d" unavailable)
+  assert_capped_refresh_count "$d"
+  assert_contains "$out" 'state: unknown' 'an unavailable refresh fell back to the stale cancellation'
+  assert_contains "$out" 'reader unavailable' 'the fresh inventory failure was not explained'
+  assert_contains "$out" '01NEW' 'the refresh failure lost the visible identity'
+  assert_contains "$out" '01OLD' 'the refresh failure lost an identity found beyond the original cap'
+  pass 'a failed refresh retains both visible and previously hidden candidate identities'
+}
+
+test_capped_refresh_refuses_ambiguous_or_unverifiable_successors() {
+  local mode d out
+  for mode in competing malformed disappeared; do
+    make_capped_rerun_case "capped-refresh-$mode"
+    d=$TMP_ROOT/capped-refresh-$mode
+    out=$(run_capped_rerun_state "$d" "$mode")
+    assert_capped_refresh_count "$d"
+    assert_contains "$out" 'state: unknown' "$mode refresh asserted unproven authority"
+    assert_contains "$out" '01NEW' "$mode refresh lost the predecessor identity"
+    assert_contains "$out" '01RERUN' "$mode refresh lost the newly discovered identity"
+    if [ "$mode" = competing ]; then
+      assert_contains "$out" '01NEXT' 'competing fresh replacements were not both identified'
+    fi
+  done
+  pass 'competing, malformed and disappearing identities remain unknown after the bounded refresh'
+}
+
+test_capped_pending_predecessor_keeps_replacement_gate() {
+  make_capped_rerun_case capped-pending-rerun pending
+  local d=$TMP_ROOT/capped-pending-rerun out
+  out=$(run_capped_rerun_state "$d")
+  assert_capped_refresh_count "$d"
+  assert_contains "$out" 'state: parked' 'a pending predecessor lost its replacement during the capped lookup'
+  assert_contains "$out" '01RERUN' 'a pending predecessor kept stale authority'
+  pass 'pending predecessors retain the same capped-rerun protection as running predecessors'
+}
+
+test_capped_rerun_keeps_liveness_before_complete_head_validation() {
+  make_capped_rerun_case capped-unverified-displayed-head
+  local d=$TMP_ROOT/capped-unverified-displayed-head out
+  FM_FAKE_AXI_HOME=$(printf '%s\n' "$FM_FAKE_AXI_HOME" | sed '/01NEW/s/,[a-f0-9]*,$/,unresolved,/')
+  assert_contains "$FM_FAKE_AXI_HOME" ',unresolved,' 'the partial head-validation boundary was not exercised'
+  out=$(run_capped_rerun_state "$d")
+  assert_capped_refresh_count "$d"
+  assert_contains "$out" 'state: parked' 'partial head semantics erased a readable live identity before complete lookup'
+  assert_contains "$out" '01RERUN' 'the verified successor lost its identity'
+  pass 'capped liveness survives partial head semantics while full successor identity is still required'
+}
+
 test_capped_competing_live_runs_report_both_ids() {
   make_capped_runs_case capped-competing running running
   local d=$TMP_ROOT/capped-competing out
@@ -3652,6 +3884,8 @@ test_captured_completed_history() {
   pass 'captured completed status yields to synthetic subsequent development'
 }
 
+report_full_suite=true
+[ -z "${FM_TEST_ONLY:-}" ] && [ "${FM_TEST_LIST_CASES:-0}" = 0 ] || report_full_suite=false
 crew_state_cases=(
 test_captured_axi_status_shapes
 test_captured_inventory_replay
@@ -3777,6 +4011,15 @@ test_complete_ambiguity_without_python_names_both_ids
 test_capped_without_python_preserves_available_ids
 test_capped_without_sqlite_preserves_available_ids
 test_live_to_terminal_inventory_disagreement_is_unknown
+test_capped_stable_inventory_uses_one_reader
+test_capped_rerun_between_inventory_and_status_keeps_replacement_gate
+test_capped_transition_without_successor_is_unknown_then_stable_cancellation_is_visible
+test_capped_refresh_preserves_a_genuinely_newer_failure
+test_capped_refresh_churn_stops_without_a_false_failure
+test_capped_refresh_failure_retains_hidden_candidate_ids
+test_capped_refresh_refuses_ambiguous_or_unverifiable_successors
+test_capped_pending_predecessor_keeps_replacement_gate
+test_capped_rerun_keeps_liveness_before_complete_head_validation
 test_uninitialized_busy_worker_uses_pane
 test_uninitialized_idle_worker_uses_status
 test_historical_inventory_uses_current_pane
@@ -3789,4 +4032,6 @@ test_legacy_conflicting_run_records_report_unknown
 )
 fm_test_run_cases "${crew_state_cases[@]}"
 
-echo "fm-crew-state tests passed"
+if [ "$report_full_suite" = true ]; then
+  echo "all fm-crew-state tests passed"
+fi

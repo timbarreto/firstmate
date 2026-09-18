@@ -117,6 +117,10 @@ fm_nm_run_status_class() {  # <status_word>
 # ~/.no-mistakes/state.sqlite; relative NM_HOME resolves from the worktree).
 # If that reader or inventory is unavailable, report unknown with available
 # candidate ids rather than treating the displayed window as complete.
+# Preserve the overview's live identities across that lookup. If its selected
+# predecessor became terminal, read the complete inventory once more for a
+# replacement; unchanged or still-changing authority reports unknown with all
+# observed ids. Stable capped reads use one lookup; recovery has one refresh.
 # Structural completeness applies to the whole table; semantic validation
 # applies only to the requested branch, after complete identity lookup when
 # capped. Branch names are matched exactly without a character whitelist.
@@ -134,7 +138,8 @@ fm_nm_run_status_class() {  # <status_word>
 # structurally truncated tables report unknown, retaining every readable
 # same-branch candidate id.
 fm_nm_select_run() {  # <branch> <axi-overview> <worktree>
-  local selection inventory available_ids
+  local selection inventory available_ids observed_live_ids attempt
+  local selected_id selected_status candidate_ids changed changed_id=''
   selection=$(printf '%s\n' "$2" | awk -v branch="$1" '
     function scalar(s) {
       sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s)
@@ -179,6 +184,8 @@ fm_nm_select_run() {  # <branch> <axi-overview> <worktree>
       if (id ~ /^[A-Za-z0-9_-]+$/) {
         if (known[id]++) invalid_run = 1
         else ids = ids (ids == "" ? "" : ", ") id
+        if (n == 5 && (st == "running" || st == "pending"))
+          live_ids = live_ids (live_ids == "" ? "" : ", ") id
       }
       if (n != 5) next
       if (id !~ /^[A-Za-z0-9_-]+$/ ||
@@ -195,7 +202,7 @@ fm_nm_select_run() {  # <branch> <axi-overview> <worktree>
       if (!found) print "unavailable"
       else if (bad || counts != 1 || seen != expected || seen != shown || total < shown)
         print "unknown|unreadable runs table; run ids: " ids
-      else if (shown < total) print "incomplete|" ids
+      else if (shown < total) print "incomplete|" ids "|" live_ids
       else if (invalid_run) print "unknown|unreadable runs table; run ids: " ids
       else if (unknown_status) print "unknown|unrecognized run status; run ids: " ids
       else if (first == "") print "absent"
@@ -205,10 +212,15 @@ fm_nm_select_run() {  # <branch> <axi-overview> <worktree>
     }
   ')
   case "$selection" in
-    incomplete\|*) available_ids=${selection#*|} ;;
+    incomplete\|*)
+      available_ids=${selection#*|}
+      observed_live_ids=${available_ids#*|}
+      available_ids=${available_ids%%|*}
+      ;;
     *) printf '%s\n' "$selection"; return ;;
   esac
-  if ! inventory=$(python3 - "$1" "$2" "$3" "$available_ids" 2>/dev/null <<'PY'
+  for attempt in 1 2; do
+    if ! inventory=$(python3 - "$1" "$2" "$3" "$available_ids" 2>/dev/null <<'PY'
 import json
 import os
 import re
@@ -256,18 +268,40 @@ try:
 except (ValueError, OSError, sqlite3.Error):
     print("unknown|complete same-branch run inventory unreadable; run ids: " + ", ".join(ids))
 PY
-  ); then
-    printf 'unknown|complete same-branch run inventory reader unavailable; run ids: %s\n' "$available_ids"
+    ); then
+      printf 'unknown|complete same-branch run inventory reader unavailable; run ids: %s\n' "$available_ids"
+      return
+    fi
+    case "$inventory" in
+      unknown\|*) selection=$inventory ;;
+      *) selection=$(fm_nm_select_run "$1" "$inventory" "$3") ;;
+    esac
+    case "$selection" in
+      selected\|*)
+        IFS='|' read -r _ selected_id selected_status candidate_ids <<< "$selection"
+        changed=0
+        [ "$selected_id" != "$changed_id" ] || changed=1
+        case "$selected_status" in
+          completed|failed|cancelled)
+            case ", $observed_live_ids, " in *", $selected_id, "*) changed=1 ;; esac
+            ;;
+        esac
+        if [ "$changed" = 1 ]; then
+          if [ "$attempt" = 1 ]; then
+            changed_id=$selected_id
+            available_ids=$candidate_ids
+            continue
+          fi
+          printf 'unknown|run changed during capped inventory lookup; run ids: %s\n' "$candidate_ids"
+          return
+        fi
+        printf '%s\n' "$selection"
+        ;;
+      unknown\|*|absent) printf '%s\n' "$selection" ;;
+      *) printf 'unknown|complete same-branch run inventory unreadable; run ids: %s\n' "$available_ids" ;;
+    esac
     return
-  fi
-  case "$inventory" in
-    unknown\|*) selection=$inventory ;;
-    *) selection=$(fm_nm_select_run "$1" "$inventory" "$3") ;;
-  esac
-  case "$selection" in
-    selected\|*|unknown\|*|absent) printf '%s\n' "$selection" ;;
-    *) printf 'unknown|complete same-branch run inventory unreadable; run ids: %s\n' "$available_ids" ;;
-  esac
+  done
 }
 
 # branch_sync.state from captured `axi status` TOON $1: the scalar directly
