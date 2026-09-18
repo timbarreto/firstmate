@@ -16,7 +16,7 @@ Prerequisites:
 - `jq` for JSON responses.
 - The universal harness and toolchain requirements in [`configuration.md`](configuration.md#toolchain).
 - `python3` only for optional protocol-16 presentation-space ordering and native event subscription.
-- Git for Windows' `cygpath` and built-in Windows PowerShell for native Windows presentation-lock ACL verification.
+- Git for Windows' `cygpath` and `/usr/bin/ps.exe`, plus Windows PowerShell, for native Windows process attribution and presentation-lock ACL verification.
 
 Herdr is dual-licensed AGPL-3.0-or-later or commercial.
 Firstmate invokes its CLI as a separate process.
