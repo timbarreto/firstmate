@@ -924,28 +924,93 @@ test_worker_role_scope() {
   pass "fm-brief: scaffolds leave the worker role scope to the launch boundary and keep the secondmate contract"
 }
 
-test_worker_role_scope
-test_script_parses
-test_no_heredoc_in_command_substitution
-test_help_includes_entire_header
-test_ship_modes_generate_clean_briefs
-test_ship_mode_is_required_and_closed_set
-test_ship_mode_is_explicit_not_registry
-test_delivery_flags_are_refused_where_they_do_not_apply
-test_faster_paths_use_configured_authority_without_stacked_review
-test_no_mistakes_dod_wording
-test_ask_user_escalation_format
-test_ship_project_memory_wording
-test_herdr_lab_contract_is_explicit_and_complete
-test_herdr_lab_contract_quotes_foreign_firstmate_path
-test_herdr_lab_omission_is_loud_for_ship_and_scout
-test_documented_global_replace_leaves_the_herdr_gate_intact
-test_herdr_lab_contract_applies_to_scouts_but_not_secondmates
-test_secondmate_no_projects_charter
-test_secondmate_marked_request_reporting_contract
-test_secondmate_directory_paths_are_absolute_and_output_is_stable
-test_pause_verb_override_renders_all_brief_scaffolds
-test_ship_and_scout_teach_validation_round_pause
-test_scout_and_secondmate_load_decision_hold_policy
-test_scout_and_secondmate_scaffold
-test_scout_lavish_line_follows_presentation_floor
+# The generated brief is the intentional worker-facing text contract. These
+# assertions execute the scaffold; they do not inspect its implementation or
+# claim to prove how a live model interprets the instructions.
+test_enabled_retirement_brief_carries_the_selected_behavior() {
+  local home="$TMP_ROOT/retirement-enabled" mode id brief
+  for mode in direct-PR no-mistakes local-only; do
+    id="retire-${mode}"
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" project --mode "$mode" \
+      --retire-enabled reflexExample >/dev/null || fail "enabled retirement did not scaffold for $mode"
+    brief="$home/data/$id/brief.md"
+    assert_grep "Retire \`reflexExample\` to permanently enabled behavior." "$brief" \
+      'the worker was not given the selected permanent behavior'
+    assert_grep 'Live consumers are part of this approved removal, not evidence that the switch is unused.' "$brief" \
+      'the brief confused enabled-state retirement with unused-declaration cleanup'
+    assert_grep 'Preserve independent permission, eligibility, validation, and safety checks.' "$brief" \
+      'enabled-state retirement widened unrelated behavior'
+    assert_grep 'Escalate a genuinely new behavior choice or scope conflict, not the already-selected enabled outcome.' "$brief" \
+      'the brief did not distinguish new decisions from the selected outcome'
+    assert_grep "Delivery contract: mode=$mode" "$brief" 'retirement changed the chosen delivery contract'
+    [ "$(grep -c -F '{TASK}' "$brief")" = 1 ] || fail 'retirement duplicated the intent placeholder'
+    [ "$(grep -c -F '{FIRSTMATE_SPEC}' "$brief")" = 1 ] || fail 'retirement duplicated the specification placeholder'
+  done
+  pass 'enabled retirement briefs name the permanent behavior without an unused-switch premise'
+}
+
+test_enabled_retirement_is_explicit_and_ship_only() {
+  local home="$TMP_ROOT/retirement-scope" out rc kind
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" ordinary project --mode direct-PR >/dev/null \
+    || fail 'ordinary brief failed'
+  assert_no_grep '# Enabled feature-flag retirement' "$home/data/ordinary/brief.md" \
+    'an ordinary task acquired an unrequested permanent product choice'
+  for kind in scout secondmate; do
+    rc=0
+    if [ "$kind" = scout ]; then
+      out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$kind" project --scout \
+        --retire-enabled reflexExample 2>&1) || rc=$?
+    else
+      out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$kind" --secondmate --no-projects \
+        --retire-enabled reflexExample 2>&1) || rc=$?
+    fi
+    [ "$rc" -ne 0 ] || fail "$kind accepted ship retirement authority"
+    assert_contains "$out" '--retire-enabled applies only to ship briefs' 'retirement refusal was not specific'
+    assert_absent "$home/data/$kind/brief.md" 'refused retirement wrote a brief'
+  done
+  pass 'enabled retirement is opt-in and cannot silently change scouts or secondmate charters'
+}
+
+test_enabled_retirement_rejects_ambiguous_flag_names() {
+  local home="$TMP_ROOT/retirement-invalid" name out rc i=0
+  for name in '' 'two flags' '../other' "flag\`touch marker\`"; do
+    i=$((i + 1))
+    rc=0
+    out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "invalid-$i" project --mode direct-PR \
+      --retire-enabled "$name" 2>&1) || rc=$?
+    [ "$rc" -ne 0 ] || fail 'malformed retirement flag name was accepted'
+    assert_contains "$out" '--retire-enabled' 'malformed-name refusal did not identify the option'
+    assert_absent "$home/data/invalid-$i/brief.md" 'invalid retirement wrote a brief'
+  done
+  pass 'retirement refuses empty, compound, path and executable-looking flag names before writing'
+}
+
+fm_test_run_cases \
+  test_worker_role_scope \
+  test_script_parses \
+  test_no_heredoc_in_command_substitution \
+  test_help_includes_entire_header \
+  test_ship_modes_generate_clean_briefs \
+  test_ship_mode_is_required_and_closed_set \
+  test_ship_mode_is_explicit_not_registry \
+  test_delivery_flags_are_refused_where_they_do_not_apply \
+  test_faster_paths_use_configured_authority_without_stacked_review \
+  test_no_mistakes_dod_wording \
+  test_ask_user_escalation_format \
+  test_ship_project_memory_wording \
+  test_herdr_lab_contract_is_explicit_and_complete \
+  test_herdr_lab_contract_quotes_foreign_firstmate_path \
+  test_herdr_lab_omission_is_loud_for_ship_and_scout \
+  test_documented_global_replace_leaves_the_herdr_gate_intact \
+  test_herdr_lab_contract_applies_to_scouts_but_not_secondmates \
+  test_secondmate_no_projects_charter \
+  test_secondmate_marked_request_reporting_contract \
+  test_secondmate_directory_paths_are_absolute_and_output_is_stable \
+  test_pause_verb_override_renders_all_brief_scaffolds \
+  test_ship_and_scout_teach_validation_round_pause \
+  test_scout_and_secondmate_load_decision_hold_policy \
+  test_scout_and_secondmate_scaffold \
+  test_scout_lavish_line_follows_presentation_floor \
+  test_enabled_retirement_brief_carries_the_selected_behavior \
+  test_enabled_retirement_is_explicit_and_ship_only \
+  test_enabled_retirement_rejects_ambiguous_flag_names

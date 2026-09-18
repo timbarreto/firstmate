@@ -15,6 +15,7 @@
 # sections when the task genuinely deviates (e.g. working an existing external
 # PR instead of shipping a new one).
 # Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--herdr-lab]
+#                   [--retire-enabled <flag-name>]
 #        fm-brief.sh <task-id> <repo-name> --scout [--herdr-lab]
 #        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
 #   --scout writes the scout contract instead: the deliverable is a report at
@@ -38,6 +39,13 @@
 #   after scaffolding and the caller-supplied repo string cannot reliably
 #   identify this repo. Briefs made without it carry a loud declaration so an
 #   omitted contract cannot be silent.
+#   --retire-enabled names one flag whose permanently enabled outcome has
+#   already been explicitly authorized. Ship-only; the flag name starts with a
+#   letter/underscore and otherwise contains letters, digits, dots, underscores
+#   or hyphens. It emits an enabled-state retirement contract without claiming
+#   the flag has no live consumers or changing delivery/merge authority.
+#   Omission selects no retirement behavior. The feature-flag-retirement skill
+#   owns choosing and reconciling this outcome before briefing a worker.
 # For ship tasks, --mode is REQUIRED and shapes the definition of done. Firstmate
 # resolves it per task at intake (AGENTS.md section 7); data/projects.md holds the
 # captain's standing posture as context, and this script never reads it:
@@ -126,6 +134,8 @@ HERDR_LAB=0
 NO_PROJECTS=0
 MODE=
 MODE_SET=0
+RETIRE_ENABLED=
+RETIRE_ENABLED_SET=0
 POS=()
 want_value=
 for a in "$@"; do
@@ -135,6 +145,7 @@ for a in "$@"; do
     esac
     case "$want_value" in
       mode) MODE=$a; MODE_SET=1 ;;
+      retire-enabled) RETIRE_ENABLED=$a ;;
       *) echo "error: internal parser state for --$want_value" >&2; exit 1 ;;
     esac
     want_value=
@@ -147,6 +158,13 @@ for a in "$@"; do
     --no-projects) NO_PROJECTS=1 ;;
     --mode) want_value=mode ;;
     --mode=*) MODE=${a#--mode=}; MODE_SET=1 ;;
+    --retire-enabled|--retire-enabled=*)
+      [ "$RETIRE_ENABLED_SET" = 0 ] || { echo 'error: --retire-enabled may name only one flag' >&2; exit 1; }
+      RETIRE_ENABLED_SET=1
+      if [ "$a" = --retire-enabled ]; then want_value=retire-enabled
+      else RETIRE_ENABLED=${a#--retire-enabled=}
+      fi
+      ;;
     # yolo never reaches the worker: it is firstmate's merge authority, not a
     # brief input. Refuse it loudly so it is never silently dropped here and then
     # believed to have been recorded.
@@ -173,6 +191,16 @@ if [ "$KIND" = ship ]; then
 elif [ "$MODE_SET" -eq 1 ]; then
   echo "error: --mode applies only to ship briefs; a scout delivers a report and a secondmate charter is not a delivery contract" >&2
   exit 1
+fi
+if [ "$RETIRE_ENABLED_SET" = 1 ]; then
+  [ "$KIND" = ship ] || { echo 'error: --retire-enabled applies only to ship briefs' >&2; exit 1; }
+  case "$RETIRE_ENABLED" in
+    [A-Za-z_]*) ;;
+    *) echo 'error: --retire-enabled requires a non-empty flag identifier starting with a letter or underscore' >&2; exit 1 ;;
+  esac
+  case "$RETIRE_ENABLED" in
+    *[!A-Za-z0-9_.-]*) echo 'error: --retire-enabled requires one flag identifier, not prose or a path' >&2; exit 1 ;;
+  esac
 fi
 ID=${POS[0]}
 
@@ -357,6 +385,20 @@ IFS= read -r -d '' TASK_SECTION <<'EOF' || true
 {FIRSTMATE_SPEC}
 EOF
 TASK_SECTION=${TASK_SECTION%$'\n'}
+
+if [ "$RETIRE_ENABLED_SET" = 1 ]; then
+IFS= read -r -d '' RETIREMENT_SECTION <<EOF || true
+# Enabled feature-flag retirement
+Retire \`$RETIRE_ENABLED\` to permanently enabled behavior.
+Remove this flag's selection and disabled-only branches while retaining the enabled feature logic.
+Live consumers are part of this approved removal, not evidence that the switch is unused.
+Preserve independent permission, eligibility, validation, and safety checks.
+Describe the actual consumer changes and permanent enabled outcome in the PR; claim unused-declaration cleanup only when current source proves there are no live consumers.
+Escalate a genuinely new behavior choice or scope conflict, not the already-selected enabled outcome.
+EOF
+RETIREMENT_SECTION=${RETIREMENT_SECTION%$'\n'}
+TASK_SECTION="$TASK_SECTION"$'\n\n'"$RETIREMENT_SECTION"
+fi
 
 if [ "$KIND" = scout ]; then
 if "$SCRIPT_DIR/fm-bootstrap.sh" lavish-compatible >/dev/null 2>&1; then

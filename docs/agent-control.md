@@ -84,6 +84,13 @@ It is not deterministic across the verified adapters: codex, grok, and gemini re
 
 Switching harness is therefore one ordinary relaunch rather than a separate mechanism.
 
+### Independent recovery batches
+
+The control command's batch-relaunch mode runs the same single-task transaction for each explicitly selected task and reports each result independently.
+It prevents an ordinary failure or unconfirmed launch from suppressing unrelated authorized recoveries, without sharing per-task inspection approvals or retrying uncertain launches.
+Use separate single-task calls when progress notes or recovery plans differ, preserving individual outcomes rather than making later actions conditional on an earlier success.
+The [`bin/fm-control.sh`](../bin/fm-control.sh) header owns invocation, validation, aggregate results, and interruption semantics.
+
 ### Failure and rollback
 
 - A refusal **before** stopping the agent or attempting terminal creation leaves the durable record and the instructions byte-identical.
@@ -154,7 +161,7 @@ The empirical basis for each adapter's value is the `harness-adapters` skill's v
 ## Verification
 
 - `tests/fm-control.test.sh` - the adapter contract for its verified-harness lane (adapters outside the lane pin their control mechanics in their own harness suites), the backend capability matrix, exact-id scoping, the closed verb list, the busy, idle, dead, and idempotent lifecycle cases, and marker non-regression, all against a stubbed session provider.
-- `tests/fm-control-recovery.test.sh` - missing-terminal recreation, restored-shell reuse, unsafe-claim refusal, interrupted creation and launch retries, structured inspection, exact approval, original-copy preservation, stale/foreign evidence, native instance replacement, completed/partial replay, and elapsed confirmation bounds with slow, stuck, partial-output, and native Windows queries.
+- `tests/fm-control-recovery.test.sh` - missing-terminal recreation, restored-shell reuse, unsafe-claim refusal, interrupted creation and launch retries, structured inspection, exact approval, original-copy preservation, stale/foreign evidence, native instance replacement, completed/partial replay, independent batch outcomes, and elapsed confirmation bounds with slow, stuck, partial-output, and native Windows queries.
 - `tests/fm-control-relaunch.test.sh` - the real control/spawn transaction: identity preservation, harness switching, the progress note, checkpoint refusals, completion during launch confirmation, and rollback after a failed launch.
 - `tests/fm-launch-status.test.sh` and `tests/fm-crew-state.test.sh` - generation-bound report integrity, captured-status provenance within the fleet snapshot's default bound, notification triage, launch-seed precedence, idle/dead-worker outcomes, and preservation of active-run and later-turn authority.
 - `tests/fm-control-herdr-smoke.test.sh` - the second state-verified backend against the real herdr binary, on an isolated throwaway lab session.

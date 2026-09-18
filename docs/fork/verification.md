@@ -79,6 +79,22 @@ Its backend, native-fact, pool, and launch adapters are fixtures; they do not es
 `Windows Copilot management` owns the focused native management cases, while portable CI owns the complete subjects.
 The separately gated `tests/fm-copilot-management-live-e2e.test.sh` exercises the real installed Copilot transport; [runtime backend verification](../verification/runtime-backends.md) records its actual scope and result.
 
+## Launch queue, recovery batches, and retirement briefs
+
+`tests/fm-spawn-queue.test.sh` executes overlapping different-project batches through the real spawn owner with isolated Git copies and fixture transports.
+It is a serial backend-dispatch registration, separate from the existing parser-only batch suite and its parallel admission.
+Its queue cases cover successful handoff, an aborted earlier publisher, bounded deferral without partial launch, independent task-set ownership refusal, and replacement of the state directory while waiting.
+The existing secondmate safety suite retains both directions of forced-teardown exclusion, and real-Herdr presentation coverage requires concurrent starts to complete without a caller-side retry workaround.
+The spawn header owns the queue's lifetime, cancellation bound, diagnostics, and deferred exit contract; running workers are not serialized by that queue.
+
+`tests/fm-control-recovery.test.sh` covers batch continuation after a refused target, distinct unconfirmed results, and validation of duplicate targets and per-task approval boundaries before mutation.
+Each action still enters the existing single-task control transaction; [agent control](../agent-control.md) owns lifecycle semantics and the command header owns batch invocation.
+
+`tests/fm-brief.test.sh` verifies the generated enabled-retirement contract across delivery modes, opt-in and ship-only scope, and invalid flag-name refusal.
+Those assertions concern the emitted worker-facing brief, not implementation-source strings or a claim that a live model followed the instructions.
+The [feature-flag retirement skill](../../.agents/skills/feature-flag-retirement/SKILL.md) owns selecting the authorized permanent behavior before generation.
+Portable CI owns the complete subjects; focused native executions remain separate evidence, and no live vendor gate is broadened.
+
 ## Project refresh and Azure completion
 
 `tests/fm-fleet-sync.test.sh` exercises real clone refresh, including native Git/Git Bash root aliases, local-only argument aliases, wrong-root refusal, dirty/diverged work, and preservation of unique branches after upstream deletion.

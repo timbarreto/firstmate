@@ -155,13 +155,17 @@ SH
   : > "$dir/actions"
   printf '%s\n' "$dir"
 }
-control() {
+control_cli() {
   local dir=$1; shift
   env FM_TEST_REAL_ROOT="$ROOT" FM_TEST_CASE="$dir" FM_HOME="$dir/home" \
     FM_ROOT_OVERRIDE="$CODE" FM_STATE_OVERRIDE="$dir/home/state" FM_DATA_OVERRIDE="$dir/home/data" \
     FM_CONTROL_POLL="${FM_TEST_CONTROL_POLL:-0.01}" FM_CONTROL_EXIT_WAIT=10 \
     FM_CONTROL_LAUNCH_WAIT="${FM_TEST_CONTROL_LAUNCH_WAIT:-10}" \
-    PATH="$dir/fakebin:$PATH" "$CODE/bin/fm-control.sh" task-a "$@"
+    PATH="$dir/fakebin:$PATH" "$CODE/bin/fm-control.sh" "$@"
+}
+control() {
+  local dir=$1; shift
+  control_cli "$dir" task-a "$@"
 }
 plan() { control "$1" inspect --recover-from "$1/home/data/task-a/original.meta"; }
 recover() {
@@ -638,6 +642,91 @@ test_recovery_other_claim_refuses_publication() {
   pass "recovery rechecks competing home-local claims under publication serialization"
 }
 
+test_batch_relaunch_continues_after_a_refused_target() {
+  local dir out rc=0
+  dir=$(make_case batch-after-refusal)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  out=$(control_cli "$dir" --batch-relaunch missing-task task-a --note 'Continue each authorized task independently.' 2>&1) || rc=$?
+  expect_code 1 "$rc" "a partial batch must retain its failure: $out"
+  assert_contains "$out" 'batch-relaunch: missing-task result=failed exit=1' 'the refused target was not accounted for'
+  assert_contains "$out" 'batch-relaunch: task-a result=confirmed exit=0' 'one refusal stranded the valid later target'
+  assert_grep 'phase=complete' "$dir/home/state/task-a.control-relaunch" 'the later transaction did not complete'
+  [ "$(cat "$dir/actions")" = launch ] || fail 'the later task was skipped or launched more than once'
+  assert_grep 'unfinished original work' "$dir/original/preserved.txt" 'batch recovery lost existing work'
+  pass 'a refused recovery does not prevent another selected task from completing its own transaction'
+}
+
+test_batch_relaunch_success_preserves_literal_shared_note() {
+  local dir out note rc=0
+  dir=$(make_case batch-confirmed)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  printf '%s\n' '--continue the already-authorized task' 'Keep this second line and its "quoted text" literal.' > "$dir/shared-note"
+  note=$(cat "$dir/shared-note")
+  out=$(control_cli "$dir" --batch-relaunch task-a --note-file "$dir/shared-note" 2>&1) || rc=$?
+  expect_code 0 "$rc" "a fully confirmed batch must succeed: $out"
+  assert_contains "$out" 'batch-relaunch: task-a result=confirmed exit=0' 'confirmed result was lost'
+  assert_contains "$(cat "$dir/home/data/task-a/brief.md")" "$note" 'batch changed the literal multiline note'
+  assert_grep 'harness=copilot' "$dir/home/state/task-a.meta" 'batch silently changed the recorded profile'
+  [ "$(cat "$dir/actions")" = launch ] || fail 'confirmed batch did not launch exactly once'
+  pass 'a confirmed batch preserves the literal shared note and existing profile and returns success'
+}
+
+test_batch_relaunch_keeps_unconfirmed_outcomes_and_continues() {
+  local dir out rc=0
+  dir=$(make_case batch-unconfirmed)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  out=$(FM_TEST_PROBE_MODE=stuck FM_TEST_CONTROL_LAUNCH_WAIT=4 \
+    control_cli "$dir" --batch-relaunch task-a missing-later --note 'Resume each task without hiding uncertainty.' 2>&1) || rc=$?
+  expect_code 1 "$rc" "the later refusal must remain an aggregate failure: $out"
+  assert_contains "$out" 'batch-relaunch: task-a result=unconfirmed exit=3' 'accepted but unconfirmed delivery was relabeled'
+  assert_contains "$out" 'batch-relaunch: missing-later result=failed exit=1' 'unconfirmed delivery prevented the later target from being checked'
+  assert_grep 'phase=launch-unconfirmed' "$dir/home/state/task-a.control-relaunch" 'batch rewrote the single-task transaction'
+  [ "$(cat "$dir/actions")" = launch ] || fail 'batch retried an unconfirmed worker'
+  pass 'batch recovery retains uncertainty, attempts later targets, and never retries an unconfirmed launch'
+}
+
+test_batch_relaunch_only_unconfirmed_returns_three() {
+  local dir out rc=0
+  dir=$(make_case batch-only-unconfirmed)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf dead > "$dir/agent"
+  out=$(FM_TEST_PROBE_MODE=stuck FM_TEST_CONTROL_LAUNCH_WAIT=4 \
+    control_cli "$dir" --batch-relaunch task-a --note 'Keep accepted delivery distinct from failure.' 2>&1) || rc=$?
+  expect_code 3 "$rc" "a batch with only unconfirmed outcomes must return 3: $out"
+  assert_contains "$out" 'batch-relaunch: task-a result=unconfirmed exit=3' 'the per-task outcome disappeared'
+  [ "$(cat "$dir/actions")" = launch ] || fail 'unconfirmed-only batch repeated launch'
+  pass 'an unconfirmed-only batch reports uncertainty rather than success or failure'
+}
+
+test_batch_relaunch_rejects_duplicate_or_unsafe_selection_before_actions() {
+  local dir out rc
+  dir=$(make_case batch-invalid)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  cp "$dir/home/state/task-a.meta" "$dir/before.meta"
+  cp "$dir/home/data/task-a/brief.md" "$dir/before.brief"
+  rc=0
+  out=$(control_cli "$dir" --batch-relaunch task-a task-a --note 'Do not repeat a lifecycle action.' 2>&1) || rc=$?
+  [ "$rc" -ne 0 ] || fail 'duplicate batch targets were accepted'
+  assert_contains "$out" 'duplicate batch task' 'duplicate targets were not rejected specifically'
+  rc=0
+  out=$(control_cli "$dir" --batch-relaunch task-a '../foreign' --note 'Stay in this home.' 2>&1) || rc=$?
+  [ "$rc" -ne 0 ] || fail 'an unsafe batch target was accepted'
+  assert_contains "$out" 'not a valid task id' 'unsafe target was not rejected specifically'
+  rc=0
+  out=$(control_cli "$dir" --batch-relaunch task-a --recover-from "$dir/home/data/task-a/original.meta" \
+    --approve-recovery 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+    --note 'Approval belongs to one exact task.' 2>&1) || rc=$?
+  [ "$rc" -ne 0 ] || fail 'a per-task recovery approval was accepted for batch reuse'
+  assert_contains "$out" 'record recovery is single-task only' 'batch did not retain the per-task approval boundary'
+  [ ! -s "$dir/actions" ] || fail 'batch validation acted on an earlier task before finding invalid input'
+  cmp -s "$dir/before.meta" "$dir/home/state/task-a.meta" || fail 'invalid batch changed metadata'
+  cmp -s "$dir/before.brief" "$dir/home/data/task-a/brief.md" || fail 'invalid batch changed instructions'
+  pass 'batch recovery validates all exact targets and refuses duplicate actions or shared approval before mutation'
+}
+
 fm_test_run_cases \
   test_relaunch_missing_endpoint_preserves_copy \
   test_missing_endpoint_recovery_refuses_unsafe_claims \
@@ -660,4 +749,9 @@ fm_test_run_cases \
   test_relaunch_early_exit_without_report_is_failure \
   test_windows_relaunch_query_deadline_reaps_native_process \
   test_control_inspect_accepts_windows_path_context \
-  test_recovery_receipt_home_aliases_remain_readable
+  test_recovery_receipt_home_aliases_remain_readable \
+  test_batch_relaunch_continues_after_a_refused_target \
+  test_batch_relaunch_success_preserves_literal_shared_note \
+  test_batch_relaunch_keeps_unconfirmed_outcomes_and_continues \
+  test_batch_relaunch_only_unconfirmed_returns_three \
+  test_batch_relaunch_rejects_duplicate_or_unsafe_selection_before_actions

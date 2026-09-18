@@ -113,9 +113,20 @@
 #   focus-sensitive presentation mutation.
 #   Every single-task invocation holds one task-id-scoped lock across backend
 #   creation through metadata publication, so concurrent same-id spawns serialize
-#   even when they select different backends. A fresh spawn first takes the
-#   per-home task-set lock and refuses rather than waits when forced teardown owns
-#   it; relaunch is exempt because the existing task's control lock covers it.
+#   even when they select different backends. Fresh spawns first serialize their
+#   preparation/handoff through state/.spawn-queue.lock, then take the
+#   per-home task-set lock. FM_SPAWN_QUEUE_WAIT is a positive whole-second queue
+#   bound (default 900), independent of worker execution and launch confirmation.
+#   Contention prints spawn-queued; expiry prints spawn-deferred and returns 75
+#   without creating an endpoint or task record. Retrying that deferred target
+#   performs fresh checks; no background launcher or durable task is implied.
+#   The original state-directory identity is rechecked after waiting. Once the
+#   queue is held, an independently owned task-set lock still refuses immediately,
+#   preserving forced-teardown protection. The set lock releases at publication;
+#   the queue releases after handoff or abort cleanup, so presentation/launch
+#   delivery cannot still be settling when the next fresh start enters.
+#   Running workers remain concurrent. Relaunch is exempt because its existing
+#   task's control lock covers it.
 #   A fresh Treehouse-backed spawn also takes the project-identity lock in the local
 #   root Firstmate home's state directory before slot allocation and holds it through
 #   task metadata publication. Teardown holds that same lock while proving and
@@ -231,6 +242,10 @@
 #   and scout batches. The loop lives here, in bash, so callers never hand-write a
 #   multi-task shell loop (the tool shell is zsh, which does not word-split unquoted
 #   $vars and silently breaks ad-hoc `for ... in $pairs` loops).
+#   Every pair is attempted despite ordinary failures or queue deferrals. Failed
+#   targets print batch: FAILED; unstarted queue-timeout targets print batch:
+#   DEFERRED. Aggregate exit is nonzero for failure, or 75 when only deferred
+#   targets remain. Interruption stops the batch instead of starting more work.
 # Launch environment (config/launch-env-allowlist):
 #   Absent means unchanged ambient inheritance. A present readable regular file
 #   opts every launch (ship, scout, secondmate, raw command, and relaunch) into
@@ -903,20 +918,14 @@ spawn_remote_secondmate() {
     [ -z "$remote_recorded_traceparent" ] || echo "traceparent=$remote_recorded_traceparent"
   } > "$tmp"
   if ! fm_backlog_atomic_transition publish "$tmp" "$meta" "task record" "$STATE"; then
-    if [ "$SPAWN_TASK_SET_LOCK_HELD" = 1 ]; then
-      SPAWN_TASK_SET_LOCK_HELD=0
-      fm_lock_release "$SPAWN_TASK_SET_LOCK" || true
-    fi
+    spawn_task_set_lock_release || true
     fm_lock_release "$remote_lock" || true
     fm_lock_release "$registry_lock" || true
     fm_lock_release "$SPAWN_TASK_LOCK" || true
     echo "error: remote secondmate $id launched, but its task record could not be published ($FM_BACKLOG_TRANSITION_ERROR)" >&2
     return 1
   fi
-  if [ "$SPAWN_TASK_SET_LOCK_HELD" = 1 ]; then
-    SPAWN_TASK_SET_LOCK_HELD=0
-    fm_lock_release "$SPAWN_TASK_SET_LOCK"
-  fi
+  spawn_task_set_lock_release
   fm_lock_release "$remote_lock" || true
   fm_lock_release "$registry_lock" || true
   fm_lock_release "$SPAWN_TASK_LOCK" || true
@@ -953,6 +962,8 @@ SPAWN_META_PUBLISH_STARTED=0
 SPAWN_FRESH_COMMIT_PENDING=0
 SPAWN_TASK_SET_LOCK=
 SPAWN_TASK_SET_LOCK_HELD=0
+SPAWN_QUEUE_LOCK=
+SPAWN_QUEUE_LOCK_HELD=0
 SPAWN_TREEHOUSE_PROJECT_LOCK=
 SPAWN_TREEHOUSE_PROJECT_LOCK_HELD=0
 SPAWN_SLOT_CLAIMED=0
@@ -963,6 +974,57 @@ RELAUNCH_REPLACEMENT_STATE=
 RELAUNCH_REPLACEMENT_WT=
 CONFIG_INHERIT_LOCK=
 CONFIG_INHERIT_LOCK_HELD=0
+
+spawn_state_identity() {
+  # Perl is already a lifecycle prerequisite. Compare objects, not native/POSIX
+  # spellings, and reject links or a removed/replaced state directory.
+  perl -e 'my @s = lstat($ARGV[0]); @s && -d _ && !-l _ or exit 1; print "$s[0]:$s[1]"' "$STATE"
+}
+
+spawn_queue_acquire() {
+  local before after seconds=${FM_SPAWN_QUEUE_WAIT:-900} rc
+  case "$seconds" in
+    ''|*[!0-9]*) echo 'error: FM_SPAWN_QUEUE_WAIT must be a positive whole number of seconds' >&2; return 1 ;;
+  esac
+  [ "$seconds" -gt 0 ] 2>/dev/null || {
+    echo 'error: FM_SPAWN_QUEUE_WAIT must be a positive whole number of seconds' >&2
+    return 1
+  }
+  before=$(spawn_state_identity) || {
+    echo 'error: state directory identity is unavailable before queueing spawn' >&2
+    return 1
+  }
+  SPAWN_QUEUE_LOCK="$STATE/.spawn-queue.lock"
+  if ! fm_lock_try_acquire "$SPAWN_QUEUE_LOCK"; then
+    printf 'spawn-queued: %s waiting for fresh task publication in this home\n' "$ID" >&2
+    if fm_lock_acquire_wait_bounded "$SPAWN_QUEUE_LOCK" "$seconds"; then
+      :
+    else
+      rc=$?
+      if [ "$rc" = 124 ]; then
+        printf 'spawn-deferred: %s publication queue remained busy for %ss; no task was launched; retry this target after the publisher finishes\n' "$ID" "$seconds" >&2
+        return 75
+      fi
+      printf 'error: could not acquire the publication queue for %s; no task was launched\n' "$ID" >&2
+      return 1
+    fi
+  fi
+  SPAWN_QUEUE_LOCK_HELD=1
+  after=$(spawn_state_identity) || after=
+  [ "$before" = "$after" ] || {
+    echo 'error: state directory changed while queued; spawn refused before endpoint creation' >&2
+    return 1
+  }
+}
+
+spawn_task_set_lock_release() {
+  local rc=0
+  if [ "$SPAWN_TASK_SET_LOCK_HELD" = 1 ]; then
+    SPAWN_TASK_SET_LOCK_HELD=0
+    fm_lock_release "$SPAWN_TASK_SET_LOCK" || rc=$?
+  fi
+  return "$rc"
+}
 
 spawn_fresh_commit_rollback() {
   if fm_backlog_atomic_transition rollback "$STATE/$ID.meta" \
@@ -1152,10 +1214,7 @@ spawn_abort_cleanup() {
     SPAWN_TREEHOUSE_PROJECT_LOCK_HELD=0
     fm_lock_release "$SPAWN_TREEHOUSE_PROJECT_LOCK" || true
   fi
-  if [ "$SPAWN_TASK_SET_LOCK_HELD" = 1 ]; then
-    SPAWN_TASK_SET_LOCK_HELD=0
-    fm_lock_release "$SPAWN_TASK_SET_LOCK" || true
-  fi
+  spawn_task_set_lock_release || true
   if [ "$SPAWN_CONTROL_LOCK_HELD" = 1 ]; then
     SPAWN_CONTROL_LOCK_HELD=0
     fm_lock_release "$SPAWN_CONTROL_LOCK" || true
@@ -1164,6 +1223,10 @@ spawn_abort_cleanup() {
   if [ "$CONFIG_INHERIT_LOCK_HELD" = 1 ]; then
     CONFIG_INHERIT_LOCK_HELD=0
     fm_lock_release "$CONFIG_INHERIT_LOCK" || true
+  fi
+  if [ "$SPAWN_QUEUE_LOCK_HELD" = 1 ]; then
+    SPAWN_QUEUE_LOCK_HELD=0
+    fm_lock_release "$SPAWN_QUEUE_LOCK" || true
   fi
   return "$status"
 }
@@ -1264,11 +1327,28 @@ if [ "${#POS[@]}" -gt 0 ] && [ "${POS[0]}" != "$idpart" ] && case "$idpart" in *
       echo "error: batch dispatch does not support --secondmate; spawn each secondmate explicitly" >&2
       rc=2
       continue
-    elif [ "$KIND" = scout ]; then
-      if FM_SPAWN_NO_GUARD=1 "$FM_ROOT/bin/fm-spawn.sh" "${pair%%=*}" "${pair#*=}" "${shared_args[@]+"${shared_args[@]}"}" --scout; then :; else echo "batch: FAILED to spawn ${pair%%=*} (${pair#*=})" >&2; rc=1; fi
-    else
-      if FM_SPAWN_NO_GUARD=1 "$FM_ROOT/bin/fm-spawn.sh" "${pair%%=*}" "${pair#*=}" "${shared_args[@]+"${shared_args[@]}"}"; then :; else echo "batch: FAILED to spawn ${pair%%=*} (${pair#*=})" >&2; rc=1; fi
     fi
+    pair_rc=0
+    if [ "$KIND" = scout ]; then
+      FM_SPAWN_NO_GUARD=1 "$FM_ROOT/bin/fm-spawn.sh" "${pair%%=*}" "${pair#*=}" "${shared_args[@]+"${shared_args[@]}"}" --scout || pair_rc=$?
+    else
+      FM_SPAWN_NO_GUARD=1 "$FM_ROOT/bin/fm-spawn.sh" "${pair%%=*}" "${pair#*=}" "${shared_args[@]+"${shared_args[@]}"}" || pair_rc=$?
+    fi
+    case "$pair_rc" in
+      0) ;;
+      75)
+        echo "batch: DEFERRED ${pair%%=*} (${pair#*=}); publication queue busy, retry this unstarted target" >&2
+        [ "$rc" -ne 0 ] || rc=75
+        ;;
+      *)
+        if [ "$pair_rc" -ge 128 ]; then
+          echo "batch: INTERRUPTED ${pair%%=*} (${pair#*=}); remaining targets were not started" >&2
+          exit "$pair_rc"
+        fi
+        echo "batch: FAILED to spawn ${pair%%=*} (${pair#*=})" >&2
+        rc=1
+        ;;
+    esac
   done
   exit "$rc"
 fi
@@ -1319,6 +1399,10 @@ if [ "$RELAUNCH" -eq 0 ]; then
     echo "error: spawn refused: $FM_BACKLOG_TRANSITION_ERROR" >&2
     exit 1
   }
+  # Queue only other fresh publishers. Teardown does not take this queue, so
+  # its existing task-set ownership below remains an immediate refusal rather
+  # than a delayed authorization after a home was removed.
+  spawn_queue_acquire || exit "$?"
   # A FRESH spawn changes which tasks this home has, so it must not interleave
   # with a forced teardown that has already enumerated that set: a record
   # published inside the enumerate-then-remove window is invisible to the
@@ -1339,7 +1423,7 @@ if [ "$RELAUNCH" -eq 0 ]; then
     exit 1
   }
   if ! fm_lock_try_acquire "$SPAWN_TASK_SET_LOCK"; then
-    echo "error: this home's task set is locked by another operation (a forced teardown is enumerating or removing its tasks); refusing to create task $ID rather than racing it" >&2
+    echo "error: this home's task set is locked by another operation; refusing to create task $ID rather than racing teardown or another publisher" >&2
     exit 1
   fi
   SPAWN_TASK_SET_LOCK_HELD=1
@@ -4247,13 +4331,10 @@ if [ "$SPAWN_TREEHOUSE_PROJECT_LOCK_HELD" = 1 ]; then
   SPAWN_TREEHOUSE_PROJECT_LOCK_HELD=0
   fm_lock_release "$SPAWN_TREEHOUSE_PROJECT_LOCK"
 fi
-if [ "$SPAWN_TASK_SET_LOCK_HELD" = 1 ]; then
-  # The record is published, so this task is now part of the set a teardown
-  # enumerates and locks per task. The set lock is only needed across that
-  # publication.
-  SPAWN_TASK_SET_LOCK_HELD=0
-  fm_lock_release "$SPAWN_TASK_SET_LOCK"
-fi
+# The task is now covered by per-task lifecycle/metadata authority. The queue
+# stays held through handoff so another fresh start cannot overlap presentation
+# or launch delivery; EXIT cleanup releases it without waiting for worker work.
+spawn_task_set_lock_release
 # Publication is side-band work for the existing watcher, never a reason to
 # hold the task's metadata lock or postpone launch delivery for the whole fleet.
 "$SCRIPT_DIR/fm-home-summary-refresh.sh" --request --best-effort || true

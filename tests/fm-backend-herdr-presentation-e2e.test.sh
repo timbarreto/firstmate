@@ -448,20 +448,15 @@ spawn_task() {  # <id> <home> <project>
 
 finish_concurrent_spawn() {  # <id> <status> <stdout> <stderr>
   local id=$1 status=$2 out=$3 err=$4
-  [ "$status" -ne 0 ] || return 0
-  grep -F "task set is locked" "$err" >/dev/null 2>&1 \
-    || fail "concurrent projected spawn $id failed unexpectedly: $(cat "$err")"
-  spawn_task "$id" "$HOME_DIR" "$PROJECT_DIR" > "$out" 2> "$err" \
-    || fail "projected spawn $id retry failed after task-set publication completed: $(cat "$err")"
+  [ "$status" -eq 0 ] \
+    || fail "queued projected spawn $id failed instead of completing its handoff: $(cat "$err") $(cat "$out")"
 }
 
 finish_concurrent_expected_abort() {  # <id> <status> <stdout> <stderr>
   local id=$1 status=$2 out=$3 err=$4
   [ "$status" -ne 0 ] || fail "post-create abort fixture $id unexpectedly succeeded"
-  if grep -F "task set is locked" "$err" >/dev/null 2>&1; then
-    if spawn_task "$id" "$HOME_DIR" "$PROJECT_DIR" > "$out" 2> "$err"; then
-      fail "post-create abort fixture $id unexpectedly succeeded after task-set publication completed"
-    fi
+  if grep -E 'task set is locked|spawn-deferred:' "$err" >/dev/null 2>&1; then
+    fail "queued abort fixture $id never reached its intended failure: $(cat "$err") $(cat "$out")"
   fi
 }
 
@@ -943,8 +938,8 @@ diff -u "$TMP_ROOT/off.meta.normalized" "$TMP_ROOT/on.meta.normalized" \
 pass "real Herdr lab: projection preserves task metadata and each launch's generation-bound reporting boundary"
 
 # Two real primary spawns begin concurrently.
-# The fresh-spawn task-set lock may fail closed for one while the other
-# publishes, in which case retry it only after the lock owner has completed.
+# The fresh-start queue must serialize preparation and handoff without a
+# caller-side retry workaround.
 # Their final relative order must match Herdr's actual serialized create order,
 # rather than a task-name or priority guess.
 CONCURRENT_FOCUS_AUDIT_START=$(focus_audit_line_count)

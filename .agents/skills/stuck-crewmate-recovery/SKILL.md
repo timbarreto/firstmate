@@ -48,6 +48,15 @@ Preserve its uncommitted changes and commits, keep the same task identity, and r
 Do not use a fresh generic spawn while the recorded worktree is unaccounted for, because allocating another worktree can split one task across two copies.
 If the worktree or ownership cannot be reconciled safely, leave all state intact and report the task failed or blocked with the conflicting evidence.
 
+## Several independent recoveries
+
+Reconcile and authorize each task independently before selecting it for recovery.
+When the same continuation note applies, use the batch-relaunch mode owned by `bin/fm-control.sh` rather than chaining lifecycle calls on the previous call's success.
+Its header owns selection, per-task outcomes, aggregate exit codes, and interruption behavior; each selected task still passes the single-task safety checks.
+When notes or approved record-repair plans differ, invoke the single-task path separately and collect every outcome, continuing unrelated authorized work after ordinary failure or uncertainty.
+Inspect each unsuccessful task's current report and retained transaction instead of retrying the entire selection or counting unconfirmed delivery as failed work.
+Recovery is accounted for only when every selected task has an individual confirmed, unconfirmed, refused, failed, or interrupted outcome; one error never silently drops the remaining tasks.
+
 ## A live crewmate claiming the pipeline is dead
 
 This is the inverse of the dead-endpoint case above: the worker is alive and the pipeline it declares dead usually is too.

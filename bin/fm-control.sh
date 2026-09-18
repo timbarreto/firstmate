@@ -10,6 +10,21 @@
 #                                         (--note <text> | --note-file <path>)
 #                                         [--recover-from <home-local-prior-meta>
 #                                          --approve-recovery <inspection-digest>]
+#        fm-control.sh --batch-relaunch <task-id>... (--note <text> | --note-file <path>)
+#                                         [--harness <name>] [--model <name>]
+#                                         [--effort <level>]
+#
+# --batch-relaunch runs each selected task through the same single-task control
+# plane, serially, exactly once. Task ids precede the shared options; the note
+# must apply to every selected task. Duplicate/invalid ids and per-task recovery
+# approvals are refused before any action. Each task keeps its own recorded
+# profile unless a shared override is explicit, and every task prints a
+# batch-relaunch result with its original exit code. Ordinary failed/refused or
+# unconfirmed results do not skip later tasks. The aggregate is 1 if any task
+# failed/refused, otherwise 3 if any launch is unconfirmed, otherwise 0.
+# Interruption stops the batch rather than authorizing further lifecycle work.
+# Reconcile each unsuccessful task separately; batch execution never retries an
+# uncertain launch or transfers an inspection approval to another task.
 #
 # inspect is read-only, including while another lifecycle action is active.
 # With --recover-from it returns a native Windows/Herdr recovery plan for a
@@ -245,10 +260,24 @@ control_cleanup() {
 
 # --- argument parsing -------------------------------------------------------
 
+BATCH_RELAUNCH=0
+BATCH_TASKS=()
 RAW_ID=${1:-}
 VERB=${2:-}
-[ -n "$RAW_ID" ] && [ -n "$VERB" ] || { usage >&2; exit 2; }
-shift 2
+if [ "$RAW_ID" = --batch-relaunch ]; then
+  BATCH_RELAUNCH=1
+  VERB=relaunch
+  shift
+  while [ "$#" -gt 0 ]; do
+    case "$1" in --*) break ;; esac
+    BATCH_TASKS+=("$1")
+    shift
+  done
+  [ "${#BATCH_TASKS[@]}" -gt 0 ] || { usage >&2; exit 2; }
+else
+  [ -n "$RAW_ID" ] && [ -n "$VERB" ] || { usage >&2; exit 2; }
+  shift 2
+fi
 
 if ! fm_control_verb_allowed "$VERB"; then
   {
@@ -350,6 +379,50 @@ case "$NEW_EFFORT" in
   ''|default|low|medium|high|xhigh|max|ultra) ;;
   *) die "--effort must be one of default, low, medium, high, xhigh, max, ultra" ;;
 esac
+
+# Batch mode owns only iteration and outcome aggregation. Every actual action
+# re-enters this executable with one exact task so all fresh observations,
+# authority checks, locks, checkpoints and rollback remain single-task owned.
+if [ "$BATCH_RELAUNCH" = 1 ]; then
+  [ "$RECOVER_SET" = 0 ] && [ "$APPROVE_SET" = 0 ] \
+    || die "record recovery is single-task only; each inspection approval binds one task"
+  [ "$NOTE_SET" = 1 ] && [ -n "$NOTE" ] \
+    || die "--batch-relaunch requires a non-empty note applicable to every selected task"
+  batch_seen=' '
+  for batch_task in "${BATCH_TASKS[@]}"; do
+    fm_task_id_creation_valid "$batch_task" || die "'$batch_task' is not a valid task id"
+    case "$batch_seen" in
+      *" $batch_task "*) die "duplicate batch task '$batch_task'" ;;
+    esac
+    batch_seen="$batch_seen$batch_task "
+  done
+  batch_args=("--note=$NOTE")
+  [ "$HARNESS_SET" = 0 ] || batch_args+=("--harness=$NEW_HARNESS")
+  [ "$MODEL_SET" = 0 ] || batch_args+=("--model=$NEW_MODEL")
+  [ "$EFFORT_SET" = 0 ] || batch_args+=("--effort=$NEW_EFFORT")
+  batch_failed=0
+  batch_unconfirmed=0
+  for batch_task in "${BATCH_TASKS[@]}"; do
+    if "$SCRIPT_DIR/fm-control.sh" "$batch_task" relaunch "${batch_args[@]}"; then
+      batch_rc=0
+    else
+      batch_rc=$?
+    fi
+    case "$batch_rc" in
+      0) batch_result=confirmed ;;
+      3) batch_result=unconfirmed; batch_unconfirmed=1 ;;
+      *) batch_result=failed; batch_failed=1 ;;
+    esac
+    if [ "$batch_rc" -ge 128 ]; then
+      batch_result=interrupted
+    fi
+    printf 'batch-relaunch: %s result=%s exit=%s\n' "$batch_task" "$batch_result" "$batch_rc"
+    [ "$batch_rc" -lt 128 ] || exit "$batch_rc"
+  done
+  [ "$batch_failed" = 0 ] || exit 1
+  [ "$batch_unconfirmed" = 0 ] || exit 3
+  exit 0
+fi
 
 # --- exact task-id resolution ----------------------------------------------
 
