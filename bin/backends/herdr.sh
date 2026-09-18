@@ -2291,9 +2291,9 @@ fm_backend_herdr_pane_process_state_sample() {  # <session> <pane_id>
   # descendant of the pane shell outside the foreground group; only its
   # absence, read from the real process table, is proof of an agent-free pane.
   if [ -z "${FM_HERDR_PS_BIN:-}" ] && fm_platform_windows_host; then
-    # Herdr supplies a NATIVE shell PID. MSYS ps cannot prove the absence of
-    # its native descendants, and a missing Herdr registration proves nothing
-    # about Copilot processes under the pane's PowerShell/Bash launch chain.
+    # Herdr supplies a NATIVE shell PID. The platform combines native parent
+    # facts with exact MSYS WINPID edges across exec handoffs; either table
+    # alone can omit a live worker below the PowerShell/Bash launch chain.
     rows=$(fm_platform_windows_descendant_processes "$shell_pid") \
       || { printf 'unreadable'; return 0; }
     [ "${rows%%$'\t'*}" = "$shell_pid" ] || { printf 'unreadable'; return 0; }

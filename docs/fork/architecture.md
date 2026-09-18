@@ -104,7 +104,7 @@ Pi retains `shellVisibleProcessPid` and `pidAlive`; OpenCode does not acquire th
 Both wrappers use the same functions rather than generated implementations, while lifecycle decisions remain in their extension/plugin callers.
 
 The module retains per-instance Windows ancestry caching, verifies native liveness on every ancestry query, and takes fresh process rows for ordinary PID liveness.
-`bin/platform/windows-process.ps1` owns bounded native process-fact queries, watch-arm root discovery, and batched descendant termination.
+`bin/platform/windows-process.ps1` owns bounded native process-fact queries, the exact MSYS-to-native ancestry bridge for descendant facts, watch-arm root discovery, and batched descendant termination.
 Graceful cleanup still finds the owned MSYS root and sends TERM through Bash before callers choose their existing escalation path.
 Forced cleanup preserves the existing direct-PID TERM fallback after a native operation fails; this is not authority to terminate an arbitrary process, and callers must retain their owned-child and generation checks.
 A missing tracked native helper throws explicitly before any native operation or direct-PID fallback.
@@ -150,7 +150,7 @@ Neither optimization caches permissions, filesystem authorization, or remote PR 
 
 `bin/fm-control.sh` retains lifecycle authority, with read-only inspection, guarded missing-terminal recreation, and approved record-recovery mechanics in `bin/fm-control-recovery-lib.sh`.
 The recovery plan binds exact native process birth identities and task-held leases, preserves both copies, and enters the existing relaunch transaction only after fresh approval verification.
-`bin/platform/windows-process.ps1` owns native descendant facts; the Herdr adapter interprets them and refuses to equate a missing Windows registration with an exited process.
+The [process and native transport seam](#process-and-native-transport-seam) supplies descendant facts; the Herdr adapter interprets them and refuses to equate a missing Windows registration with an exited process.
 The verified POSIX restore path remains unchanged.
 
 ## PR identity and observation seam

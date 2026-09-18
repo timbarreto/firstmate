@@ -7,8 +7,9 @@
 #   Bridge an MSYS/Cygwin PID through winpid to fresh native parent rows.
 # fm_platform_windows_descendant_processes <native-pid>
 #   Read PID<TAB>UTC-creation-ticks<TAB>comm<TAB>args for the native root and
-#   birth-verified descendants in one fresh snapshot. Never map that PID through
-#   the POSIX namespace or truncate an absence proof.
+#   birth-verified descendants from fresh native and MSYS process snapshots.
+#   WINPID mappings bridge MSYS exec handoffs; the input is always a native PID,
+#   never a guessed POSIX PID. An unreadable mapping cannot prove absence.
 # fm_platform_windows_process_info <native-pid>
 #   Query a native PID without treating it as an MSYS PID or using kill -0.
 #   Both return PID<TAB>comm<TAB>args rows from platform/windows-process.ps1;
@@ -112,7 +113,8 @@ fm_platform_windows_process_supported() {
 }
 
 _fm_platform_windows_process_query() {  # <operation> <native-pid>
-  local operation=$1 pid=$2 script output rc
+  local operation=$1 pid=$2 script output rc msys_ps
+  local snapshot_args=()
   case "$operation" in parent-processes|process-info|descendant-processes) ;; *) return 2 ;; esac
   case "$pid" in ''|*[!0-9]*|0|1) return 2 ;; esac
   script="$(dirname "${BASH_SOURCE[0]}")/platform/windows-process.ps1"
@@ -121,8 +123,14 @@ _fm_platform_windows_process_query() {  # <operation> <native-pid>
   if command -v cygpath >/dev/null 2>&1; then
     script=$(cygpath -w "$script") || return 2
   fi
+  if [ "$operation" = descendant-processes ]; then
+    # Use this MSYS installation's process table, not an ambient native ps.
+    [ -x /usr/bin/ps.exe ] || return 2
+    msys_ps=$(cygpath -w /usr/bin/ps.exe) || return 2
+    snapshot_args=(-MsysPs "$msys_ps")
+  fi
   if output=$(FM_PROCESS_NATIVE_PID="$pid" powershell.exe -NoProfile -NoLogo -NonInteractive \
-    -ExecutionPolicy Bypass -File "$script" "$operation" 2>/dev/null); then
+    -ExecutionPolicy Bypass -File "$script" "$operation" "${snapshot_args[@]}" 2>/dev/null); then
     output=${output//$'\r'/}
     [ -z "$output" ] || printf '%s\n' "$output"
     return 0

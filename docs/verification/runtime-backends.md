@@ -121,6 +121,33 @@ The portable Windows-fact regression covers missing, ambiguous, and shell-only o
 These checks do not authorize or exercise repair of a live fleet record; approved record recovery is separately covered through the control interface's isolated transaction tests.
 [Copilot supervision](../supervision-protocols/copilot.md) owns scheduling, and [agent control](../agent-control.md) owns lifecycle and recovery policy.
 
+### Native Windows exec ancestry
+
+Verified on 2026-09-18 with Git for Windows 2.55.0.windows.5, Bash 5.3.15(2), Windows PowerShell, and Herdr 0.9.0.
+The native process regression starts a real renamed Node process through the same chained `env` handoff as a worker, proves Windows parent traversal loses its shell, and requires the ordinary Herdr recovery-grade interface to keep it alive.
+The deterministic native query cases additionally cover exact PID-namespace mapping, foreign panes, native birth identities, mid-exec disappearance, duplicate paths, cycles, malformed observations, and query errors.
+
+```sh
+bin/fm-test-run.sh --jobs 1 tests/fm-platform-process.test.sh tests/fm-herdr-unregistered-agent.test.sh
+FM_HERDR_WINDOWS_LIVENESS=1 bin/fm-test-run.sh --jobs 1 tests/fm-herdr-windows-liveness-live-e2e.test.sh
+```
+
+Relevant output:
+
+```text
+ok - native exec workers retain pane liveness despite broken Windows parent links
+ok - MSYS exec ancestry uses exact live native identities, deduplicates paths, and rejects foreign, reused, racing, cyclic, or unreadable evidence
+ok - claude (2.1.269 (Claude Code)): Windows Herdr exec launch remains alive
+ok - copilot (GitHub Copilot CLI 1.0.86.): Windows Herdr exec launch remains alive
+ok - pi (0.85.1): live descendant preserved; unregistered identity remains safely unreadable (not certified alive)
+checked=3 herdr=herdr 0.9.0
+```
+
+The token-free live guard uses a guarded, non-default Herdr lab and checks every installed supported harness, explicitly reporting missing ones.
+Pi's unregistered native Node identity is not certified alive by this result; the retained unknown verdict refuses recovery instead of incorrectly declaring death.
+No harness-name rule changes here: the platform only repairs descendant attribution, and all non-Windows backend paths retain their existing process source.
+[Herdr restart and liveness behavior](../herdr-backend.md#restart-and-liveness-behavior) owns the operator contract, while `bin/platform/windows-process.ps1` owns the native/logical snapshot boundary.
+
 ## Replacement outcome reconciliation
 
 Verified on 2026-09-18 with Git for Windows 2.55.0.windows.5, Bash 5.3.15(2), and Perl 5.42.3.
