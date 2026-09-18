@@ -86,7 +86,7 @@ The Windows core job selects the clone-root identity, local-only argument-alias,
 `tests/fm-pr-check-security.test.sh` covers Azure registration, response validation, actual notification, replay, interrupted publication, source/identity binding, and poll-only retirement alongside GitHub/GitLab controls.
 Its paused re-registration case verifies that the watcher defers partial publication while still delivering an unrelated wake; its tampered-publication case retains durable rejection without execution.
 `tests/azure-pr-helpers.sh` supplies only synthetic identities and a strict read-only CLI fixture; those cases require no Azure credential or live PR mutation.
-The Windows PR-completion job selects the notification/replay case, real tasks-axi cleanup-link preservation, and native review-head resolution.
+The Windows PR-completion job selects the notification/replay case, real tasks-axi cleanup-link preservation, native review-head resolution, and `test_device_rerecord_preserves_private_policy` for volume-identity repair through the native private-path owner.
 Teardown retains the unlanded-work refusal matrix; inactive reconciliation and fleet-view suites verify that actual non-GitHub URLs survive downstream presentation without new forge calls.
 Portable CI owns the full subjects, and exact-head native results remain distinct from controlled Azure responses or a read-only live retrieval.
 

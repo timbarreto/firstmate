@@ -663,7 +663,28 @@ test_transition_history_stays_in_process_and_keeps_open_keys() (
     || fail "transition history exceeded its 20-second read bound"
   [ "$out" = $'retained\tneeds-decision\tpreserve the unanswered choice' ] \
     || fail "transition folding lost an unanswered key or retained a resolved key"
-  pass "real decision transitions stay bounded without changing correlation or keyed closure"
+  printf 'kind=ship\n' > "${log%.status}.meta"
+  printf 'done\nblocked\n' >> "$log"
+  # shellcheck disable=SC2016
+  out=$(fm_run_timed 20 bash -c '. "$1"; status_open_decisions "$2"' \
+    _ "$ROOT/bin/fm-classify-lib.sh" "$log") \
+    || fail "declaration guards exceeded the transition read bound"
+  [ "$out" = $'retained\tneeds-decision\tpreserve the unanswered choice' ] \
+    || fail "bare terminal or decision prose changed the open set"
+  printf 'done: delivered\n' >> "$log"
+  # shellcheck disable=SC2016
+  out=$(fm_run_timed 20 bash -c '. "$1"; status_open_decisions "$2"' \
+    _ "$ROOT/bin/fm-classify-lib.sh" "$log") \
+    || fail "terminal transition exceeded the transition read bound"
+  [ -z "$out" ] || fail "the in-process ship fold retained a terminal decision"
+  printf 'kind=secondmate\n' > "${log%.status}.meta"
+  # shellcheck disable=SC2016
+  out=$(fm_run_timed 20 bash -c '. "$1"; status_open_decisions "$2"' \
+    _ "$ROOT/bin/fm-classify-lib.sh" "$log") \
+    || fail "secondmate transition history exceeded the read bound"
+  [ "$out" = $'retained\tneeds-decision\tpreserve the unanswered choice' ] \
+    || fail "a secondmate terminal declaration closed an unrelated decision"
+  pass "real decision transitions stay bounded with keyed closure, declaration guards, and fresh task kind"
 )
 
 test_snapshot_projection_bounds_json_tool_launches() (

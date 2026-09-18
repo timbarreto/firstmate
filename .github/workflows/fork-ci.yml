@@ -130,6 +130,9 @@ jobs:
           FM_TEST_ONLY=test_windows_pr_registration_path_spellings \
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
               tests/fm-pr-check-security.test.sh
+          FM_TEST_ONLY=test_device_rerecord_preserves_private_policy \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+              tests/fm-pr-check-security.test.sh
           FM_TEST_ONLY=test_azure_completed_pr_preserves_backlog_link \
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
               tests/fm-teardown.test.sh

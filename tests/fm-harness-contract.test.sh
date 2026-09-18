@@ -16,7 +16,12 @@ set -u
 TMP_ROOT=$(fm_test_tmproot fm-harness-contract)
 
 test_pilot_control_and_busy_contracts() {
-  local harness key exit_command source
+  local harness key exit_command source listed
+  listed=$(fm_control_harnesses) || fail "control harness enumeration"
+  for harness in copilot pi claude pi-signed omp gemini; do
+    printf '%s\n' "$listed" | grep -Fx "$harness" >/dev/null \
+      || fail "$harness is missing from the typed-dispatch control enumeration"
+  done
   while IFS='|' read -r harness key exit_command source; do
     fm_control_harness_supported "$harness" || fail "$harness control support"
     fm_control_harness_supports_kind "$harness" secondmate || fail "$harness secondmate support"
@@ -38,6 +43,33 @@ EOF
   ! fm_control_harness_supported unknown || fail "unknown control support"
   ! fm_control_verb_allowed resume || fail "resume gained a control contract"
   pass "pilot and nonpilot control mechanics and busy sources retain their contracts"
+}
+
+test_typed_dispatch_uses_pilot_capabilities() {
+  local home="$TMP_ROOT/typed-dispatch" harness model effort code out
+  mkdir -p "$home/config"
+  printf 'fixture brief\n' > "$home/brief.md"
+  while IFS='|' read -r harness model effort; do
+    jq -n --arg harness "$harness" --arg model "$model" --arg effort "$effort" \
+      '{rules:[],default:{harness:$harness,model:$model,effort:$effort,provider:"codex"}}' \
+      > "$home/config/crew-dispatch.json"
+    out=$(FM_HOME="$home" TYPESAFE_API_KEY=fixture-unused-key \
+      "$ROOT/bin/fm-dispatch-resolve.sh" "$home/brief.md" 2>&1) \
+      || fail "$harness profile was refused before the no-rules fallback: $out"
+    assert_contains "$out" 'no rules to match' "$harness keeps the non-network fallback"
+    jq '.default.effort="unsupported"' "$home/config/crew-dispatch.json" > "$home/next.json"
+    mv "$home/next.json" "$home/config/crew-dispatch.json"
+    code=0
+    out=$(FM_HOME="$home" TYPESAFE_API_KEY=fixture-unused-key \
+      "$ROOT/bin/fm-dispatch-resolve.sh" "$home/brief.md" 2>&1) || code=$?
+    assert_equals 2 "$code" "$harness unsupported effort must refuse"
+    assert_contains "$out" 'effort must be supported' "$harness refusal uses profile capabilities"
+  done <<'EOF'
+copilot|gpt-5|high
+pi|codex-native/gpt-5|ultra
+pi-signed|codex-native/gpt-5|ultra
+EOF
+  pass "typed dispatch consumes pilot profile capabilities without changing legacy or fallback behavior"
 }
 
 test_recorded_names_and_owned_wiring() {
@@ -346,6 +378,7 @@ test_tracked_clone_and_worktree_dependency_closure() {
 
 fm_test_run_cases \
   test_pilot_control_and_busy_contracts \
+  test_typed_dispatch_uses_pilot_capabilities \
   test_recorded_names_and_owned_wiring \
   test_primary_supervision_and_override_contracts \
   test_closed_interface_and_identity_stages \
