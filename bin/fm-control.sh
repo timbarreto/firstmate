@@ -49,7 +49,7 @@
 #              the backend's recovery-grade classifier reports the agent gone.
 #              Already-stopped is success (idempotent).
 #   relaunch   Transactionally replace the running agent with a new one, in the
-#              SAME endpoint and SAME worktree, on the same or a newly chosen
+#              SAME worktree, normally in the same endpoint, on the same or a newly chosen
 #              harness/model/effort - so switching harness is one ordinary use
 #              of this verb. An explicit `default` model or effort clears that
 #              axis for the replacement. With no explicit axis, a secondmate
@@ -69,6 +69,17 @@
 #              the prior durable record in place and reports the concrete
 #              state; it never leaves a half-transitioned task claiming to be
 #              running.
+#              A positively missing Herdr ship/scout endpoint may be recreated
+#              in its recorded session after project, exact fm/<task> branch,
+#              unused task-held Treehouse lease, and competing-record checks.
+#              The original copy is never replaced. A server-restored shell is
+#              reused; a live or unreadable restored endpoint refuses recovery.
+#              Lifecycle, metadata, task-set, and session locks serialize the
+#              repair. The journal records recreating and recreate_from before
+#              creation; an unconfirmed create with the old binding still in
+#              place requires inspection rather than another create attempt.
+#              Once published, the fresh exact endpoint binding survives a
+#              failed launch and is reused by the ordinary relaunch path.
 #
 # Teardown and discard are NOT verbs here and never will be. `exit` stops an
 # agent and preserves everything else; removing a worktree, killing an
@@ -181,6 +192,8 @@ RECOVERY_META_LOCK=
 RECOVERY_META_LOCK_HELD=0
 RECOVERY_SET_LOCK=
 RECOVERY_SET_LOCK_HELD=0
+RECOVERY_SESSION_LOCK=
+RECOVERY_SESSION_LOCK_HELD=0
 RELAUNCH_ACTIVE=0
 RELAUNCH_PHASE=start
 
@@ -197,6 +210,10 @@ control_cleanup() {
   if [ "$RECOVERY_SET_LOCK_HELD" = 1 ]; then
     fm_lock_release "$RECOVERY_SET_LOCK" || true
     RECOVERY_SET_LOCK_HELD=0
+  fi
+  if [ "$RECOVERY_SESSION_LOCK_HELD" = 1 ]; then
+    fm_lock_release "$RECOVERY_SESSION_LOCK" || true
+    RECOVERY_SESSION_LOCK_HELD=0
   fi
   if declare -F fm_control_recovery_cleanup >/dev/null 2>&1; then
     fm_control_recovery_cleanup || true
@@ -620,6 +637,7 @@ NOTE_FILE="$JOURNAL.note"
 RELAUNCH_META_PUBLISHED=0
 RELAUNCH_AGENT_CONFIRMED=0
 RELAUNCH_TX=
+RECREATE_FROM=
 RELAUNCH_BRIEF=
 PRIOR_HARNESS=$HARNESS
 PRIOR_RECORDED_HARNESS=$RECORDED_HARNESS
@@ -644,6 +662,7 @@ journal_write() {  # <phase> [extra-line]...
     echo "endpoint=$T"
     echo "worktree=$WT"
     echo "kind=$KIND"
+    [ -z "$RECREATE_FROM" ] || echo "recreate_from=$RECREATE_FROM"
     echo "from_harness=$PRIOR_RECORDED_HARNESS"
     echo "from_model=$PRIOR_MODEL"
     echo "from_effort=$PRIOR_EFFORT"
@@ -667,6 +686,10 @@ relaunch_rollback() {
   [ "$RELAUNCH_PHASE" != complete ] || return 0
   RELAUNCH_ACTIVE=0
   case "$RELAUNCH_PHASE" in
+    recreating)
+      journal_write "failed:recreating" || true
+      echo "error: replacement endpoint creation for $ID did not complete; inspect $JOURNAL and the task record before retrying; its work is preserved at $WT" >&2
+      ;;
     checkpoint|noted)
       # The old agent was never touched. Restore the instructions byte-exact so
       # a refused relaunch leaves nothing behind.
@@ -901,6 +924,12 @@ do_relaunch() {
 
   require_state_verified_backend relaunch
   resolve_relaunch_profile
+  case "$(fm_meta_get "$JOURNAL" phase)" in
+    recreating|failed:recreating)
+      [ "$(fm_meta_get "$JOURNAL" recreate_from)" != "$T" ] \
+        || die "the prior endpoint creation is unconfirmed; inspect $JOURNAL before creating another terminal"
+      ;;
+  esac
 
   case "$KIND" in
     ship|scout)
@@ -933,8 +962,14 @@ do_relaunch() {
   record_note
   journal_write noted "${CHECKPOINT_LINES[@]}" "$note_line"
 
-  journal_write stopping "${CHECKPOINT_LINES[@]}" "$note_line"
-  exit_result=$(do_exit)
+  if [ "$BACKEND" = herdr ] && [ "$KIND" != secondmate ] \
+     && [ "$(agent_state)" = missing ]; then
+    fm_control_recreate_endpoint || die "the missing endpoint could not be recovered safely"
+    exit_result="already-stopped $ID (missing endpoint recovered)"
+  else
+    journal_write stopping "${CHECKPOINT_LINES[@]}" "$note_line"
+    exit_result=$(do_exit)
+  fi
   journal_write exited "${CHECKPOINT_LINES[@]}" "$note_line" "exit_result=$exit_result"
 
   # The launch owner (fm-spawn --relaunch) clears the previous incarnation's
@@ -965,7 +1000,7 @@ do_relaunch() {
 
 # --- inspection and explicitly approved record recovery ----------------------
 
-if [ -n "$RECOVER_FROM" ] || [ "$VERB" = inspect ]; then
+if [ -n "$RECOVER_FROM" ] || [ "$VERB" = inspect ] || [ "$VERB" = relaunch ]; then
   # shellcheck source=bin/fm-control-recovery-lib.sh
   . "$SCRIPT_DIR/fm-control-recovery-lib.sh"
 fi

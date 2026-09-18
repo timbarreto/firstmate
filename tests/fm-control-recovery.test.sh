@@ -31,6 +31,7 @@ fm_backend_herdr_parse_target() {
 }
 fm_backend_herdr_agent_state() {
   case "$1" in
+    fixture:w3:p3) cat "$FM_TEST_CASE/agent" ;;
     fixture:w2:p2) printf '%s' "${FM_TEST_CURRENT_STATE:-missing}" ;;
     fixture:w1:p1)
       if [ -f "$FM_TEST_CASE/launch-observed" ]; then
@@ -64,6 +65,19 @@ fm_backend_herdr_agent_state() {
     *) printf unreadable ;;
   esac
 }
+fm_backend_herdr_server_ensure() {
+  [ -z "${FM_TEST_RESTORE_STATE:-}" ] || printf '%s' "$FM_TEST_RESTORE_STATE" > "$FM_TEST_CASE/agent"
+}
+fm_backend_herdr_presentation_session_lock_path() { printf '%s/session.lock\n' "$FM_TEST_CASE"; }
+fm_backend_herdr_projection_create_task() {
+  [ "$HERDR_SESSION" = fixture ] && [ "$1" = "$FM_TEST_CASE/original" ] || return 1
+  printf 'create\n' >> "$FM_TEST_CASE/actions"
+  [ "${FM_TEST_CREATE_FAIL:-0}" != 1 ] || return 1
+  FM_BACKEND_HERDR_PROJECTION_WORKSPACE_ID=w3
+  FM_BACKEND_HERDR_PROJECTION_TAB_ID=w3:t3
+  FM_BACKEND_HERDR_PROJECTION_PANE_ID=w3:p3
+  printf dead > "$FM_TEST_CASE/agent"
+}
 fm_backend_herdr_current_path() { printf '%s\n' "$FM_TEST_CASE/original"; }
 fm_backend_herdr_cli() {
   case "$2 $3" in
@@ -86,6 +100,7 @@ cat > "$CODE/bin/fm-spawn.sh" <<'SH'
 set -eu
 [ "$1" = task-a ] && [ "$2" = --relaunch ] || exit 2
 printf 'launch\n' >> "$FM_TEST_CASE/actions"
+[ "${FM_TEST_SPAWN_FAIL:-0}" != 1 ] || exit 1
 if [ "${FM_TEST_PROBE_MODE:-}" = ready ]; then
   printf alive > "$FM_TEST_CASE/agent"
   : > "$FM_TEST_CASE/launch-observed"
@@ -144,6 +159,121 @@ plan() { control "$1" inspect --recover-from "$1/home/data/task-a/original.meta"
 recover() {
   control "$1" relaunch --recover-from "$1/home/data/task-a/original.meta" \
     --approve-recovery "$2" --note 'Approved original-worker recovery; preserve both copies.'
+}
+
+test_relaunch_missing_endpoint_preserves_copy() {
+  local dir out
+  dir=$(make_case missing-endpoint)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf 'pr=https://github.com/example/repo/pull/42\n' >> "$dir/home/state/task-a.meta"
+  jq '.[0].processes=[]' "$dir/pool.json" > "$dir/next"; mv "$dir/next" "$dir/pool.json"
+  printf missing > "$dir/agent"
+  out=$(control "$dir" relaunch --note 'Continue the preserved task after its terminal disappeared.' 2>&1) \
+    || fail "a missing terminal prevented recovery of the preserved copy: $out"
+  assert_contains "$out" 'relaunched task-a' "missing-endpoint recovery did not complete"
+  [ "$(cat "$dir/actions")" = $'create\nlaunch' ] || fail "missing-endpoint recovery sent exit input or duplicated launch"
+  assert_grep 'window=fixture:w3:p3' "$dir/home/state/task-a.meta" "recovery did not bind the new terminal"
+  assert_grep 'pr=https://github.com/example/repo/pull/42' "$dir/home/state/task-a.meta" "recovery lost PR tracking"
+  assert_grep 'endpoint=fixture:w3:p3' "$dir/home/state/task-a.control-relaunch" "confirmation used the missing terminal"
+  assert_grep 'phase=complete' "$dir/home/state/task-a.control-relaunch" "missing-endpoint recovery was not committed"
+  assert_grep 'unfinished original work' "$dir/original/preserved.txt" "recovery discarded the original work"
+  assert_grep 'unfinished replacement work' "$dir/replacement/also-preserved.txt" "recovery changed the other copy"
+  pass "a missing terminal is recreated around the same dirty task-held copy without exit input"
+}
+
+test_missing_endpoint_recovery_refuses_unsafe_claims() {
+  local dir variant out
+  for variant in occupied foreign duplicate branch project other unreadable; do
+    dir=$(make_case "missing-$variant")
+    cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+    jq '.[0].processes=[]' "$dir/pool.json" > "$dir/next"; mv "$dir/next" "$dir/pool.json"
+    printf missing > "$dir/agent"
+    case "$variant" in
+      occupied) jq '.[0].processes=[{pid:123}]' "$dir/pool.json" > "$dir/next"; mv "$dir/next" "$dir/pool.json" ;;
+      foreign) jq '.[0].lease_holder="other"' "$dir/pool.json" > "$dir/next"; mv "$dir/next" "$dir/pool.json" ;;
+      duplicate) jq '. + [.[0]]' "$dir/pool.json" > "$dir/next"; mv "$dir/next" "$dir/pool.json" ;;
+      branch) git -C "$dir/original" checkout -qb other-task ;;
+      project) fm_git_init_commit "$dir/foreign"; sed "s|^project=.*|project=$dir/foreign|" "$dir/home/state/task-a.meta" > "$dir/next"; mv "$dir/next" "$dir/home/state/task-a.meta" ;;
+      other) cp "$dir/home/state/task-a.meta" "$dir/home/state/other.meta" ;;
+      unreadable) printf unreadable > "$dir/agent" ;;
+    esac
+    cp "$dir/home/state/task-a.meta" "$dir/before.meta"
+    if out=$(control "$dir" relaunch --note 'Preserve every copy.' 2>&1); then
+      fail "unsafe $variant recovery succeeded: $out"
+    fi
+    cmp -s "$dir/before.meta" "$dir/home/state/task-a.meta" || fail "$variant recovery changed its record"
+    [ ! -s "$dir/actions" ] || fail "$variant recovery created or controlled an endpoint"
+  done
+  pass "missing-endpoint recovery refuses occupied, foreign, duplicate, divergent, competing and unreadable evidence"
+}
+
+test_missing_endpoint_creation_failure_is_not_replayed() {
+  local dir out
+  dir=$(make_case missing-create-failure)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  jq '.[0].processes=[]' "$dir/pool.json" > "$dir/next"; mv "$dir/next" "$dir/pool.json"
+  printf missing > "$dir/agent"
+  if out=$(FM_TEST_CREATE_FAIL=1 control "$dir" relaunch --note 'Preserve this recovery.' 2>&1); then
+    fail "ambiguous endpoint creation succeeded"
+  fi
+  assert_grep 'phase=failed:recreating' "$dir/home/state/task-a.control-relaunch" "failed creation has no durable receipt"
+  if out=$(control "$dir" relaunch --note 'Retry must not duplicate the terminal.' 2>&1); then
+    fail "ambiguous endpoint creation was replayed"
+  fi
+  assert_contains "$out" 'prior endpoint creation is unconfirmed' "retry did not explain its retained uncertainty"
+  [ "$(cat "$dir/actions")" = create ] || fail "retry created another terminal"
+  assert_grep 'unfinished original work' "$dir/original/preserved.txt" "failed creation lost work"
+  pass "uncertain terminal creation is retained for inspection rather than repeated"
+}
+
+test_missing_endpoint_restored_by_server_is_reused() {
+  local dir out
+  dir=$(make_case missing-restored)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  printf missing > "$dir/agent"
+  out=$(FM_TEST_RESTORE_STATE=dead control "$dir" relaunch --note 'Reuse a safely restored terminal.' 2>&1) \
+    || fail "restored shell recovery failed: $out"
+  [ "$(cat "$dir/actions")" = launch ] || fail "a restored terminal was replaced"
+  assert_grep 'window=fixture:w1:p1' "$dir/home/state/task-a.meta" "restored terminal identity changed"
+  pass "restoring the original shell avoids creating another terminal"
+}
+
+test_missing_endpoint_restored_unsafe_state_refuses() {
+  local dir state out
+  for state in alive unreadable; do
+    dir=$(make_case "restored-$state")
+    cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+    cp "$dir/home/state/task-a.meta" "$dir/before.meta"
+    cp "$dir/home/data/task-a/brief.md" "$dir/before.brief"
+    printf missing > "$dir/agent"
+    if out=$(FM_TEST_RESTORE_STATE="$state" control "$dir" relaunch --note 'Do not duplicate a restored worker.' 2>&1); then
+      fail "a restored $state endpoint was relaunched: $out"
+    fi
+    assert_contains "$out" 'no longer proven missing or agent-free' "restored $state refusal was unexplained"
+    cmp -s "$dir/before.meta" "$dir/home/state/task-a.meta" || fail "restored $state changed its record"
+    cmp -s "$dir/before.brief" "$dir/home/data/task-a/brief.md" || fail "restored $state changed its brief"
+    [ ! -s "$dir/actions" ] || fail "restored $state created or controlled an endpoint"
+  done
+  pass "a live or unreadable restored endpoint refuses recovery without lifecycle input"
+}
+
+test_missing_endpoint_launch_failure_reuses_published_binding() {
+  local dir out
+  dir=$(make_case missing-launch-failure)
+  cp "$dir/home/data/task-a/original.meta" "$dir/home/state/task-a.meta"
+  jq '.[0].processes=[]' "$dir/pool.json" > "$dir/next"; mv "$dir/next" "$dir/pool.json"
+  printf missing > "$dir/agent"
+  if out=$(FM_TEST_SPAWN_FAIL=1 control "$dir" relaunch --note 'Keep the replacement terminal for retry.' 2>&1); then
+    fail "failed worker launch reported success: $out"
+  fi
+  assert_grep 'window=fixture:w3:p3' "$dir/home/state/task-a.meta" "failed launch lost its published endpoint"
+  assert_grep 'phase=failed:launching' "$dir/home/state/task-a.control-relaunch" "failed launch lost its journal"
+  out=$(control "$dir" relaunch --note 'Retry in the already-published terminal.' 2>&1) \
+    || fail "retry after endpoint publication failed: $out"
+  [ "$(cat "$dir/actions")" = $'create\nlaunch\nlaunch' ] || fail "retry duplicated or stopped an endpoint"
+  assert_grep 'window=fixture:w3:p3' "$dir/home/state/task-a.meta" "retry changed the published endpoint"
+  assert_grep 'unfinished original work' "$dir/original/preserved.txt" "retry lost preserved work"
+  pass "a launch failure retains the new endpoint and retry never creates another"
 }
 
 test_relaunch_slow_probe_consumes_deadline() {
@@ -417,6 +547,12 @@ test_recovery_other_claim_refuses_publication() {
 }
 
 fm_test_run_cases \
+  test_relaunch_missing_endpoint_preserves_copy \
+  test_missing_endpoint_recovery_refuses_unsafe_claims \
+  test_missing_endpoint_creation_failure_is_not_replayed \
+  test_missing_endpoint_restored_by_server_is_reused \
+  test_missing_endpoint_restored_unsafe_state_refuses \
+  test_missing_endpoint_launch_failure_reuses_published_binding \
   test_recovery_approved_and_idempotent \
   test_recovery_stale_approval \
   test_recovery_live_and_foreign_refusals \

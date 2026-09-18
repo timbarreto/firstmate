@@ -7,6 +7,12 @@
 # including a merge request on a self-hosted GitLab instance.
 # Azure DevOps browser/REST aliases are resolved by a native read before any
 # publication; bin/fm-pr-poll.sh owns the supported identities and read contract.
+# The metadata lock covers metadata and all three poll artifacts through final
+# authentication. The watcher defers a busy registration, captures a complete
+# snapshot under that lock, then releases it before taking lifecycle authority.
+# Writers take metadata before the per-task poll publication lock; device
+# recovery takes lifecycle authority first. Publication locks are released
+# before contribution arming or parent-channel reporting.
 # Usage: fm-pr-check.sh <task-id> <pr-url>
 set -eu
 
@@ -147,9 +153,8 @@ fm_pr_metadata_identity_parse "$META" || exit 1
 [ "$FM_PR_META_PROVIDER" = "$PROVIDER" ] && [ "$FM_PR_META_URL" = "$URL" ] \
   && [ "$FM_PR_META_HOST" = "$HOST" ] && [ "$FM_PR_META_PATH" = "$PROJECT_PATH" ] \
   && [ "$FM_PR_META_NUMBER" = "$NUMBER" ] || exit 1
-fm_lock_release "$META_LOCK"
-META_LOCK_HELD=0
-
+# Keep readers outside the entire metadata/sidecar/registration/check update,
+# including replacement of an already-visible poll.
 PR_POLL_PUBLISH_LOCK="$STATE/.pr-poll-publish-$ID.lock"
 fm_lock_acquire_wait "$PR_POLL_PUBLISH_LOCK"
 PR_POLL_PUBLISH_LOCK_HELD=1
@@ -162,6 +167,8 @@ else
   echo "error: could not publish PR poll" >&2
   exit 1
 fi
+fm_lock_release "$META_LOCK" || exit 1
+META_LOCK_HELD=0
 # The contribution observer uses the same authenticated check mechanism and
 # owns verdict freshness, required actors and external feedback separately from
 # the exact merged-state poll. Registration is local and performs no forge read.

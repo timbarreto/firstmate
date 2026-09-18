@@ -1965,6 +1965,7 @@ reconcile_requests_detached() {
 }
 
 PR_POLL_CONTROL_LOCK=
+PR_POLL_META_LOCK=
 PR_POLL_PUBLISH_LOCK=
 
 pr_poll_control_release() {
@@ -1977,9 +1978,29 @@ pr_poll_publish_release() {
   PR_POLL_PUBLISH_LOCK=
 }
 
+# Capture under the registration writer's metadata lock, including the retry
+# after device recovery. Never carry a read lock into lifecycle acquisition.
+# Returns 0 for an authenticated snapshot, 1 for refusal, or 2 for a busy writer.
+pr_poll_snapshot_capture() {  # <id>
+  local id=$1 snapshot_lock attempt captured
+  snapshot_lock=$(fm_meta_lock_path "$STATE/$id.meta") || exit 1
+  for attempt in 1 2; do
+    fm_lock_try_acquire "$snapshot_lock" || return 2
+    PR_POLL_META_LOCK=$snapshot_lock
+    captured=1
+    fm_pr_poll_snapshot_capture "$STATE" "$id" "$SCRIPT_DIR/fm-pr-poll.sh" && captured=0
+    fm_lock_release "$PR_POLL_META_LOCK" || exit 1
+    PR_POLL_META_LOCK=
+    [ "$captured" -ne 0 ] || return 0
+    [ "$attempt" -eq 1 ] && rerecord_device_shifted_pr_poll "$id" || return 1
+  done
+  return 1
+}
+
 watcher_cleanup() {
   local cleanup_status=0 owns_lock=0 transition=release-lock
   pr_poll_publish_release || cleanup_status=1
+  [ -z "$PR_POLL_META_LOCK" ] || fm_lock_release "$PR_POLL_META_LOCK" || cleanup_status=1
   pr_poll_control_release || cleanup_status=1
   if [ "$(cat "$WATCH_LOCK/pid" 2>/dev/null || true)" = "${WATCHER_PID:-}" ]; then
     owns_lock=1
@@ -2038,14 +2059,20 @@ retire_merged_pr_poll() {  # <id>
 # A poll armed before a state volume remount can fail capture only because its
 # registration names the old device number; bin/fm-pr-lib.sh
 # fm_pr_poll_registration_rerecord_device owns the proof and the rewrite.
-# Returns 0 when a re-record was attempted under the control lock, so the caller
-# captures again whatever the outcome: a concurrent re-arm may have published a
-# valid poll instead, and the strict capture decides either way.
+# Returns 0 when a locked re-record was attempted or a concurrent writer took
+# priority, so the caller captures again: a re-arm may have published a valid
+# poll instead, and the strict metadata-locked capture decides either way.
 rerecord_device_shifted_pr_poll() {  # <id>
-  local id=$1
+  local id=$1 meta_lock
   fm_pr_poll_registration_device_shifted "$STATE" "$id" "$SCRIPT_DIR/fm-pr-poll.sh" || return 1
   PR_POLL_CONTROL_LOCK="$STATE/.control-$id.lock"
   fm_lock_acquire_wait "$PR_POLL_CONTROL_LOCK" || exit 1
+  meta_lock=$(fm_meta_lock_path "$STATE/$id.meta") || exit 1
+  if ! fm_lock_try_acquire "$meta_lock"; then
+    pr_poll_control_release || exit 1
+    return 0
+  fi
+  PR_POLL_META_LOCK=$meta_lock
   PR_POLL_PUBLISH_LOCK="$STATE/.pr-poll-publish-$id.lock"
   fm_lock_acquire_wait "$PR_POLL_PUBLISH_LOCK" || exit 1
   if fm_pr_poll_registration_rerecord_device "$STATE" "$id" "$SCRIPT_DIR/fm-pr-poll.sh"; then
@@ -2054,6 +2081,8 @@ rerecord_device_shifted_pr_poll() {  # <id>
     triage_log "PR poll identity for $id was not re-recorded; the locked proof or rewrite did not hold"
   fi
   pr_poll_publish_release || exit 1
+  fm_lock_release "$PR_POLL_META_LOCK" || exit 1
+  PR_POLL_META_LOCK=
   pr_poll_control_release || exit 1
   return 0
 }
@@ -2169,9 +2198,17 @@ while :; do
         fi
       else
         id=$(basename "$c" .check.sh)
-        if fm_pr_poll_snapshot_capture "$STATE" "$id" "$SCRIPT_DIR/fm-pr-poll.sh" \
-          || { rerecord_device_shifted_pr_poll "$id" \
-            && fm_pr_poll_snapshot_capture "$STATE" "$id" "$SCRIPT_DIR/fm-pr-poll.sh"; }; then
+        if ! fm_pr_task_id_valid "$id"; then
+          rejected_checks="$rejected_checks $c"
+          continue
+        fi
+        snapshot_rc=0
+        pr_poll_snapshot_capture "$id" || snapshot_rc=$?
+        if [ "$snapshot_rc" -eq 2 ]; then
+          triage_log "check registration for $id is being updated; deferring its read"
+          continue
+        fi
+        if [ "$snapshot_rc" -eq 0 ]; then
           is_pr_poll=1
           provider=$FM_PR_POLL_SNAPSHOT_PROVIDER
           url=$FM_PR_POLL_SNAPSHOT_URL
