@@ -11,6 +11,7 @@ test	tests/fm-lock-fast.test.sh	pure-contract-unit
 map	route-lock-fast	59	bin/fm-lock-fast.pl	watcher-wake-lock,__script__:fm-lock-fast.test.sh,__script__:fm-copilot-harness.test.sh,live-harness-optin
 test	tests/fm-pr-local-cost.test.sh	pure-contract-unit
 test	tests/fm-herdr-unregistered-agent.test.sh	pure-contract-unit
+test	tests/fm-herdr-windows-liveness-live-e2e.test.sh	live-harness-optin
 test	tests/fm-control-recovery.test.sh	pure-contract-unit
 test	tests/fm-spawn-queue.test.sh	backend-dispatch
 test	tests/fm-launch-status.test.sh	pure-contract-unit

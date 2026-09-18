@@ -315,6 +315,12 @@ The response shape the adapter parses (`result.type` of `pane_process_info`, `pr
 A server response below 0.9.0 has not been measured for this parse.
 An unreadable or unparseable process view reads `unknown`, which refuses lifecycle verbs and recovery rather than trusting the registration.
 
+On native Windows, a missing registration also requires a process-level check before a pane can count as agent-free.
+The platform process owner combines Windows process identities with Git Bash's logical ancestry because an `exec` handoff can leave a live worker behind a vanished native parent.
+Unreadable or inconsistent ancestry remains unknown, never permission to relaunch another worker.
+This does not identify every unregistered interpreter-hosted harness: a live but unrecognized process remains unknown rather than dead.
+`tests/fm-platform-process.test.sh` covers the real native handoff and deterministic identity refusals; `tests/fm-herdr-windows-liveness-live-e2e.test.sh` refreshes the installed-harness evidence without submitting prompts.
+
 The generic Herdr agent-liveness probe reuses that pane classifier, then applies one recovery-only exception.
 A structurally gone pane or a pane read from a session positively reported as having no running server becomes `missing`, a restored agent-less shell and a stale registration over a shell-only pane both become `dead`, a registered agent with a live process becomes `alive`, and every other unexpected read becomes `unreadable`.
 Neither the stopped-server exception nor the stale-registration verdict widens husk detection or any close authority; those paths still refuse an unreadable pane, and a `stale-agent` pane is reused by recovery, never closed as a husk, because the shell it holds may be a nested worktree shell.

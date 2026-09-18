@@ -5,9 +5,13 @@
 # Facts: FM_PROCESS_NATIVE_PID selects a native PID. process-info prints its row;
 # parent-processes prints up to 16 ancestors, nearest first, excluding that PID.
 # descendant-processes includes the native root and its birth-verified descendants
-# from one snapshot, with at most 4096 rows. Its rows add UTC creation ticks
-# after the PID: PID<TAB>birth<TAB>executable<TAB>arguments. Incomplete/ambiguous
-# proof returns 2, never a truncated absence claim. It performs no termination.
+# from one CIM snapshot, with at most 4096 rows. -MsysPs names the calling MSYS
+# installation's ps.exe: its fresh PID/PPID/WINPID snapshot supplements native
+# parent links lost during exec. Only exact WINPID mappings present in CIM and
+# born before that MSYS snapshot may add edges; names and cwd never add ownership.
+# Missing/failed/malformed MSYS evidence refuses rather than proving absence.
+# Rows add UTC creation ticks after the PID: PID<TAB>birth<TAB>executable<TAB>args.
+# Incomplete/ambiguous proof returns 2 without partial rows. No termination occurs.
 # Rows are PID<TAB>executable-path-or-name<TAB>command-line. Paths use /; embedded
 # tabs/newlines are flattened so command-line data cannot introduce another row.
 # Facts return 0 on a successful query, 3 for an absent process-info PID, and 2
@@ -22,7 +26,8 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [ValidateSet("parent-processes", "process-info", "descendant-processes", "find-watch-arm-roots", "stop-watch-arm-tree")]
-    [string] $Operation
+    [string] $Operation,
+    [string] $MsysPs = ""
 )
 
 if ($Operation -in @("parent-processes", "process-info", "descendant-processes")) {
@@ -52,6 +57,26 @@ if ($Operation -in @("parent-processes", "process-info", "descendant-processes")
             exit 0
         }
 
+        $msysByPid = @{}
+        $msysSnapshotAt = [datetime]::UtcNow
+        if ($MsysPs) {
+            if ($Operation -ne "descendant-processes") { exit 2 }
+            $msysRows = @(& $MsysPs -e -l)
+            if ($LASTEXITCODE -ne 0 -or $msysRows.Count -lt 2 -or
+                $msysRows[0] -notmatch '^\s*PID\s+PPID\s+PGID\s+WINPID\b') { exit 2 }
+            $nativeIds = [System.Collections.Generic.HashSet[int]]::new()
+            foreach ($line in $msysRows | Select-Object -Skip 1) {
+                # ps may prefix a process-state letter before the PID columns.
+                if ($line -notmatch '^\s*(?:[A-Z]\s+)?([0-9]+)\s+([0-9]+)\s+[0-9]+\s+([0-9]+)\s') { exit 2 }
+                $logicalPid = [int]$Matches[1]
+                $logicalParent = [int]$Matches[2]
+                $winPid = [int]$Matches[3]
+                if ($logicalPid -le 0 -or $winPid -le 1 -or $msysByPid.ContainsKey($logicalPid) -or
+                    -not $nativeIds.Add($winPid)) { exit 2 }
+                $msysByPid[$logicalPid] = [pscustomobject]@{ Parent = $logicalParent; Native = $winPid }
+            }
+        }
+
         $byPid = @{}
         foreach ($process in @(Get-CimInstance Win32_Process -OperationTimeoutSec 5)) {
             if ($byPid.ContainsKey([int]$process.ProcessId)) { exit 2 }
@@ -65,25 +90,49 @@ if ($Operation -in @("parent-processes", "process-info", "descendant-processes")
                 if (-not $children.ContainsKey($parentId)) {
                     $children[$parentId] = [System.Collections.Generic.List[object]]::new()
                 }
-                $children[$parentId].Add($process)
+                $children[$parentId].Add([pscustomobject]@{ Process = $process; Msys = $false })
             }
-            $pending = [System.Collections.Generic.Queue[object]]::new()
-            $pending.Enqueue($byPid[$nativePid])
-            $visited = [System.Collections.Generic.HashSet[int]]::new()
+            foreach ($logical in $msysByPid.Values) {
+                $parent = $msysByPid[$logical.Parent]
+                if (-not $parent -or -not $byPid.ContainsKey($parent.Native)) { continue }
+                if (-not $children.ContainsKey($parent.Native)) {
+                    $children[$parent.Native] = [System.Collections.Generic.List[object]]::new()
+                }
+                $children[$parent.Native].Add([pscustomobject]@{ Process = $byPid[$logical.Native]; Msys = $true })
+            }
+            # The two tables can prove the same child by different paths.
+            # DFS colors deduplicate those paths but still refuse actual cycles.
+            $pending = [System.Collections.Generic.Stack[object]]::new()
+            $pending.Push([pscustomobject]@{ Process = $byPid[$nativePid]; Leaving = $false })
+            $colors = @{}
             $resultRows = [System.Collections.Generic.List[string]]::new()
             while ($pending.Count -gt 0) {
-                $parent = $pending.Dequeue()
-                if (-not $visited.Add([int]$parent.ProcessId) -or $visited.Count -gt 4096) { exit 2 }
-                if (-not $parent.CreationDate) { exit 2 }
+                $entry = $pending.Pop()
+                $parent = $entry.Process
+                $parentId = [int]$parent.ProcessId
+                if ($entry.Leaving) { $colors[$parentId] = 2; continue }
+                if ($colors[$parentId] -eq 1) { exit 2 }
+                if ($colors[$parentId] -eq 2) { continue }
+                $colors[$parentId] = 1
+                if ($colors.Count -gt 4096 -or -not $parent.CreationDate) { exit 2 }
                 $row = Format-ProcessRow $parent
                 $firstTab = $row.IndexOf("`t")
                 $resultRows.Add($row.Substring(0, $firstTab) + "`t" +
                     $parent.CreationDate.ToUniversalTime().Ticks + $row.Substring($firstTab))
-                foreach ($child in $children[[int]$parent.ProcessId]) {
-                    if (-not $child.CreationDate) { exit 2 }
+                $pending.Push([pscustomobject]@{ Process = $parent; Leaving = $true })
+                foreach ($edge in $children[$parentId]) {
+                    $child = $edge.Process
+                    # A reachable MSYS process that disappeared before CIM may
+                    # be mid-exec, with surviving children under a new WINPID.
+                    # That incomplete observation cannot prove an empty pane.
+                    if (-not $child -or -not $child.CreationDate) { exit 2 }
+                    if ($edge.Msys -and ($parent.CreationDate.ToUniversalTime() -gt $msysSnapshotAt -or
+                        $child.CreationDate.ToUniversalTime() -gt $msysSnapshotAt)) { exit 2 }
                     # A retained numeric parent ID may now belong to a younger
                     # process. Such an old child is not this root's descendant.
-                    if ($child.CreationDate -ge $parent.CreationDate) { $pending.Enqueue($child) }
+                    if ($child.CreationDate -ge $parent.CreationDate) {
+                        $pending.Push([pscustomobject]@{ Process = $child; Leaving = $false })
+                    }
                 }
             }
             $resultRows | ForEach-Object { Write-Output $_ }
