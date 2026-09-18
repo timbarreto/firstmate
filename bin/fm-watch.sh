@@ -1965,6 +1965,7 @@ reconcile_requests_detached() {
 }
 
 PR_POLL_CONTROL_LOCK=
+PR_POLL_META_LOCK=
 
 pr_poll_control_release() {
   [ -z "$PR_POLL_CONTROL_LOCK" ] || fm_lock_release "$PR_POLL_CONTROL_LOCK" || return 1
@@ -1973,6 +1974,7 @@ pr_poll_control_release() {
 
 watcher_cleanup() {
   local cleanup_status=0 owns_lock=0 transition=release-lock
+  [ -z "$PR_POLL_META_LOCK" ] || fm_lock_release "$PR_POLL_META_LOCK" || cleanup_status=1
   pr_poll_control_release || cleanup_status=1
   if [ "$(cat "$WATCH_LOCK/pid" 2>/dev/null || true)" = "${WATCHER_PID:-}" ]; then
     owns_lock=1
@@ -2138,8 +2140,21 @@ while :; do
         fi
       else
         id=$(basename "$c" .check.sh)
-        if fm_pr_poll_snapshot_capture "$STATE" "$id" "$SCRIPT_DIR/fm-pr-poll.sh"; then
-          is_pr_poll=1
+        if ! fm_pr_task_id_valid "$id"; then
+          rejected_checks="$rejected_checks $c"
+          continue
+        fi
+        snapshot_lock=$(fm_meta_lock_path "$STATE/$id.meta") || exit 1
+        if ! fm_lock_try_acquire "$snapshot_lock"; then
+          triage_log "check registration for $id is being updated; deferring its read"
+          continue
+        fi
+        PR_POLL_META_LOCK=$snapshot_lock
+        is_pr_poll=0
+        fm_pr_poll_snapshot_capture "$STATE" "$id" "$SCRIPT_DIR/fm-pr-poll.sh" && is_pr_poll=1
+        fm_lock_release "$PR_POLL_META_LOCK" || exit 1
+        PR_POLL_META_LOCK=
+        if [ "$is_pr_poll" -eq 1 ]; then
           provider=$FM_PR_POLL_SNAPSHOT_PROVIDER
           url=$FM_PR_POLL_SNAPSHOT_URL
           host=$FM_PR_POLL_SNAPSHOT_HOST

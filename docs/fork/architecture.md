@@ -148,7 +148,7 @@ Removing repeated work is not permission to disable a check or enlarge its deadl
 `bin/fm-pr-lib.sh` owns invocation-local reuse of pure Azure URL parsing and fresh single-query file facts; ACL setup batches only one private staging cohort before payload is written.
 Neither optimization caches permissions, filesystem authorization, or remote PR observations across operations or publication phases.
 
-`bin/fm-control.sh` retains lifecycle authority, with read-only inspection and approved record-recovery mechanics in `bin/fm-control-recovery-lib.sh`.
+`bin/fm-control.sh` retains lifecycle authority, with read-only inspection, guarded missing-terminal recreation, and approved record-recovery mechanics in `bin/fm-control-recovery-lib.sh`.
 The recovery plan binds exact native process birth identities and task-held leases, preserves both copies, and enters the existing relaunch transaction only after fresh approval verification.
 `bin/platform/windows-process.ps1` owns native descendant facts; the Herdr adapter interprets them and refuses to equate a missing Windows registration with an exited process.
 The verified POSIX restore path remains unchanged.
