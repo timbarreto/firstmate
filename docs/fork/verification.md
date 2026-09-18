@@ -142,7 +142,8 @@ They run in the existing Windows reconciliation core job; POSIX mode checks run 
 Transport fakes establish operation counts and data handling, not native ACL behavior.
 
 The PR publication, X-mode, runner, and Herdr suites retain their existing integration cases.
-Windows core coverage also selects the existing PR publication case through the shared named-case runner, without changing the full suite's order.
+Windows core coverage also selects the PR publication and contribution-monitor cases in `tests/fm-pr-check-security.test.sh` through the shared named-case runner.
+The contribution cases exercise initial creation and recreation under broad inherited ACLs, later permission drift, and preservation of a registered monitor when permission setup fails.
 Use `FM_TEST_ONLY=test_jobs_parallel_scheduler_and_failure_propagation bin/fm-test-run.sh tests/fm-test-run.test.sh` to exercise real runner worker creation through the copied dependency layout.
 Stock Bash parsing remains owned by macOS CI, and native execution parses the platform PowerShell file in Windows coverage.
 Keep before/after characterization outputs and exact platform limitations in PR evidence.
