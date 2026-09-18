@@ -1258,6 +1258,9 @@ SH
     wait "$publisher" || true
     fail "replacement registration did not reach the partial publication boundary"
   fi
+  # The inactive scan takes the metadata lock before the PR-check loop.
+  # Keep that unrelated scan off this deliberately paused publication.
+  printf 'epoch=%s\ncursor=\n' "$(date +%s)" > "$state/.inactive-outcome-reconcile"
   printf 'done: publication probe completed\n' > "$state/task-a.status"
   FM_TEST_REAL_MV="$REAL_MV" run_watcher_bounded "$dir/home" "$dir/fakebin" \
     > "$dir/watch.out" 2> "$dir/watch.err" || rc=$?

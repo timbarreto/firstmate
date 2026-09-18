@@ -116,10 +116,12 @@ fm_control_recovery_pool_binding() {  # <pool-json> <copy> <task> <must-be-unuse
 fm_control_recreate_endpoint() {
   local project git_project git_worktree common wt_common branch pool other target copy session
   local tmp line key new_target cwd
+  # shellcheck disable=SC2153 # META belongs to the calling fm-control.sh transaction.
   RECOVERY_META_LOCK=$(fm_meta_lock_path "$META") || return 1
   fm_lock_try_acquire "$RECOVERY_META_LOCK" \
     || { fm_control_recovery_error "task metadata is busy"; return 1; }
   RECOVERY_META_LOCK_HELD=1
+  # shellcheck disable=SC2153 # STATE belongs to the calling fm-control.sh transaction.
   RECOVERY_SET_LOCK=$(fm_task_set_lock_path "$STATE") || return 1
   fm_lock_try_acquire "$RECOVERY_SET_LOCK" \
     || { fm_control_recovery_error "the task set is changing"; return 1; }
@@ -167,6 +169,7 @@ fm_control_recreate_endpoint() {
       pool=$(cd "$project" && treehouse status --json) || return 1
       fm_control_recovery_pool_binding "$pool" "$WT" "$ID" 1 \
         || { fm_control_recovery_error "the preserved copy is not a unique unused task-held lease"; return 1; }
+      # shellcheck disable=SC2034 # Read by fm-control.sh's journal writer.
       RECREATE_FROM=$T
       journal_write recreating "${CHECKPOINT_LINES[@]}" || return 1
       # Fresh response-derived IDs only: no label search, adoption, or closing
@@ -200,10 +203,13 @@ fm_control_recreate_endpoint() {
   esac
   journal_write exited "${CHECKPOINT_LINES[@]}" || return 1
   fm_lock_release "$RECOVERY_SESSION_LOCK" || return 1
+  # shellcheck disable=SC2034 # Read by fm-control.sh's EXIT cleanup.
   RECOVERY_SESSION_LOCK_HELD=0
   fm_lock_release "$RECOVERY_SET_LOCK" || return 1
+  # shellcheck disable=SC2034 # Read by fm-control.sh's EXIT cleanup.
   RECOVERY_SET_LOCK_HELD=0
   fm_lock_release "$RECOVERY_META_LOCK" || return 1
+  # shellcheck disable=SC2034 # Read by fm-control.sh's EXIT cleanup.
   RECOVERY_META_LOCK_HELD=0
 }
 
