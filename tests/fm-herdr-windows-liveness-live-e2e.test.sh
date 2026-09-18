@@ -8,11 +8,11 @@
 set -eu
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+fm_live_gate default-on FM_HERDR_WINDOWS_LIVENESS herdr jq powershell.exe
 case "$(uname -s 2>/dev/null)" in
   MINGW*|MSYS*|CYGWIN*) ;;
   *) echo 'skip: native Windows Git Bash required'; exit 0 ;;
 esac
-fm_live_gate default-on FM_HERDR_WINDOWS_LIVENESS herdr jq powershell.exe
 # shellcheck source=tests/herdr-test-safety.sh
 . "$ROOT/tests/herdr-test-safety.sh"
 herdr_forget_inherited_pane
