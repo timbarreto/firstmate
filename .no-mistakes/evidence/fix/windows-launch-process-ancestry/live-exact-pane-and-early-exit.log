@@ -1,0 +1,4 @@
+session=fm-lab-pane-attribution-30845-31962 herdr=herdr 0.9.0
+copilot=GitHub Copilot CLI 1.0.86. native_parent_link_to_pane_root=lost combined_snapshot_attributed=yes recovery_state=alive
+neighbor_immediate_exit=23 recovery_state=dead copilot_state_after_neighbor_exit=alive
+PASS exact pane attribution kept broken-ancestry Copilot alive without masking a genuine neighboring launch exit

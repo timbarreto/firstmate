@@ -1,0 +1,25 @@
+FM_TEST_BEGIN 2026-09-18T18:03:26Z tests/fm-platform-process.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - native exec workers retain pane liveness despite broken Windows parent links
+ok - Herdr Windows transport preserves slash commands while retaining cwd path conversion
+ok - native process facts use one bounded snapshot, sanitize rows, reject reused parents, and distinguish missing PIDs from query errors
+ok - MSYS exec ancestry uses exact live native identities, deduplicates paths, and rejects foreign, reused, racing, cyclic, or unreadable evidence
+ok - both process compatibility interfaces pass isolated behavioral contracts
+ok - native Windows PID translation, graceful TERM, and owned tree cleanup preserve foreign processes
+ok - Pi and OpenCode preserve process exports, PID semantics, ownership, and call counts
+ok - process facts preserve proc overrides and POSIX fallback formatting
+ok - Windows transport preserves quotes, metacharacters, and multiline data
+bash round trip
+ok - native PowerShell executes literal environment, directory, and Bash launch commands
+ok - missing platform dependencies refuse before native calls or termination fallbacks
+ok - Copilot preserves per-process single-PID caching and only scans after a missing tasklist row
+ok - fresh clones and worktree-shaped homes execute both wrappers and tracked native dependencies
+FM_TEST_END 2026-09-18T18:04:38Z tests/fm-platform-process.test.sh exit=0 duration_ms=71463 gate_skip=false
+FM_TEST_BEGIN 2026-09-18T18:04:38Z tests/fm-herdr-unregistered-agent.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - absent Herdr registration does not demote a live foreground agent
+ok - native descendants protect an unregistered Windows Copilot worker
+ok - native absence requires readable shell-only facts, not a missing registration
+FM_TEST_END 2026-09-18T18:04:55Z tests/fm-herdr-unregistered-agent.test.sh exit=0 duration_ms=16803 gate_skip=false
+FM_TEST_SUMMARY total=2 failed=0 skipped_gate=0 duration_ms=93775
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=2 duration_ms=88266 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-platform-process.test.sh duration_ms=71463
+FM_TEST_SLOWEST rank=2 script=tests/fm-herdr-unregistered-agent.test.sh duration_ms=16803

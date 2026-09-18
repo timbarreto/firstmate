@@ -1,0 +1,23 @@
+FM_TEST_BEGIN 2026-09-18T18:05:05Z tests/fm-herdr-windows-liveness-live-e2e.test.sh family=live-harness-optin expected_gate_skip=live-capability
+# checking claude (2.1.269 (Claude Code))
+ok - claude (2.1.269 (Claude Code)): Windows Herdr exec launch remains alive
+# skip: codex is not installed; its Windows liveness is unverified
+# checking copilot (GitHub Copilot CLI 1.0.86.)
+ok - copilot (GitHub Copilot CLI 1.0.86.): Windows Herdr exec launch remains alive
+# skip: opencode is not installed; its Windows liveness is unverified
+# checking pi (0.85.1)
+ok - pi (0.85.1): live descendant preserved; unregistered identity remains safely unreadable (not certified alive)
+# skip: pi-signed is not installed; its Windows liveness is unverified
+# skip: grok is not installed; its Windows liveness is unverified
+# skip: kimi is not installed; its Windows liveness is unverified
+# skip: cursor is not installed; its Windows liveness is unverified
+# skip: gemini is not installed; its Windows liveness is unverified
+# skip: muse is not installed; its Windows liveness is unverified
+# skip: rovo is not installed; its Windows liveness is unverified
+# skip: omp is not installed; its Windows liveness is unverified
+# skip: agy is not installed; its Windows liveness is unverified
+checked=3 herdr=herdr 0.9.0
+FM_TEST_END 2026-09-18T18:06:46Z tests/fm-herdr-windows-liveness-live-e2e.test.sh exit=0 duration_ms=100883 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=106294
+FM_TEST_SUMMARY_FAMILY family=live-harness-optin count=1 duration_ms=100883 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-herdr-windows-liveness-live-e2e.test.sh duration_ms=100883
