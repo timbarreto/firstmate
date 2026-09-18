@@ -262,20 +262,6 @@ test_incremental_agrees_with_full_fold_across_appends() {
   pass "the incremental fold matches the full fold across appends in both key positions"
 }
 
-test_stated_key_is_honored_in_both_positions
-test_bare_keyless_line_still_folds_to_default
-test_resolution_closes_across_positions
-test_blocked_is_position_tolerant_like_needs_decision
-test_two_colon_form_decisions_stay_distinct
-test_mid_note_prose_mention_is_not_a_stated_key
-test_malformed_stated_key_never_collapses_to_default
-test_status_line_verb_strips_every_bracket_tag_before_colon
-test_corr_and_key_tags_open_and_close_under_the_stated_key
-test_corr_only_tag_opens_as_default_like_a_bare_line
-test_key_only_before_colon_still_opens_no_regression
-test_blocked_and_resolved_are_tag_order_independent
-test_incremental_agrees_with_full_fold_across_appends
-
 # status_key_closing_verb reports HOW the status side currently reads one key,
 # which is what lets a consumer tell a settled key from a key handed to a
 # durable captain-held task. The two closing verbs must stay distinguishable:
@@ -335,9 +321,6 @@ EOF
     || fail "a prose mention changed the reported verb: '$(status_key_closing_verb "$f" route)'"
   pass "status_key_closing_verb reports the last real transition, in either key position"
 }
-
-test_closing_verb_separates_resolution_from_durable_transfer
-test_closing_verb_tracks_the_last_transition_in_both_positions
 
 # The per-key read pre-selects candidate lines by their leading verb before the
 # bash fold sees them, and the resolve/durable-transfer verbs are overridable, so
@@ -422,10 +405,6 @@ test_closing_verb_filter_preserves_terminal_chronology() {
   pass "per-key filtering retains ship/scout terminals, reopenings, and secondmate blockers"
 }
 
-test_closing_verb_filters_unrelated_history_without_subshell_growth
-test_closing_verb_honors_overridden_transition_verbs
-test_closing_verb_filter_preserves_terminal_chronology
-
 test_bare_prose_cannot_impersonate_a_terminal_declaration() {
   local dir f kind word open
   dir=$(case_dir prose-terminal)
@@ -449,8 +428,6 @@ test_bare_prose_cannot_impersonate_a_terminal_declaration() {
   done
   pass "prose without a colon cannot impersonate a ship or scout terminal declaration"
 }
-
-test_bare_prose_cannot_impersonate_a_terminal_declaration
 
 test_bare_prose_cannot_open_or_close_a_decision() {
   local dir f word blocked
@@ -483,4 +460,24 @@ test_bare_prose_cannot_open_or_close_a_decision() {
   pass "only a colon-bearing or keyed line is a decision transition in the fold"
 }
 
-test_bare_prose_cannot_open_or_close_a_decision
+fm_test_run_cases \
+  test_stated_key_is_honored_in_both_positions \
+  test_bare_keyless_line_still_folds_to_default \
+  test_resolution_closes_across_positions \
+  test_blocked_is_position_tolerant_like_needs_decision \
+  test_two_colon_form_decisions_stay_distinct \
+  test_mid_note_prose_mention_is_not_a_stated_key \
+  test_malformed_stated_key_never_collapses_to_default \
+  test_status_line_verb_strips_every_bracket_tag_before_colon \
+  test_corr_and_key_tags_open_and_close_under_the_stated_key \
+  test_corr_only_tag_opens_as_default_like_a_bare_line \
+  test_key_only_before_colon_still_opens_no_regression \
+  test_blocked_and_resolved_are_tag_order_independent \
+  test_incremental_agrees_with_full_fold_across_appends \
+  test_closing_verb_separates_resolution_from_durable_transfer \
+  test_closing_verb_tracks_the_last_transition_in_both_positions \
+  test_closing_verb_filters_unrelated_history_without_subshell_growth \
+  test_closing_verb_honors_overridden_transition_verbs \
+  test_closing_verb_filter_preserves_terminal_chronology \
+  test_bare_prose_cannot_impersonate_a_terminal_declaration \
+  test_bare_prose_cannot_open_or_close_a_decision

@@ -2987,7 +2987,7 @@ test_device_rerecord_preserves_private_policy() (
     || fail "shifted registration authenticated before repair"
   fm_pr_poll_registration_device_shifted "$state" task-a "$POLL" \
     || fail "valid private poll did not qualify as device-only drift"
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$state"
+  export FM_HOME="$dir/home" FM_STATE_OVERRIDE="$state"
   # shellcheck source=/dev/null
   . "$ROOT/bin/fm-wake-lib.sh"
   control_lock="$state/.control-task-a.lock"
