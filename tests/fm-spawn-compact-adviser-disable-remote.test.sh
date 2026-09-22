@@ -56,6 +56,39 @@ SH
 chmod +x "$REMOTE_ROOT/bin/tmux"
 install_remote_herdr_fixture "$REMOTE_ROOT" "$HERDR_STATE" "$HERDR_LOG" \
   "$TMP_ROOT/herdr-send-fail" "$TMP_ROOT/herdr.sock"
+# Preserve source/destination evidence before provisioning rolls back a failed clone.
+{
+  printf '#!/usr/bin/env bash\nREAL_GIT=%q\nTRACE_ROOT=%q\n' "$(command -v git)" "$TMP_ROOT"
+  cat <<'SH'
+set -u
+[ "${1:-}" = clone ] || exec "$REAL_GIT" "$@"
+args=("$@")
+source_root=${args[${#args[@]}-2]}
+destination=${args[${#args[@]}-1]}
+before=$("$REAL_GIT" -C "$source_root" count-objects -v 2>&1)
+log=$(mktemp "$TRACE_ROOT/git-clone.XXXXXX") || exit 1
+rc=0
+GIT_TRACE2_EVENT="$TRACE_ROOT/git-trace.jsonl" "$REAL_GIT" "$@" 2>"$log" || rc=$?
+cat "$log" >&2
+if [ "$rc" -ne 0 ]; then
+  {
+    printf '[DEBUG-remote-clone] failed: pid=%s parent=%s source=%s destination=%s\n' \
+      "$$" "$PPID" "$source_root" "$destination"
+    printf 'source objects before clone:\n%s\nsource objects after clone:\n' "$before"
+    "$REAL_GIT" -C "$source_root" count-objects -v
+    object=$(sed -nE 's@.*[.]git/objects/([0-9a-f]{2}/[0-9a-f]+).*@\1@p' "$log" | head -1)
+    if [ -n "$object" ]; then
+      ls -ld "$source_root/.git/objects/$object" "$destination/.git/objects/${object%/*}"
+    fi
+    [ ! -f "$source_root/.git/gc.pid" ] || cat "$source_root/.git/gc.pid"
+    cat "$TRACE_ROOT/git-trace.jsonl"
+  } >&2
+fi
+rm -f "$log"
+exit "$rc"
+SH
+} > "$REMOTE_ROOT/bin/git"
+chmod +x "$REMOTE_ROOT/bin/git"
 git -C "$REMOTE_ROOT" init -q -b main
 git -C "$REMOTE_ROOT" config user.email test@example.com
 git -C "$REMOTE_ROOT" config user.name Test
