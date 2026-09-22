@@ -2,6 +2,7 @@
 # PR validation deliberately omits Force and does not require a FullControl ACE.
 # X includes hidden paths and requires a current-user FullControl Allow ACE.
 # Worker/Herdr require directories and allowed principals, not FullControl.
+# Newly created worker directories can be secured with inheritable private ACLs.
 # Secure operations preserve ownership and re-read the applied descriptor.
 $ErrorActionPreference = "Stop"
 $policy = $env:FM_PRIVATE_PATH_POLICY
@@ -15,6 +16,7 @@ switch ("$policy/$action/$kind") {
     "x/validate/any" { if ($count -ne 1) { exit 1 } }
     "x/secure/any" { if ($count -ne 1) { exit 1 } }
     "worker/validate/directory" { if ($count -ne 1) { exit 1 } }
+    "worker/secure/directory" { if ($count -ne 1) { exit 1 } }
     "herdr/validate/directory" { if ($count -ne 1) { exit 1 } }
     default { exit 1 }
 }
@@ -44,7 +46,7 @@ for ($index = 0; $index -lt $count; $index++) {
             [void]$security.RemoveAccessRuleSpecific($rule)
         }
         $inheritance = [Security.AccessControl.InheritanceFlags]::None
-        if ($policy -eq "x" -and $item.PSIsContainer) {
+        if (($policy -eq "x" -and $item.PSIsContainer) -or $kind -eq "directory") {
             $inheritance = (
                 [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
                 [Security.AccessControl.InheritanceFlags]::ObjectInherit

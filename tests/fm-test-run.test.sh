@@ -523,13 +523,13 @@ test_reconciled_modules_select_their_consumers() {
     rm "$repo/$path"
   done
   mkdir -p "$repo/tests/captures/no-mistakes-v1.70.1"
-  for path in GROK_BOT.md tests/captures/no-mistakes-v1.70.1/overview.toon \
+  for path in GROK_BOT.md VISION.md tests/captures/no-mistakes-v1.70.1/overview.toon \
     tests/fm-turnend-foreign-owner-repro.py; do
     printf '\n' > "$repo/$path"
     listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) \
       || fail "$path lacks explicit source routing"
     case "$path" in
-      GROK_BOT.md) script=fm-test-run.test.sh ;;
+      GROK_BOT.md|VISION.md) script=fm-test-run.test.sh ;;
       tests/captures/*) script=fm-crew-state.test.sh ;;
       *) script=fm-turnend-foreign-owner-arm-fix.test.sh ;;
     esac
@@ -1751,8 +1751,8 @@ test_portable_serial_shards_partition_the_serial_lane() {
   shard=1
   while [ "$shard" -le "$count" ]; do
     listed=$("$RUNNER" --list --lane "portable-serial-${shard}of${count}" | wc -l | tr -d ' ')
-    [ "$listed" -ge 2 ] \
-      || fail "portable-serial-${shard}of${count} holds only $listed script(s)"
+    # One expensive suite can legitimately occupy a whole runner. Non-empty
+    # coverage is asserted above; script counts are not duration weights.
     [ "$listed" -le "$cap" ] \
       || fail "portable-serial-${shard}of${count} holds $listed of $total scripts"
     shard=$((shard + 1))
@@ -1832,7 +1832,7 @@ test_jobs_requires_proven_isolated() {
   rc=$?
   set -e
   [ "$rc" -eq 2 ] || fail "--jobs with portable-serial must refuse (exit 2), got $rc"
-  grep -Fq 'not in the proven-isolated set' "$tmp/err" \
+  grep -Fq 'portable serial lanes stay serial' "$tmp/err" \
     || fail "--jobs refusal message missing: $(cat "$tmp/err")"
   set +e
   "$RUNNER" --jobs 2 tests/fm-afk-inject-e2e.test.sh >"$tmp/out2" 2>"$tmp/err2"
@@ -1846,7 +1846,7 @@ test_jobs_requires_proven_isolated() {
   rc=$?
   set -e
   [ "$rc" -eq 2 ] || fail "--jobs with a portable serial shard must refuse, got $rc"
-  grep -Fq 'not in the proven-isolated set' "$tmp/err3" \
+  grep -Fq 'portable serial lanes stay serial' "$tmp/err3" \
     || fail "shard --jobs refusal message missing: $(cat "$tmp/err3")"
   rm -rf "$tmp"
   pass "--jobs refuses non-proven / stateful selections"

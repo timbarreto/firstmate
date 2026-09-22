@@ -13,7 +13,7 @@ The failure repeated across harnesses and homes, and the workaround (remember to
 
 ## What the control plane owns
 
-`bin/fm-control-lib.sh` is the single executable owner of three capability tables, with no side effects, so it can be read as a contract:
+`bin/fm-control-lib.sh` is the single executable owner of three capability tables, which have no side effects, so they can be read as a contract:
 
 - The **verb allowlist**: read-only `inspect`, and lifecycle actions `interrupt`, `exit`, `relaunch`.
   There is no arbitrary-text and no generic raw-key entry point.
@@ -22,6 +22,8 @@ The failure repeated across harnesses and homes, and the workaround (remember to
   These were previously carried only in the [`harness-adapters`](../.agents/skills/harness-adapters/SKILL.md) skill's tool references, which now point here.
   `bin/fm-send.sh`'s `--key` path reads the composer-clear table from this owner too, rather than keeping a second copy of it.
 - **Per-backend capability**: which named keys a runtime backend can deliver, and whether it has a recovery-grade agent-state classifier able to prove an agent stopped.
+
+The one thing this file owns that is not a pure table is the [endpoint-absence proof](#reclaiming-a-task-whose-endpoint-is-gone) below, which does run backend reads; sourcing the file is still free.
 
 A recorded `harness=` is not always an exact adapter name: a task launched from a raw command records that command's basename instead.
 `fm_control_harness_family` is the one place that prefix rule is stated, and an unrecognized value resolves to no adapter rather than being guessed into one.
@@ -32,7 +34,7 @@ A recorded `harness=` is not always an exact adapter name: a task launched from 
 | --- | --- | --- |
 | `inspect` | Return structured current evidence and any retained recovery receipt, including while another action is active. | No lifecycle input, record mutation, or acquisition of lifecycle authority. |
 | `interrupt` | Deliver the harness's verified interrupt sequence while leaving the agent running. | Delivery succeeds while the endpoint still exists and the agent is still alive where the backend can classify that; cancellation is confirmed only from an adapter-owned acknowledgement and otherwise reports `cancel=unconfirmed`. |
-| `exit` | Stop the agent, preserving the endpoint, the worktree, and every uncommitted change. | The backend's recovery-grade classifier reports the agent gone. Already-stopped is idempotent success. |
+| `exit` | Stop the agent, preserving the endpoint, the worktree, and every uncommitted change. | The backend's recovery-grade classifier reports the agent gone. Already-stopped is idempotent success. A missing Herdr endpoint goes through the [absence proof](#reclaiming-a-task-whose-endpoint-is-gone): proven gone reports `endpoint-gone`, a restored idle pane reports `already-stopped`, and a restored agent takes the ordinary stop path. A missing tmux endpoint refuses. |
 | `relaunch` | Replace the agent in the same worktree, normally reusing its endpoint, on the exact recorded adapter or an explicitly chosen harness, model, and effort. | A verified live replacement or a terminal report attributable to that replacement confirms launch; the result distinguishes these two proofs. |
 
 An exit that delivers lifecycle input but cannot prove the agent stopped fails with `exit=unconfirmed`, reports the observed agent state and any interrupt cancellation claim, and never claims that nothing changed.
@@ -74,7 +76,7 @@ It is not deterministic across the verified adapters: codex, grok, and gemini re
    A ship or scout relaunch requires `--note`, because the replacement inherits the local copy but none of the conversation; the note is appended to the instructions it reads.
    A secondmate relaunch does not require one and never rewrites its standing charter.
 4. **Establish an agent-free endpoint**, normally through the `exit` verb with its postcondition.
-   A positively missing Herdr ship or scout terminal can instead be recreated around its preserved task-held copy under the guarded recovery contract in `bin/fm-control.sh`'s header.
+   A Herdr ship or scout terminal proven gone can instead be recreated around its preserved task-held copy under the guarded recovery contract in `bin/fm-control.sh`'s header and the absence proof below.
 5. **Launch the replacement** through its single owner, `bin/fm-spawn.sh --relaunch`, which adopts the recorded endpoint and worktree instead of creating either, clears the previous harness's per-task wiring, and arms a fresh busy generation.
 6. **Reconcile the outcome**, including a worker that finishes before a live observation completes.
    The spawn-bound status reader in `bin/fm-classify-lib.sh` excludes predecessor reports, incomplete appends, changed files, and later superseding work.
@@ -90,6 +92,28 @@ The control command's batch-relaunch mode runs the same single-task transaction 
 It prevents an ordinary failure or unconfirmed launch from suppressing unrelated authorized recoveries, without sharing per-task inspection approvals or retrying uncertain launches.
 Use separate single-task calls when progress notes or recovery plans differ, preserving individual outcomes rather than making later actions conditional on an earlier success.
 The [`bin/fm-control.sh`](../bin/fm-control.sh) header owns invocation, validation, aggregate results, and interruption semantics.
+### Reclaiming a task whose endpoint is gone
+
+A Herdr pane or workspace can be destroyed out from under a live task by churn or a session restart.
+The task's worktree, branch, commits, and uncommitted changes all survive that; only its terminal does not.
+
+**Reclaim is Herdr-only.** A classifier's `missing` can mean destroyed or merely unreachable.
+`fm_control_endpoint_absence_verdict` in `bin/fm-control-lib.sh` owns the shared proof: start only the recorded session's server, then re-read the recorded pane through that session.
+A restored `dead` pane is reused; a restored agent refuses replacement; only a second `missing` proves the endpoint gone.
+An unreadable or ambiguous response remains a refusal.
+Starting the server is a real side effect, so even an `exit` that discovers a destroyed endpoint can leave an idle server behind.
+On tmux the record carries no socket identity, and an inventory of this process's server cannot prove absence from another server; every missing tmux endpoint therefore refuses.
+
+Endpoint creation remains owned by `fm_control_recreate_endpoint` in `bin/fm-control-recovery-lib.sh`, inside the relaunch transaction.
+It holds metadata, task-set, and session locks; verifies the preserved project and exact task branch, a unique unused task-held Treehouse lease, and absence of competing task claims; and rechecks the endpoint after obtaining the session lock.
+It creates a fresh disposable workspace and task pane in the **recorded session**, using response-derived identities rather than a label lookup or adoption of another task's container.
+The existing backend owner preserves active focus, and the control journal retains an uncertain creation instead of blindly retrying it.
+
+This is not teardown or authority to discard a copy: branch, commits, uncommitted work, task id, armed checks, PR tracking, and status history survive.
+The ordinary required progress note is appended before launch, and the published endpoint binding is retained if launch subsequently fails.
+Only this home's control plane can recover its task.
+`fm-spawn --relaunch` may adopt a restored idle pane, but directs a proven-gone endpoint back to this guarded control transaction rather than implementing another creation path.
+A missing secondmate remains owned by its `--secondmate` respawn and session-start liveness sweep, not by ordinary task reclaim.
 
 ### Failure and rollback
 
@@ -140,7 +164,9 @@ The command header owns flags, supported record shape, digest and receipt mechan
 - An ambiguous or unreadable endpoint state refuses.
   Only a positively classified state acts.
 - `exit`'s composer-empty check, above, is itself a fail-closed boundary that `relaunch` inherits by stopping the old agent through `exit`.
-- `fm-spawn --relaunch` independently refuses unless the recorded endpoint is positively agent-free, so a replacement can never join a live agent.
+- `fm-spawn --relaunch` independently refuses unless the recorded endpoint exists and is positively agent-free, including a Herdr pane restored by the absence probe.
+  An endpoint proven gone must first pass the control plane's guarded recovery transaction.
+  An `alive`, `ambiguous`, or `unreadable` verdict all refuse, and so does any endpoint whose absence is not provable, which on tmux is every `missing`; absence is claimed only from positive evidence of it.
   It also requires the shell to be in the recorded worktree: tmux refuses immediately when it is not, while Herdr sends one `cd` to the recorded path and refuses unless a subsequent path read confirms the move.
 
 ## Capability matrix
@@ -162,6 +188,6 @@ The empirical basis for each adapter's value is the `harness-adapters` skill's v
 
 - `tests/fm-control.test.sh` - the adapter contract for its verified-harness lane (adapters outside the lane pin their control mechanics in their own harness suites), the backend capability matrix, exact-id scoping, the closed verb list, the busy, idle, dead, and idempotent lifecycle cases, and marker non-regression, all against a stubbed session provider.
 - `tests/fm-control-recovery.test.sh` - missing-terminal recreation, restored-shell reuse, unsafe-claim refusal, interrupted creation and launch retries, structured inspection, exact approval, original-copy preservation, stale/foreign evidence, native instance replacement, completed/partial replay, independent batch outcomes, and elapsed confirmation bounds with slow, stuck, partial-output, and native Windows queries.
-- `tests/fm-control-relaunch.test.sh` - the real control/spawn transaction: identity preservation, harness switching, the progress note, checkpoint refusals, completion during launch confirmation, and rollback after a failed launch.
+- `tests/fm-control-relaunch.test.sh` - the real control/spawn transaction: identity preservation, harness switching, the progress note, checkpoint refusals, completion during launch confirmation, rollback after a failed launch, and the shared absence proof with Herdr recovery and tmux refusal.
 - `tests/fm-launch-status.test.sh` and `tests/fm-crew-state.test.sh` - generation-bound report integrity, captured-status provenance within the fleet snapshot's default bound, notification triage, launch-seed precedence, idle/dead-worker outcomes, and preservation of active-run and later-turn authority.
 - `tests/fm-control-herdr-smoke.test.sh` - the second state-verified backend against the real herdr binary, on an isolated throwaway lab session.

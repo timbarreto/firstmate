@@ -71,6 +71,10 @@ fm_backend_herdr_agent_state() {
 fm_backend_herdr_server_ensure() {
   [ -z "${FM_TEST_RESTORE_STATE:-}" ] || printf '%s' "$FM_TEST_RESTORE_STATE" > "$FM_TEST_CASE/agent"
 }
+fm_backend_herdr_endpoint_absence_recheck() {
+  fm_backend_herdr_server_ensure fixture || return 1
+  fm_backend_herdr_agent_state "$1"
+}
 fm_backend_herdr_presentation_session_lock_path() { printf '%s/session.lock\n' "$FM_TEST_CASE"; }
 fm_backend_herdr_projection_create_task() {
   [ "$HERDR_SESSION" = fixture ] && [ "$1" = "$FM_TEST_CASE/original" ] || return 1
