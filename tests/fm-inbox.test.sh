@@ -415,8 +415,10 @@ can=$(printf '%s' "$ready" | python3 -c 'import json,sys; print(json.load(sys.st
   || fail "unknown lock must not claim can_receive true (got $can)"
 
 human_lock=$(run_lock "$home" status) || fail "lock status should succeed"
-assert_contains "$human_lock" "stale (pid $$ dead or not a harness)" \
-  "human lock status keeps its historical stale wording"
+assert_contains "$human_lock" "unverifiable (cannot inspect harness pid $$)" \
+  "human lock status preserves uncertainty about a live unverified process"
+assert_equals "$$" "$(cat "$home/state/.lock")" \
+  "readiness and status reads must not reclaim an unverified owner"
 
 # Dead pid is stale, not held.
 home=$(make_home ready-stale)
@@ -426,6 +428,9 @@ assert_equals "stale" "$(printf '%s' "$ready" | python3 -c 'import json,sys; pri
   "a dead recorded pid is stale"
 assert_equals "False" "$(printf '%s' "$ready" | python3 -c 'import json,sys; print(json.load(sys.stdin)["can_receive"])')" \
   "a stale lock cannot receive work"
+human_lock=$(run_lock "$home" status) || fail "dead-pid lock status should succeed"
+assert_contains "$human_lock" "stale (pid 999999 dead or not a harness)" \
+  "human lock status still distinguishes a dead owner from an unverified live owner"
 
 # Existence of a pane-like leftover must not become liveness: unreadable lock.
 home=$(make_home ready-unreadable)

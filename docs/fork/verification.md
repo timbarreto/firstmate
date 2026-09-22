@@ -160,6 +160,7 @@ The Windows reconciliation core job owns native coverage, while the pinned packa
 Its PGID fault injection targets the fork's Perl `getpgrp` query, while birth-identity injection remains on the existing `ps` boundary.
 
 Run `bin/fm-lint.sh tests/fm-platform-process.test.sh bin/fm-platform-process-lib.sh bin/backends/herdr.sh` for focused source-aware lint; the lint owner documents mode selection and test/production source boundaries.
+The watcher treats the separately linted pending-reply owner as an analysis boundary, and the launch-prompt live test treats its production imports the same way; canonical partition coverage and the seeded module-boundary parity case retain full analysis of those owners and their dependencies without recursively expanding them into every caller.
 
 `tests/fm-pi-primary-types.test.sh` compiles the copied repository-shaped extensions and adjacent module declarations against the installed Pi package.
 The existing Pi watch and branch suites retain their full case order and additionally support the shared named-case selector in `tests/lib.sh`.

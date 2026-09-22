@@ -699,7 +699,8 @@ SH
   [ "$rc" -eq 1 ] || fail "failed Azure publication did not report failure: $(cat "$dir/first.err")"
   [ ! -e "$state/task-a.pr-poll-merge-notified" ] || fail "failed Azure marker was committed"
   [ -f "$state/task-a.check.sh" ] || fail "uncommitted Azure notification lost its retry"
-  assert_grep "$merged" "$replies" "Azure completion is delivered before deduplication is committed"
+  assert_grep "$merged" <(sed -E 's/ \[at=[0-9]+\]//' "$replies") \
+    "Azure completion is delivered before deduplication is committed"
   ack_watcher_cycle "$state" || fail "interrupted Azure cycle acknowledgement failed"
   rm -f "$dir/fakebin/mv" "$state/.last-check"
   FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
@@ -709,7 +710,8 @@ SH
     FM_TEST_CHECK_TIMEOUT=10 run_watcher_bounded "$dir/home" "$dir/fakebin" \
       > "$dir/retry.out" 2> "$dir/retry.err" || fail "Azure publication could not resume after recovery"
   fi
-  [ "$(grep -cF "$merged" "$replies")" -eq 1 ] || fail "Azure retry duplicated the parent's already-appended completion line"
+  [ "$(sed -E 's/ \[at=[0-9]+\]//' "$replies" | grep -cF "$merged")" -eq 1 ] \
+    || fail "Azure retry duplicated the parent's already-appended completion line"
   assert_grep "$url" "$state/.wake-queue" "interrupted Azure publication retries its acknowledged local outcome"
   fm_pr_poll_merge_already_notified "$state" task-a azure dev.azure.com \
     example-org/Example%20Project/_git/example-repo/pullrequest 42 || fail "Azure retry did not commit its exact identity"

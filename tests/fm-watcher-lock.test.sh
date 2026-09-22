@@ -67,7 +67,7 @@ except subprocess.TimeoutExpired:
     os.killpg(p.pid, signal.SIGKILL)
     p.communicate()
     raise SystemExit("wait_for_exit hung after its deadline on a stopped child")
-if p.returncode or "survived TERM; sending KILL" not in err:
+if p.returncode or "still alive after TERM cleanup" not in err:
     raise SystemExit(f"cleanup rc={p.returncode}, stdout={out}, stderr={err}")
 PY
   pass "wait deadline diagnoses and reaps a stopped test child without hanging"
@@ -1282,35 +1282,36 @@ test_msys_pid_identity_uses_proc() {
   pass "MSYS process identity uses compatible /proc fields"
 }
 
-test_wait_deadline_reaps_a_stopped_child
-test_singleton_start
-test_pid_identity_is_locale_invariant
-test_proc_pid_identity_ignores_wall_clock_and_detects_pid_reuse
-test_msys_pid_identity_uses_proc
-test_stale_watch_lock_reclaimed
-test_stale_watch_reclaim_publishes_before_clear
-test_live_stale_watch_lock_is_actionable
-test_guard_warnings
-test_lock_msys_publication_preserves_owner_identity
-test_lock_single_winner_under_concurrency
-test_lock_steals_dead_pid_lock
-test_lock_stale_steal_single_winner_under_concurrency
-test_lock_stale_steal_hierarchy_converges_without_growing
-test_lock_live_steal_mutex_is_not_reclaimed
-test_lock_does_not_steal_live_lock
-test_lock_empty_pid_uses_minimum_grace
-test_lock_late_claim_loses_after_recreate
-test_lock_paused_mid_acquire_claim_fails_during_steal
-test_watch_restart_rejects_reused_pid
-test_watch_restart_attaches_to_healthy_peer
-test_watcher_self_evicts_on_lock_takeover
-test_arm_self_eviction_is_loud_without_successor
-test_arm_attaches_and_waits_for_live_fresh_watcher
-test_attached_arm_signal_is_recorded_in_cycle_ledger
-test_arm_starts_and_self_heals
-test_arm_hup_cleans_child_and_temp_output
-test_arm_propagates_immediate_wake_before_confirmation
-test_arm_waits_for_peer_beacon_after_child_stands_down
-test_arm_fails_loud_when_no_fresh_watcher_confirmable
-test_cycle_exit_ledger_links_successor_and_stays_bounded
-test_stopped_watcher_is_live_but_stale_then_exit_is_classified
+fm_test_run_cases \
+  test_wait_deadline_reaps_a_stopped_child \
+  test_singleton_start \
+  test_pid_identity_is_locale_invariant \
+  test_proc_pid_identity_ignores_wall_clock_and_detects_pid_reuse \
+  test_msys_pid_identity_uses_proc \
+  test_stale_watch_lock_reclaimed \
+  test_stale_watch_reclaim_publishes_before_clear \
+  test_live_stale_watch_lock_is_actionable \
+  test_guard_warnings \
+  test_lock_msys_publication_preserves_owner_identity \
+  test_lock_single_winner_under_concurrency \
+  test_lock_steals_dead_pid_lock \
+  test_lock_stale_steal_single_winner_under_concurrency \
+  test_lock_stale_steal_hierarchy_converges_without_growing \
+  test_lock_live_steal_mutex_is_not_reclaimed \
+  test_lock_does_not_steal_live_lock \
+  test_lock_empty_pid_uses_minimum_grace \
+  test_lock_late_claim_loses_after_recreate \
+  test_lock_paused_mid_acquire_claim_fails_during_steal \
+  test_watch_restart_rejects_reused_pid \
+  test_watch_restart_attaches_to_healthy_peer \
+  test_watcher_self_evicts_on_lock_takeover \
+  test_arm_self_eviction_is_loud_without_successor \
+  test_arm_attaches_and_waits_for_live_fresh_watcher \
+  test_attached_arm_signal_is_recorded_in_cycle_ledger \
+  test_arm_starts_and_self_heals \
+  test_arm_hup_cleans_child_and_temp_output \
+  test_arm_propagates_immediate_wake_before_confirmation \
+  test_arm_waits_for_peer_beacon_after_child_stands_down \
+  test_arm_fails_loud_when_no_fresh_watcher_confirmable \
+  test_cycle_exit_ledger_links_successor_and_stays_bounded \
+  test_stopped_watcher_is_live_but_stale_then_exit_is_classified

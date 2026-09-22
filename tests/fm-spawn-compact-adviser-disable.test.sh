@@ -246,11 +246,6 @@ esac
 exit 0
 SH
   chmod +x "$fb/tmux"
-  cat > "$fb/sleep" <<'SH'
-#!/usr/bin/env bash
-exit 0
-SH
-  chmod +x "$fb/sleep"
 }
 
 test_relaunch_rebuilds_the_switch() {
@@ -287,9 +282,11 @@ test_relaunch_rebuilds_the_switch() {
     } > "$home/state/$id.meta"
 
     mkdir -p "$dir/user-home"
+    # This case tests launch environment, not expiry; allow the real identity
+    # and process observations to finish within the same bounds as relaunch tests.
     out=$(env PATH="$dir/fakebin:$PATH" FM_HOME="$home" FM_FAKE_DIR="$dir/fake" \
       HOME="$dir/user-home" CLAUDE_CONFIG_DIR='' FM_SPAWN_NO_GUARD=1 \
-      FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
+      FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=20 FM_CONTROL_LAUNCH_WAIT=20 \
       "$CONTROL" "$id" relaunch --note 'replacement continues the same task' 2>&1)
     status=$?
     expect_code 0 "$status" "relaunch with allowlist=$setting should succeed: $out"
@@ -345,9 +342,10 @@ SH
   pass "a compound raw launch-command still starts its agent with the compact-adviser switch on"
 }
 
-test_ship_allowlist_absent
-test_ship_allowlist_enabled
-test_launch_command_carries_the_switch_without_the_pane_export
-test_secondmate_launch
-test_relaunch_rebuilds_the_switch
-test_raw_compound_launch_command_carries_the_switch
+fm_test_run_cases \
+  test_ship_allowlist_absent \
+  test_ship_allowlist_enabled \
+  test_launch_command_carries_the_switch_without_the_pane_export \
+  test_secondmate_launch \
+  test_relaunch_rebuilds_the_switch \
+  test_raw_compound_launch_command_carries_the_switch

@@ -390,8 +390,9 @@ EOF
   FM_FAKE_CREW_STATE=unknown run_reconcile "$MATE"
   while IFS='|' read -r id url; do
     key=$(reported_outcome_key "$MATE" "$id" 'done') || fail "missing non-GitHub outcome"
-    grep -Fxq "done [key=$key]: child $id done: PR $url checks green pr=$url mode=no-mistakes yolo=off" \
-      "$MAIN/state/mate.status" || fail "reconciliation lost or rewrote the delivered PR identity"
+    sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" \
+      | grep -Fxq "done [key=$key]: child $id done: PR $url checks green pr=$url mode=no-mistakes yolo=off" \
+      || fail "reconciliation lost or rewrote the delivered PR identity"
   done <<'EOF'
 azure|https://dev.azure.com/example-org/Example%20Project/_git/example-repo/pullrequest/42
 azure-api|https://example-org.visualstudio.com/Example%20Project/_apis/git/repositories/example-repo/pullRequests/42?api-version=7.1

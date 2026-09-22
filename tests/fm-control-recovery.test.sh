@@ -265,7 +265,8 @@ test_missing_endpoint_restored_unsafe_state_refuses() {
     if out=$(FM_TEST_RESTORE_STATE="$state" control "$dir" relaunch --note 'Do not duplicate a restored worker.' 2>&1); then
       fail "a restored $state endpoint was relaunched: $out"
     fi
-    assert_contains "$out" 'no longer proven missing or agent-free' "restored $state refusal was unexplained"
+    assert_contains "$out" "endpoint absence is not proven in session 'fixture'" \
+      "restored $state refusal was unexplained"
     cmp -s "$dir/before.meta" "$dir/home/state/task-a.meta" || fail "restored $state changed its record"
     cmp -s "$dir/before.brief" "$dir/home/data/task-a/brief.md" || fail "restored $state changed its brief"
     [ ! -s "$dir/actions" ] || fail "restored $state created or controlled an endpoint"

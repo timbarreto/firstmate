@@ -272,6 +272,7 @@ test_large_poll_output_is_drained() {
   for lib in fm-timeout-lib.sh fm-pr-lib.sh fm-line-cap-lib.sh fm-check-lib.sh; do
     ln -s "$ROOT/bin/$lib" "$tmpbin/$lib"
   done
+  fm_test_install_private_paths "${tmpbin%/bin}" || fail "could not install private-path fixture dependencies"
   cat > "$tmpbin/fm-mail.sh" <<'SH'
 #!/usr/bin/env bash
 printf 'fm-mail: woke for 42\n'
@@ -462,20 +463,21 @@ test_missing_mail_plane_is_reported() {
   pass "fm-mail-check: a missing mail plane is reported, not assumed"
 }
 
-test_help_and_usage
-test_arm_writes_and_binds_the_check_and_disarm_removes_it
-test_arm_resolves_a_relative_home_into_the_shim
-test_arm_refuses_a_symlink_at_the_shim_path
-test_arm_refuses_without_the_mail_plane
-test_successful_poll_with_new_mail_emits_one_wake_line
-test_failure_is_reported_once_until_it_changes
-test_unconfigured_home_is_reported_once
-test_slow_poll_times_out_and_is_reported
-test_fail_closed_poll_after_wake_reports_the_failure
-test_repeated_status4_fail_closed_still_wakes
-test_repeated_status2_stays_queued_still_wakes
-test_repeated_failure_that_queued_new_mail_still_wakes
-test_large_poll_output_is_drained
-test_repeated_timeout_still_wakes
-test_repeated_heal_failure_stays_silent
-test_missing_mail_plane_is_reported
+fm_test_run_cases \
+  test_help_and_usage \
+  test_arm_writes_and_binds_the_check_and_disarm_removes_it \
+  test_arm_resolves_a_relative_home_into_the_shim \
+  test_arm_refuses_a_symlink_at_the_shim_path \
+  test_arm_refuses_without_the_mail_plane \
+  test_successful_poll_with_new_mail_emits_one_wake_line \
+  test_failure_is_reported_once_until_it_changes \
+  test_unconfigured_home_is_reported_once \
+  test_slow_poll_times_out_and_is_reported \
+  test_fail_closed_poll_after_wake_reports_the_failure \
+  test_repeated_status4_fail_closed_still_wakes \
+  test_repeated_status2_stays_queued_still_wakes \
+  test_repeated_failure_that_queued_new_mail_still_wakes \
+  test_large_poll_output_is_drained \
+  test_repeated_timeout_still_wakes \
+  test_repeated_heal_failure_stays_silent \
+  test_missing_mail_plane_is_reported
