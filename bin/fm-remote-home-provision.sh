@@ -73,8 +73,6 @@ rollback() {
   local status=$? project
   if [ "$status" -ne 0 ] && [ "$PUBLISHED" -eq 0 ]; then
     if [ "$CREATED_HOME" -eq 1 ]; then
-      printf '[DEBUG-remote-provision] rollback shell=%s bashpid=%s parent=%s status=%s home=%s\n' \
-        "$$" "${BASHPID:-$$}" "$PPID" "$status" "$FM_HOME" >&2
       rm -rf -- "$FM_HOME"
     elif [ "$EXISTING_HOME" -eq 1 ]; then
       while IFS= read -r project; do
@@ -176,15 +174,7 @@ if [ -e "$FM_HOME" ] || [ -L "$FM_HOME" ]; then
   fi
 else
   CREATED_HOME=1
-  if ! git clone --quiet -- "$FM_ROOT" "$FM_HOME"; then
-    printf '[DEBUG-remote-provision] clone failed shell=%s bashpid=%s parent=%s source=%s destination=%s\n' \
-      "$$" "${BASHPID:-$$}" "$PPID" "$FM_ROOT" "$FM_HOME" >&2
-    git -C "$FM_ROOT" count-objects -v >&2 || true
-    git -C "$FM_ROOT" config --show-origin --get-regexp '^(gc|maintenance)[.]' >&2 || true
-    ls -ld "$FM_ROOT/.git/objects" "$FM_HOME/.git" "$FM_HOME/.git/objects" >&2 || true
-    [ ! -f "$FM_ROOT/.git/gc.pid" ] || cat "$FM_ROOT/.git/gc.pid" >&2
-    die "could not clone the remote Firstmate home"
-  fi
+  git clone --quiet -- "$FM_ROOT" "$FM_HOME" || die "could not clone the remote Firstmate home"
 fi
 for operational_dir in data state config projects; do
   operational_path="$FM_HOME/$operational_dir"
