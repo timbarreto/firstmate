@@ -71,6 +71,10 @@ fm_backend_herdr_agent_state() {
 fm_backend_herdr_server_ensure() {
   [ -z "${FM_TEST_RESTORE_STATE:-}" ] || printf '%s' "$FM_TEST_RESTORE_STATE" > "$FM_TEST_CASE/agent"
 }
+fm_backend_herdr_endpoint_absence_recheck() {
+  fm_backend_herdr_server_ensure fixture || return 1
+  fm_backend_herdr_agent_state "$1"
+}
 fm_backend_herdr_presentation_session_lock_path() { printf '%s/session.lock\n' "$FM_TEST_CASE"; }
 fm_backend_herdr_projection_create_task() {
   [ "$HERDR_SESSION" = fixture ] && [ "$1" = "$FM_TEST_CASE/original" ] || return 1
@@ -261,7 +265,8 @@ test_missing_endpoint_restored_unsafe_state_refuses() {
     if out=$(FM_TEST_RESTORE_STATE="$state" control "$dir" relaunch --note 'Do not duplicate a restored worker.' 2>&1); then
       fail "a restored $state endpoint was relaunched: $out"
     fi
-    assert_contains "$out" 'no longer proven missing or agent-free' "restored $state refusal was unexplained"
+    assert_contains "$out" "endpoint absence is not proven in session 'fixture'" \
+      "restored $state refusal was unexplained"
     cmp -s "$dir/before.meta" "$dir/home/state/task-a.meta" || fail "restored $state changed its record"
     cmp -s "$dir/before.brief" "$dir/home/data/task-a/brief.md" || fail "restored $state changed its brief"
     [ ! -s "$dir/actions" ] || fail "restored $state created or controlled an endpoint"

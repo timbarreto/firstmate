@@ -2,7 +2,8 @@
 # Native private-path mechanics; callers retain platform, POSIX, and transaction policy.
 # fm_private_path_native <policy> <validate|secure> <kind> <path...>
 # Accepted combinations: pr/validate/any (1-3 paths), pr/secure/file (1-3),
-# x/{validate,secure}/any (1), {worker,herdr}/validate/directory (1).
+# x/{validate,secure}/any (1), worker/{validate,secure}/directory (1),
+# herdr/validate/directory (1).
 # PR and X retry at most three times; worker and Herdr make one native call.
 # The platform owner defines the ACL differences. No validation result is cached.
 
@@ -22,7 +23,7 @@ fm_private_path_native() {
   shift 3
   case "$policy/$action/$kind/$#" in
     pr/validate/any/[123]|pr/secure/file/[123]|x/validate/any/1|x/secure/any/1) attempts=3 ;;
-    worker/validate/directory/1|herdr/validate/directory/1) attempts=1 ;;
+    worker/validate/directory/1|worker/secure/directory/1|herdr/validate/directory/1) attempts=1 ;;
     *)
       printf 'fm-private-path: unsupported policy/operation/kind/count: %s/%s/%s/%s\n' \
         "$policy" "$action" "$kind" "$#" >&2

@@ -148,6 +148,30 @@ test_private_native_policy_variants() {
   pass "native callers retain ACL, FullControl, hidden-path, kind, and batch policies"
 }
 
+test_private_native_worker_directory_creation() {
+  local tmp dir child
+  case "$(uname -s)" in
+    MSYS*|MINGW*|CYGWIN*) ;;
+    *) printf 'skip - native worker directory creation requires Windows\n'; return ;;
+  esac
+  tmp=$(fm_test_tmproot fm-private-worker-create)
+  dir="$tmp/launch"
+  mkdir "$dir"
+  private_native_fixture "$dir" allow
+  private_expect 1 fm_private_path_native worker validate directory "$dir"
+  private_expect 0 fm_private_path_native worker secure directory "$dir"
+  private_expect 0 fm_private_path_native worker validate directory "$dir"
+  child="$dir/launch.sh"
+  printf 'exit 0\n' > "$child"
+  mkdir "$dir/child"
+  private_expect 0 fm_pr_native_windows_private_paths_valid "$child"
+  private_expect 0 fm_private_path_native worker validate directory "$dir/child"
+  private_expect 1 fm_private_path_native worker secure directory "$child"
+  private_native_fixture "$dir" allow
+  private_expect 1 fm_private_path_native worker validate directory "$dir"
+  pass "new worker directories get inheritable private ACLs and existing directories are freshly validated"
+}
+
 test_private_native_revalidation_and_inheritance() {
   local tmp file dir child native junction
   case "$(uname -s)" in
@@ -387,6 +411,7 @@ test_private_tracked_layouts() {
 
 fm_test_run_cases \
   test_private_native_policy_variants \
+  test_private_native_worker_directory_creation \
   test_private_native_revalidation_and_inheritance \
   test_private_native_batch_secure \
   test_private_structural_policies \

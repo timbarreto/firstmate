@@ -9,7 +9,7 @@ The non-credentialed package job detects package API drift and missing runner CL
 
 [Shared CI](../../.github/workflows/ci.yml) retains lint, coverage, portable parallel and serial shards, real Herdr, timing aggregation, stock macOS Bash, and repository invariants.
 The real-Herdr job also installs the pinned Pi prerequisite for the non-credentialed agent exit-to-shell regression; an absent Pi is a job failure, not accepted missing coverage.
-The two workflows together produce 20 automatic checks, with one producer for each check name.
+The two workflows together produce 25 automatic checks, including two lint partitions and nine portable serial shards, with one producer for each check name.
 Both use the same main-branch push and pull-request triggers and read-only permissions, with workflow-qualified concurrency groups so neither cancels the other.
 The [Windows Herdr experiment](../../.github/workflows/windows-herdr-spike.yml) remains manual.
 These owners apply to every compatibility section below; focused local cases never replace the complete exact-head CI results.
@@ -118,14 +118,14 @@ A curated fixture remains mapped without direct references; a fixture with neith
 Before adding new registrations during a metadata extraction, compare old and new listing, family, scheduled-order, lane, and JSON results on identical inventory and metadata inputs.
 Include every family's expected gate-skip class; JSON fixtures covering only ungated families cannot establish gate compatibility.
 Measure repeated successful lookups as well as parser counts; in-process string matching can still make selection expensive.
-After registering new tests, re-run the coverage guard and inspect the five serial shards; legitimate rebalancing is distinct from an identical-input mismatch.
+After registering new tests, re-run the coverage guard and inspect the nine serial shards; legitimate rebalancing is distinct from an identical-input mismatch.
 Keep the immutable comparison inputs and exact outputs in session or PR evidence.
 Broad runner coverage remains in portable CI, stock Bash parsing remains in the macOS job, and native worker privacy remains in Windows coverage.
 
 ## Serial runtime and stalled fixtures
 
 [Portable shard verification](../fm-test-portable-shards.md) owns duration-hint refresh and balance evidence.
-Exclude gated skips from timing samples, preserve unmeasured native-platform hints, and verify the complete five-shard partition after updating fork overrides.
+Exclude gated skips from timing samples, preserve unmeasured native-platform hints, and verify the complete nine-shard partition after updating fork overrides.
 Balanced estimates do not prove that a shutdown race or other intermittent stall has been resolved.
 `tests/fm-lint-inventory.test.sh` keeps the complete no-external-sources exclusion audit in the serial lanes, outside the fast lint-contract suite's parallel-lane budget.
 Its catalog registration does not grant concurrent admission or reduce the audited root set.
@@ -140,6 +140,8 @@ Run `bin/fm-test-run.sh tests/fm-private-path.test.sh` for native ACL policy fix
 The native fixtures cover allowed and foreign Allow principals, Deny entries, null DACLs, FullControl differences, hidden paths, directory inheritance, reparse points, mutation, and replacement.
 They run in the existing Windows reconciliation core job; POSIX mode checks run in portable CI and explicitly skip on synthetic Windows filesystems.
 Transport fakes establish operation counts and data handling, not native ACL behavior.
+The worker-directory creation case verifies inheritable private ACLs for newly created launch namespaces and fresh refusal after an existing directory becomes broadly writable.
+Spawn retains creation-versus-reuse policy and secures launch files through the private-file owner; POSIX mode bits are not native Windows privacy evidence.
 
 The PR publication, X-mode, runner, and Herdr suites retain their existing integration cases.
 Windows core coverage also selects the PR publication and contribution-monitor cases in `tests/fm-pr-check-security.test.sh` through the shared named-case runner.
@@ -158,6 +160,7 @@ The Windows reconciliation core job owns native coverage, while the pinned packa
 Its PGID fault injection targets the fork's Perl `getpgrp` query, while birth-identity injection remains on the existing `ps` boundary.
 
 Run `bin/fm-lint.sh tests/fm-platform-process.test.sh bin/fm-platform-process-lib.sh bin/backends/herdr.sh` for focused source-aware lint; the lint owner documents mode selection and test/production source boundaries.
+The watcher treats the separately linted pending-reply owner as an analysis boundary, and the launch-prompt live test treats its production imports the same way; canonical partition coverage and the seeded module-boundary parity case retain full analysis of those owners and their dependencies without recursively expanding them into every caller.
 
 `tests/fm-pi-primary-types.test.sh` compiles the copied repository-shaped extensions and adjacent module declarations against the installed Pi package.
 The existing Pi watch and branch suites retain their full case order and additionally support the shared named-case selector in `tests/lib.sh`.
@@ -226,6 +229,6 @@ For documentation changes, run `bin/fm-doc-audience-check.sh` and `bin/fm-test-r
 Neither the structural checker nor a smaller line count proves semantic preservation.
 
 Before closing the implementation series, account for every acceptance criterion in the [approved plan](upstream-plan.md#completion-criteria-and-rollback).
-Verify all 20 automatic check names and their single producers against the exact final head, and preserve the manual-only experiment, live-test gates, and package pins.
+Verify all 25 automatic check names and their single producers against the exact final head, and preserve the manual-only experiment, live-test gates, and package pins.
 Separate deterministic fixtures, actual native execution, installed-package checks, and live vendor/backend proof.
 A gated skip, an unavailable optional package, or historical vendor evidence is not a new live pass; retain any unresolved requirement explicitly instead of declaring the series complete by inference.

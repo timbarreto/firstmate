@@ -115,7 +115,7 @@ fm_control_recovery_pool_binding() {  # <pool-json> <copy> <task> <must-be-unuse
 # Called by the relaunch transaction with lifecycle authority already held.
 fm_control_recreate_endpoint() {
   local project git_project git_worktree common wt_common branch pool other target copy session
-  local tmp line key new_target cwd
+  local tmp line key new_target cwd absence
   # shellcheck disable=SC2153 # META belongs to the calling fm-control.sh transaction.
   RECOVERY_META_LOCK=$(fm_meta_lock_path "$META") || return 1
   fm_lock_try_acquire "$RECOVERY_META_LOCK" \
@@ -154,7 +154,11 @@ fm_control_recreate_endpoint() {
   done
   session=$(fm_backend_meta_exact_value "$META" herdr_session) || return 1
   fm_backend_source herdr || return 1
-  fm_backend_herdr_server_ensure "$session" || return 1
+  absence=$(fm_control_endpoint_absence_verdict herdr "$T")
+  case "${absence%%$'\t'*}" in
+    gone|dead) ;;
+    *) fm_control_recovery_error "endpoint absence is not proven in session '$session': $absence"; return 1 ;;
+  esac
   RECOVERY_SESSION_LOCK=$(fm_backend_herdr_presentation_session_lock_path "$session") || return 1
   fm_lock_try_acquire "$RECOVERY_SESSION_LOCK" \
     || { fm_control_recovery_error "the runtime session is changing"; return 1; }
@@ -174,7 +178,10 @@ fm_control_recreate_endpoint() {
       journal_write recreating "${CHECKPOINT_LINES[@]}" || return 1
       # Fresh response-derived IDs only: no label search, adoption, or closing
       # of another task's terminal. The existing helper preserves active focus.
-      HERDR_SESSION="$session" fm_backend_herdr_projection_create_task "$WT" "fm-$ID" "fm-$ID" || return 1
+      if ! HERDR_SESSION="$session" fm_backend_herdr_projection_create_task "$WT" "fm-$ID" "fm-$ID"; then
+        fm_control_recovery_error "endpoint creation failed in recorded herdr session '$session'; inspect the retained recovery journal before retrying"
+        return 1
+      fi
       new_target="$session:$FM_BACKEND_HERDR_PROJECTION_PANE_ID"
       [ "$(fm_backend_agent_state herdr "$new_target")" = dead ] || return 1
       cwd=$(fm_backend_herdr_current_path "$new_target") || return 1

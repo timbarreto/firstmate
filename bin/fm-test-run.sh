@@ -213,7 +213,7 @@ CHANGED_WINDOWS_CAPTAIN_TIMEOUT_SECS=7200
 
 # How many separate-runner shards the portable serial remainder splits into.
 # One owner: CI lane names carry this count and are refused when they disagree.
-PORTABLE_SERIAL_SHARDS=5
+PORTABLE_SERIAL_SHARDS=9
 
 # Balance hint for a portable-serial script with no measured duration, close to
 # the measured per-script mean so a newly added test neither starves nor
@@ -1971,6 +1971,13 @@ fi
 # An explicit --jobs names a concurrency for exactly the selection given, so an
 # unproven script in it is a refusal rather than something to schedule around.
 if [ "$JOBS" -gt 1 ] && [ "$AUTO_CONCURRENCY" -eq 0 ]; then
+  # A single heavy suite can occupy a whole serial shard. Its family may have
+  # a separate concurrency proof, but that never changes this lane's contract.
+  if [ "$MODE" = lane ]; then
+    case "$LANE" in
+      portable-serial|portable-serial-*) die "--jobs $JOBS refused: portable serial lanes stay serial; use --jobs 1" ;;
+    esac
+  fi
   for s in "${SCRIPTS[@]}"; do
     if ! script_allows_concurrency "$s"; then
       die "--jobs $JOBS refused: $s is not in the proven-isolated set (see bin/fm-test-isolation-proof.sh --list) and its family has no recorded concurrent proof. Unproven stateful scripts stay serial."

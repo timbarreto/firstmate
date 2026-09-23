@@ -34,6 +34,62 @@ drain_and_ack() {  # <state>
     --recovery-generation "$generation"
 }
 
+test_wait_deadline_reaps_a_stopped_child() {
+  # A stopped TERM-resistant child cannot finish graceful cleanup. The helper waited
+  # forever after its nominal deadline. An outer process-group deadline keeps
+  # this regression finite even if that bug returns.
+  python3 - "$ROOT/tests/wake-helpers.sh" <<'PY' || fail "bounded child cleanup regression"
+import os
+import signal
+import subprocess
+import sys
+
+script = r'''
+. "$1"
+bash -c 'trap "" TERM; kill -STOP "$$"; exec sleep 300' &
+pid=$!
+for i in $(seq 1 100); do
+  state=$(ps -p "$pid" -o stat=)
+  case "$state" in *T*) break ;; esac
+  sleep 0.01
+done
+case "$state" in *T*) ;; *) kill -KILL "$pid"; exit 23 ;; esac
+wait_for_exit "$pid" 2
+rc=$?
+[ "$rc" = 124 ] || exit 21
+! kill -0 "$pid" 2>/dev/null || exit 22
+'''
+p = subprocess.Popen([os.environ.get("BASH", "bash"), "-c", script, "_", sys.argv[1]],
+                     start_new_session=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+try:
+    out, err = p.communicate(timeout=15)
+except subprocess.TimeoutExpired:
+    os.killpg(p.pid, signal.SIGKILL)
+    p.communicate()
+    raise SystemExit("wait_for_exit hung after its deadline on a stopped child")
+if p.returncode or "still alive after TERM cleanup" not in err:
+    raise SystemExit(f"cleanup rc={p.returncode}, stdout={out}, stderr={err}")
+PY
+  pass "wait deadline diagnoses and reaps a stopped test child without hanging"
+}
+
+# Preserve the real watcher's trap diagnostics when testing its termination.
+# A termination defect should fail this case promptly, not occupy a CI runner
+# until the whole job times out and hides every following test.
+stop_seed_watcher() {  # <owned-pid> <output-path>
+  local pid=$1 out=$2 status=0
+  kill -TERM "$pid" 2>/dev/null || true
+  wait_for_exit "$pid" 100 || status=$?
+  if [ "$status" -eq 124 ]; then
+    cat "$out" >&2
+    fail "seed watcher survived TERM; see bounded wait/process/trap evidence above"
+  fi
+  if grep -E 'unexpected EOF|syntax error' "$out" >/dev/null; then
+    cat "$out" >&2
+    fail "seed watcher emitted a shell parser error during termination"
+  fi
+}
+
 test_singleton_start() {
   local dir state fakebin out1 out2 pid1 pid2 live i
   dir=$(make_case singleton)
@@ -695,7 +751,7 @@ test_arm_attaches_and_waits_for_live_fresh_watcher() {
   out="$dir/watch.out"
   armout="$dir/arm.out"
   # A genuinely live watcher with a fresh beacon already holds the singleton.
-  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" 2>&1 &
   wpid=$!
   i=0
   while [ "$i" -lt 60 ]; do
@@ -720,8 +776,7 @@ test_arm_attaches_and_waits_for_live_fresh_watcher() {
   [ "$(cat "$state/.watch.lock/pid" 2>/dev/null || true)" = "$wpid" ] || fail "arm disturbed the healthy watcher's lock"
   is_live_non_zombie "$armpid" || fail "arm exited while the seed watcher was still healthy"
   # After the seed dies without a successor, the attached arm must fail loudly.
-  kill "$wpid" 2>/dev/null || true
-  wait "$wpid" 2>/dev/null || true
+  stop_seed_watcher "$wpid" "$out"
   wait_for_exit "$armpid" 80
   status=$?
   [ "$status" -ne 0 ] && [ "$status" -ne 124 ] || fail "attached arm did not fail after seed died (status $status)"
@@ -736,7 +791,7 @@ test_attached_arm_signal_is_recorded_in_cycle_ledger() {
   fakebin="$dir/fakebin"
   out="$dir/watch.out"
   armout="$dir/arm.out"
-  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" 2>&1 &
   wpid=$!
   i=0
   while [ "$i" -lt 60 ]; do
@@ -761,8 +816,7 @@ test_attached_arm_signal_is_recorded_in_cycle_ledger() {
   grep -q "arm_pid=$armpid.*watcher_pid=$wpid.*origin=attached.*exit_code=143.*signal=TERM.*reason=arm-interrupted" "$state/.watch-cycle-exits.log" \
     || fail "attached arm signal was not recorded in the lifecycle ledger"
   is_live_non_zombie "$wpid" || fail "signaling an attached arm terminated the peer watcher"
-  kill "$wpid" 2>/dev/null || true
-  wait "$wpid" 2>/dev/null || true
+  stop_seed_watcher "$wpid" "$out"
   pass "attached arm signals record a classified lifecycle entry"
 }
 
@@ -1228,34 +1282,36 @@ test_msys_pid_identity_uses_proc() {
   pass "MSYS process identity uses compatible /proc fields"
 }
 
-test_singleton_start
-test_pid_identity_is_locale_invariant
-test_proc_pid_identity_ignores_wall_clock_and_detects_pid_reuse
-test_msys_pid_identity_uses_proc
-test_stale_watch_lock_reclaimed
-test_stale_watch_reclaim_publishes_before_clear
-test_live_stale_watch_lock_is_actionable
-test_guard_warnings
-test_lock_msys_publication_preserves_owner_identity
-test_lock_single_winner_under_concurrency
-test_lock_steals_dead_pid_lock
-test_lock_stale_steal_single_winner_under_concurrency
-test_lock_stale_steal_hierarchy_converges_without_growing
-test_lock_live_steal_mutex_is_not_reclaimed
-test_lock_does_not_steal_live_lock
-test_lock_empty_pid_uses_minimum_grace
-test_lock_late_claim_loses_after_recreate
-test_lock_paused_mid_acquire_claim_fails_during_steal
-test_watch_restart_rejects_reused_pid
-test_watch_restart_attaches_to_healthy_peer
-test_watcher_self_evicts_on_lock_takeover
-test_arm_self_eviction_is_loud_without_successor
-test_arm_attaches_and_waits_for_live_fresh_watcher
-test_attached_arm_signal_is_recorded_in_cycle_ledger
-test_arm_starts_and_self_heals
-test_arm_hup_cleans_child_and_temp_output
-test_arm_propagates_immediate_wake_before_confirmation
-test_arm_waits_for_peer_beacon_after_child_stands_down
-test_arm_fails_loud_when_no_fresh_watcher_confirmable
-test_cycle_exit_ledger_links_successor_and_stays_bounded
-test_stopped_watcher_is_live_but_stale_then_exit_is_classified
+fm_test_run_cases \
+  test_wait_deadline_reaps_a_stopped_child \
+  test_singleton_start \
+  test_pid_identity_is_locale_invariant \
+  test_proc_pid_identity_ignores_wall_clock_and_detects_pid_reuse \
+  test_msys_pid_identity_uses_proc \
+  test_stale_watch_lock_reclaimed \
+  test_stale_watch_reclaim_publishes_before_clear \
+  test_live_stale_watch_lock_is_actionable \
+  test_guard_warnings \
+  test_lock_msys_publication_preserves_owner_identity \
+  test_lock_single_winner_under_concurrency \
+  test_lock_steals_dead_pid_lock \
+  test_lock_stale_steal_single_winner_under_concurrency \
+  test_lock_stale_steal_hierarchy_converges_without_growing \
+  test_lock_live_steal_mutex_is_not_reclaimed \
+  test_lock_does_not_steal_live_lock \
+  test_lock_empty_pid_uses_minimum_grace \
+  test_lock_late_claim_loses_after_recreate \
+  test_lock_paused_mid_acquire_claim_fails_during_steal \
+  test_watch_restart_rejects_reused_pid \
+  test_watch_restart_attaches_to_healthy_peer \
+  test_watcher_self_evicts_on_lock_takeover \
+  test_arm_self_eviction_is_loud_without_successor \
+  test_arm_attaches_and_waits_for_live_fresh_watcher \
+  test_attached_arm_signal_is_recorded_in_cycle_ledger \
+  test_arm_starts_and_self_heals \
+  test_arm_hup_cleans_child_and_temp_output \
+  test_arm_propagates_immediate_wake_before_confirmation \
+  test_arm_waits_for_peer_beacon_after_child_stands_down \
+  test_arm_fails_loud_when_no_fresh_watcher_confirmable \
+  test_cycle_exit_ledger_links_successor_and_stays_bounded \
+  test_stopped_watcher_is_live_but_stale_then_exit_is_classified

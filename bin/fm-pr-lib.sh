@@ -272,6 +272,17 @@ fm_pr_head_valid() {
   [[ "$head" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]
 }
 
+# The one reading of a GitHub pull request's draft state. Prints "true" or
+# "false" for a boolean isDraft and nothing for anything else, so a caller can
+# tell a positive draft from an unreadable payload. bin/fm-pr-merge.sh refuses
+# a merge unless this prints "false"; bin/fm-pr-check.sh refuses to arm a merge
+# poll only when it prints "true".
+fm_pr_json_draft_state() {  # <pull-request-json>
+  printf '%s' "${1-}" | jq -r '
+    if type == "object" and (.isDraft | type) == "boolean" then (.isDraft | tostring) else "" end
+  ' 2>/dev/null || true
+}
+
 _fm_pr_stat() {  # <path> <BSD-format> <GNU-format>
   if [ "$_FM_PR_PLATFORM" = Darwin ]; then
     /usr/bin/stat -f "$2" "$1" 2>/dev/null
