@@ -8,12 +8,25 @@ import {
   terminateWatchArmProcessTree,
 } from "./lib/fm-process-ancestry.js";
 
+// Supervision host: a home opted in with config/supervision-host
+// (docs/configuration.md "Supervision host" owns the opt-in) spawns
+// bin/fm-supervision-host.sh park --restart in the arm's place, which takes
+// away-posture wakes itself and closes only when main is needed; its header
+// owns the output read here. A "supervision-host:" line is actionable like a
+// wake line, and the delivered message carries every such line in order while
+// wake lines keep an eight-line cap. The host prints the first cycle's status
+// line as soon as it is verified, so readiness and the handling handoff work
+// as they do for the arm, with a longer readiness budget for the host's own
+// startup. Without the file nothing below changes.
 const COORDINATOR_KEY = "__firstmateOpenCodeWatchArm";
 // 100s on Windows so the budget stays above arm's MSYS confirm default (90s in
 // bin/fm-watch-arm.sh): a slow but successful Git Bash cold start must not be
 // SIGTERMed mid-confirmation. Conditioned on win32 so other platforms keep 12s.
 const ARM_READY_TIMEOUT_DEFAULT_MS = process.platform === "win32" ? 100000 : 12000;
 const ARM_READY_TIMEOUT_MS = positiveInteger("FM_OPENCODE_ARM_READY_TIMEOUT_MS", ARM_READY_TIMEOUT_DEFAULT_MS);
+const HOST_READY_TIMEOUT_MS = Math.max(ARM_READY_TIMEOUT_MS, 30000);
+const WAKE_LINE = /^(signal:|stale:|check:|heartbeat($|:))/;
+const HOST_LINE = /^supervision-host:/;
 const ARM_RETIRE_TIMEOUT_MS = positiveInteger(
   "FM_WATCH_ARM_RETIRE_TIMEOUT_MS",
   process.platform === "win32" ? 10000 : 1000,
@@ -34,6 +47,7 @@ let armReadiness = new WeakMap();
 let armRecovery = new WeakMap();
 let armOwnerToken = new WeakMap();
 let nextArmOwnerId = 0;
+let armHostMode = new WeakMap();
 
 function positiveInteger(name, fallback) {
   const value = Number(process.env[name]);
@@ -48,8 +62,9 @@ function setArmStatus(status) {
 function waitForArmReady(armChild) {
   const readiness = armReadiness.get(armChild);
   if (!readiness) return Promise.resolve("failed");
+  const timeout = armHostMode.get(armChild) ? HOST_READY_TIMEOUT_MS : ARM_READY_TIMEOUT_MS;
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve("timeout"), ARM_READY_TIMEOUT_MS);
+    const timer = setTimeout(() => resolve("timeout"), timeout);
     timer.unref();
     void readiness.then((status) => {
       clearTimeout(timer);
@@ -133,9 +148,34 @@ async function sessionOwnsLock(paths) {
   return isPidInCurrentAncestry(lockPid);
 }
 
-function classifyArmClose(stdout, stderr, code, signal) {
+// The host-mode wake message: every "supervision-host:" line in order, wake
+// lines capped at eight, and the away note while the posture record exists.
+function hostWakeMessage(paths, combined) {
+  let shown = 0;
+  const lines = combined.split(/\r?\n/).filter((line) => {
+    if (HOST_LINE.test(line)) return true;
+    if (WAKE_LINE.test(line) && shown < 8) {
+      shown += 1;
+      return true;
+    }
+    return false;
+  });
+  if (lines.length === 0) return "";
+  if (existsSync(`${paths.state}/.afk-contract`)) {
+    lines.push("This wake comes from automatic supervision under the away-posture record, not from the captain: it is not a return, so handle it under the away posture.");
+  }
+  return lines.join("\n");
+}
+
+function classifyArmClose(paths, hostMode, stdout, stderr, code, signal) {
   const combined = `${stdout}\n${stderr}`;
-  const reason = combined.split(/\r?\n/).find((line) => /^(signal:|stale:|check:|heartbeat($|:))/.test(line));
+  if (hostMode) {
+    const message = hostWakeMessage(paths, combined);
+    if (message) return { kind: "actionable", message };
+    const stoodDown = combined.split(/\r?\n/).find((line) => /^supervision-host stood down:/.test(line));
+    if (stoodDown) return { kind: "failure", message: `watcher: FAILED - ${stoodDown}` };
+  }
+  const reason = combined.split(/\r?\n/).find((line) => WAKE_LINE.test(line));
   if (reason) return { kind: "actionable", message: reason };
   const healthy = combined.split(/\r?\n/).find((line) => /^watcher: healthy\b/.test(line));
   if (healthy) {
@@ -153,9 +193,10 @@ function classifyArmClose(stdout, stderr, code, signal) {
     };
   }
   if (code && code !== 0) {
+    const script = hostMode ? "fm-supervision-host.sh" : "fm-watch-arm.sh";
     return {
       kind: "failure",
-      message: `watcher: FAILED - fm-watch-arm.sh exited ${code}${combined.trim() ? `\n${combined.trim()}` : ""}`,
+      message: `watcher: FAILED - ${script} exited ${code}${combined.trim() ? `\n${combined.trim()}` : ""}`,
     };
   }
   return {
@@ -164,9 +205,9 @@ function classifyArmClose(stdout, stderr, code, signal) {
   };
 }
 
-function observeArmOutput(stdout, stderr, settleReadiness) {
+function observeArmOutput(hostMode, stdout, stderr, settleReadiness) {
   const combined = `${stdout}\n${stderr}`;
-  if (combined.split(/\r?\n/).some((line) => /^(signal:|stale:|check:|heartbeat($|:))/.test(line))) {
+  if (combined.split(/\r?\n/).some((line) => WAKE_LINE.test(line) || (hostMode && HOST_LINE.test(line)))) {
     setArmStatus("wake");
     settleReadiness("wake");
     return;
@@ -350,6 +391,7 @@ async function scheduleRetry(paths, sessionID, client, reason, predecessorArmPid
 function spawnArm(paths, sessionID, client, predecessorArmPid = "") {
   setArmStatus("starting");
   const ownerToken = `opencode-${process.pid}-${Date.now()}-${++nextArmOwnerId}`;
+  const hostMode = existsSync(`${paths.config}/supervision-host`);
   const env = {
     ...process.env,
     FM_HOME: paths.home,
@@ -358,14 +400,19 @@ function spawnArm(paths, sessionID, client, predecessorArmPid = "") {
     FM_WATCH_ARM_OWNER_TOKEN: ownerToken,
     FM_WATCH_PREDECESSOR_ARM_PID: predecessorArmPid,
   };
-  // Explicit Bash keeps the arm script in this child on Windows; executing
+  if (hostMode) env.FM_SUPERVISION_HOST_PRIMARY = "opencode";
+  const command = hostMode
+    ? 'bash "$FM_ROOT_OVERRIDE/bin/fm-supervision-host.sh" park --restart --arm-owner-token "$FM_WATCH_ARM_OWNER_TOKEN"'
+    : 'bash "$FM_ROOT_OVERRIDE/bin/fm-watch-arm.sh" --restart --arm-owner-token "$FM_WATCH_ARM_OWNER_TOKEN"';
+  // Explicit Bash keeps the arm or host in this child on Windows; executing
   // the shebang path directly can leave an unretired MSYS descendant.
-  const armChild = spawn("bash", ["-lc", 'config_dir="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"; [ -f "$config_dir/x-mode.env" ] && . "$config_dir/x-mode.env"; exec bash "$FM_ROOT_OVERRIDE/bin/fm-watch-arm.sh" --restart --arm-owner-token "$FM_WATCH_ARM_OWNER_TOKEN"'], {
+  const armChild = spawn("bash", ["-lc", `config_dir="\${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"; [ -f "$config_dir/x-mode.env" ] && . "$config_dir/x-mode.env"; exec ${command}`], {
     cwd: paths.root,
     env,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
+  armHostMode.set(armChild, hostMode);
   child = armChild;
   armOwnerToken.set(armChild, ownerToken);
   let stdout = "";
@@ -397,19 +444,19 @@ function spawnArm(paths, sessionID, client, predecessorArmPid = "") {
   armChild.stdout.on("data", (chunk) => {
     stdout += chunk.toString();
     observeRecovery();
-    observeArmOutput(stdout, stderr, settleReadiness);
+    observeArmOutput(hostMode, stdout, stderr, settleReadiness);
   });
   armChild.stderr.on("data", (chunk) => {
     stderr += chunk.toString();
     observeRecovery();
-    observeArmOutput(stdout, stderr, settleReadiness);
+    observeArmOutput(hostMode, stdout, stderr, settleReadiness);
   });
   armChild.on("close", (code, signal) => {
     if (settled) return;
     settled = true;
     resolveClosed();
     releaseChild();
-    const classification = classifyArmClose(stdout, stderr, code, signal);
+    const classification = classifyArmClose(paths, hostMode, stdout, stderr, code, signal);
     settleReadiness(classification.kind === "actionable" ? "wake" : "failed");
     const predecessor = String(armChild.pid ?? "");
     if (classification.kind === "actionable") {

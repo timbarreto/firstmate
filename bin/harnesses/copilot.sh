@@ -16,6 +16,8 @@ fm_harness_copilot_describe() {
     remote-supported) [ "${1:-}" = launch ] ;;
     interrupt-key) printf C-c ;;
     interrupt-repeat) printf 1 ;;
+    interrupt-arm-signal|interrupt-hazard-signal) ;;
+    interrupt-press-gap) printf 0.2 ;;
     interrupt-clear-key) ;;
     interrupt-ack-source) printf none ;;
     exit-command) printf /exit ;;

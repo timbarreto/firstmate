@@ -104,7 +104,8 @@ Pi retains `shellVisibleProcessPid` and `pidAlive`; OpenCode does not acquire th
 Both wrappers use the same functions rather than generated implementations, while lifecycle decisions remain in their extension/plugin callers.
 
 The module retains per-instance Windows ancestry caching, verifies native liveness on every ancestry query, and takes fresh process rows for ordinary PID liveness.
-`bin/platform/windows-process.ps1` owns bounded native process-fact queries, the exact MSYS-to-native ancestry bridge for descendant facts, watch-arm root discovery, and batched descendant termination.
+`bin/platform/windows-process.ps1` owns bounded native process-fact queries, the exact MSYS-to-native ancestry bridge for descendant facts, watch-arm or supervision-host root discovery, and batched descendant termination.
+OpenCode gives each arm or host a distinct command-line owner token, preserving exact-child retirement across MSYS exec without treating another host as owned.
 Graceful cleanup still finds the owned MSYS root and sends TERM through Bash before callers choose their existing escalation path.
 Forced cleanup preserves the existing direct-PID TERM fallback after a native operation fails; this is not authority to terminate an arbitrary process, and callers must retain their owned-child and generation checks.
 A missing tracked native helper throws explicitly before any native operation or direct-PID fallback.

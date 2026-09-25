@@ -243,6 +243,41 @@ test_private_native_batch_secure() {
   pass "native secure batches enforce every file and subsequent ACL drift remains visible"
 }
 
+test_private_devin_config_publication() {
+  local tmp state config expected output layout fakebin rc
+  case "$(uname -s)" in
+    MSYS*|MINGW*|CYGWIN*) ;;
+    *) printf 'skip - native Devin config privacy requires Windows\n'; return ;;
+  esac
+  tmp=$(fm_test_tmproot fm-private-devin-config)
+  state="$tmp/hook state"
+  layout="$tmp/code"
+  fakebin="$tmp/fakebin"
+  mkdir -p "$state" "$layout/bin" "$fakebin"
+  printf '%s\n' '{"agent":{"model":"fixture"},"hooks":{"Stop":[]}}' > "$tmp/user.json"
+  "$ROOT/bin/fm-devin-config.sh" "$state" worker generation "$tmp/user.json" \
+    || fail "native Devin config publication failed"
+  config="$state/worker.devin-config.json"
+  private_expect 0 fm_pr_native_windows_private_paths_valid "$config"
+  jq -e '.agent.model == "fixture" and .attribution == false and (.hooks.Stop | length) == 1' "$config" \
+    >/dev/null || fail "native Devin config lost settings or hooks"
+  expected=$(cat "$config")
+  cp "$ROOT/bin/fm-devin-config.sh" "$ROOT/bin/fm-private-path-lib.sh" "$ROOT/bin/fm-path-lib.sh" "$layout/bin/"
+  cat > "$fakebin/jq" <<'SH'
+#!/usr/bin/env bash
+: > "${FM_PRIVATE_DEVIN_PAYLOAD_MARKER:?}"
+exit 99
+SH
+  chmod +x "$fakebin/jq"
+  output=$(PATH="$fakebin:$PATH" FM_PRIVATE_DEVIN_PAYLOAD_MARKER="$tmp/payload-read" \
+    bash "$layout/bin/fm-devin-config.sh" "$state" worker replacement "$tmp/user.json" 2>&1); rc=$?
+  expect_code 1 "$rc" "a missing native privacy dependency must refuse publication"
+  assert_contains "$output" 'could not secure private Devin config' "privacy failure must be explicit"
+  assert_absent "$tmp/payload-read" "privacy must be established before user config is read"
+  assert_equals "$expected" "$(cat "$config")" "privacy refusal must preserve the prior config"
+  pass "native Devin config is private before payload and refuses missing dependencies without replacing prior data"
+}
+
 test_private_structural_policies() {
   local tmp file device
   tmp=$(fm_test_tmproot fm-private-structure)
@@ -414,6 +449,7 @@ fm_test_run_cases \
   test_private_native_worker_directory_creation \
   test_private_native_revalidation_and_inheritance \
   test_private_native_batch_secure \
+  test_private_devin_config_publication \
   test_private_structural_policies \
   test_private_transport_bounds \
   test_private_missing_dependencies \

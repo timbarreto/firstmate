@@ -169,7 +169,7 @@ $ownerToken = $env:FM_WATCH_ARM_OWNER_TOKEN
 $escapedToken = [regex]::Escape($ownerToken)
 $all = Get-CimInstance Win32_Process
 $roots = @($all | Where-Object {
-    ($_.CommandLine -match 'fm-watch-arm\.sh') -and
+    ($_.CommandLine -match 'fm-(?:watch-arm|supervision-host)\.sh') -and
     (([int]$_.ProcessId -eq $rootPid) -or ($ownerToken -and $_.CommandLine -match $escapedToken))
 })
 

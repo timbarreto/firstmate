@@ -206,18 +206,20 @@ async function nativeContracts(mod) {
   }
 
   const launched = [];
-  function launchTree(owner) {
+  function launchTree(owner, scriptName = "fm-watch-arm.sh") {
     const child = childProcess.spawn(process.execPath, [
       "-e",
       'const {spawn}=require("node:child_process"); const child=spawn(process.execPath,["-e","setInterval(()=>{},1000)"],{stdio:"ignore"}); console.log(JSON.stringify({root:process.pid,child:child.pid})); setInterval(()=>{},1000);',
-      "fm-watch-arm.sh", owner,
+      scriptName, owner,
     ], { stdio: ["ignore", "pipe", "inherit"] });
     const entry = { child, closed: once(child, "close"), ids: [] };
     launched.push(entry);
     return entry;
   }
   const owner = `fm-${randomUUID()}`;
+  const hostOwner = `fm-${randomUUID()}`;
   const owned = launchTree(owner);
+  const host = launchTree(hostOwner, "fm-supervision-host.sh");
   const foreign = launchTree(`fm-${randomUUID()}`);
   try {
     for (const entry of launched) {
@@ -235,6 +237,13 @@ async function nativeContracts(mod) {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     assert.ok(owned.ids.every((pid) => !nativeAlive(pid)), "owned descendants survived");
+    assert.ok(host.ids.every(nativeAlive), "arm cleanup affected a foreign host");
+    assert.equal(mod.terminateWatchArmProcessTree(2147483647, hostOwner), true);
+    await boundedWait(host.closed, "owned native host process tree");
+    for (let attempt = 0; attempt < 100 && host.ids.some(nativeAlive); attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.ok(host.ids.every((pid) => !nativeAlive(pid)), "owned host descendants survived");
     assert.ok(foreign.ids.every(nativeAlive), "owned cleanup affected a foreign tree");
   } finally {
     for (const entry of launched) {
