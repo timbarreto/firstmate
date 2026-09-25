@@ -16,6 +16,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/private-path-helpers.sh
+. "$ROOT/tests/private-path-helpers.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-afk-return-tests)
 
@@ -36,6 +38,7 @@ install_runner() {  # <case-dir>
   cp "$ROOT/bin/fm-backlog-transition-lib.sh" "$dir/bin/"
   # The merge-notification marker reader behind the brief's landed section.
   cp "$ROOT/bin/fm-pr-lib.sh" "$dir/bin/"
+  fm_test_install_private_paths "$dir" || fail "could not install the PR reader's private-path dependencies"
   cp "$ROOT/.tasks.toml" "$dir/home/.tasks.toml"
   printf '## In flight\n\n## Queued\n\n## Done\n' > "$dir/home/data/backlog.md"
   # The fake stop mirrors the real one's ordering: the away flag goes, then the
@@ -867,26 +870,27 @@ test_missing_final_archive_keeps_retained_contract_gated() {
   pass "the retained contract epoch requires its final archive on every check"
 }
 
-test_return_gate_owns_remediation_and_reports_catchup_to_bearings
-test_explicit_reclassification_requires_durable_reason
-test_captain_decision_does_not_masquerade_as_firstmate_blocker
-test_evidence_publication_failure_preserves_wake_for_redrain
-test_away_reentry_refuses_pending_return_gate
-test_return_is_mode_agnostic_for_quiet_mode
-test_check_retries_recorded_terminal_teardown
-test_unreadable_superseded_archive_keeps_return_gated
-test_missing_final_archive_keeps_retained_contract_gated
-test_return_brief_composes_from_record_store_and_held_set
-test_return_brief_lists_landed_work_awaiting_cleanup
-test_return_brief_keeps_refresh_history
-test_malformed_posture_record_keeps_catchup_gated
-test_missing_epoch_record_stays_required_after_disappearing
-test_unreadable_outcome_store_keeps_catchup_gated
-test_failed_held_listing_keeps_catchup_gated
-test_unreadable_status_file_keeps_catchup_gated
-test_statusless_leftover_record_keeps_catchup_gated_until_cleanup
-test_statusful_leftover_record_lets_catchup_clear
-test_return_guard_refuses_while_the_record_exists
-test_return_brief_health_leads_with_a_gap
-test_return_brief_does_not_report_an_acked_watcher_down_marker_as_a_gap
-test_return_brief_without_a_record_reports_the_legacy_flag
+fm_test_run_cases \
+  test_return_gate_owns_remediation_and_reports_catchup_to_bearings \
+  test_explicit_reclassification_requires_durable_reason \
+  test_captain_decision_does_not_masquerade_as_firstmate_blocker \
+  test_evidence_publication_failure_preserves_wake_for_redrain \
+  test_away_reentry_refuses_pending_return_gate \
+  test_return_is_mode_agnostic_for_quiet_mode \
+  test_check_retries_recorded_terminal_teardown \
+  test_unreadable_superseded_archive_keeps_return_gated \
+  test_missing_final_archive_keeps_retained_contract_gated \
+  test_return_brief_composes_from_record_store_and_held_set \
+  test_return_brief_lists_landed_work_awaiting_cleanup \
+  test_return_brief_keeps_refresh_history \
+  test_malformed_posture_record_keeps_catchup_gated \
+  test_missing_epoch_record_stays_required_after_disappearing \
+  test_unreadable_outcome_store_keeps_catchup_gated \
+  test_failed_held_listing_keeps_catchup_gated \
+  test_unreadable_status_file_keeps_catchup_gated \
+  test_statusless_leftover_record_keeps_catchup_gated_until_cleanup \
+  test_statusful_leftover_record_lets_catchup_clear \
+  test_return_guard_refuses_while_the_record_exists \
+  test_return_brief_health_leads_with_a_gap \
+  test_return_brief_does_not_report_an_acked_watcher_down_marker_as_a_gap \
+  test_return_brief_without_a_record_reports_the_legacy_flag

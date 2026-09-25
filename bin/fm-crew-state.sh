@@ -218,8 +218,8 @@ emit() {  # <state> <source> [detail]
 # consume much of a Windows snapshot's current-state deadline before any actual
 # worker observation could begin. Initialize the destinations for source-aware
 # static analysis, which cannot infer printf -v assignments across the helper.
-WT='' KIND='' HARNESS='' REMOTE_HOST='' SPAWN_GEN='' LAUNCH_STATUS='' BUSY_GEN=''
-fm_meta_read "$META" worktree WT kind KIND harness HARNESS remote_host REMOTE_HOST \
+WT='' KIND='' MODE='' PROJECT='' HARNESS='' REMOTE_HOST='' SPAWN_GEN='' LAUNCH_STATUS='' BUSY_GEN=''
+fm_meta_read "$META" worktree WT kind KIND mode MODE project PROJECT harness HARNESS remote_host REMOTE_HOST \
   spawn_gen SPAWN_GEN launch_status LAUNCH_STATUS busy_gen BUSY_GEN
 [ -n "$KIND" ] || KIND=ship
 
@@ -242,7 +242,7 @@ fi
 # not treated as finished-and-safe.
 emit_ship_status_done() {  # [extra-detail]
   local extra=${1:-} reason
-  if reason=$(fm_dod_accept_ship_done "$KIND" "$(meta_value mode)" "$WT" "$(meta_value project)" "$LOG_LINE" "$STATE" "$ID" "$META"); then
+  if reason=$(fm_dod_accept_ship_done "$KIND" "$MODE" "$WT" "$PROJECT" "$LOG_LINE" "$STATE" "$ID" "$META"); then
     emit "done" status-log "$(status_line_note "$LOG_LINE")${extra:+${SEP}$extra}"
   fi
   emit blocked status-log "$reason"
