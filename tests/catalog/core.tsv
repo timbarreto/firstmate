@@ -55,6 +55,13 @@ test	tests/fm-trace-context-lib.test.sh	pure-contract-unit
 test	tests/fm-transition-lib.test.sh	pure-contract-unit
 test	tests/fm-test-run.test.sh	pure-contract-unit
 test	tests/fm-test-isolation-proof.test.sh	pure-contract-unit
+test	tests/fm-devin-harness.test.sh	pure-contract-unit
+test	tests/fm-dod-lib.test.sh	pure-contract-unit
+test	tests/fm-forge-detect.test.sh	pure-contract-unit
+test	tests/fm-timeout-lib.test.sh	pure-contract-unit
+test	tests/fm-fleet-ledger.test.sh	backend-dispatch
+test	tests/fm-worker-account.test.sh	backend-dispatch
+test	tests/fm-supervision-host.test.sh	afk
 test	tests/fm-daemon.test.sh	watcher-wake-lock
 test	tests/fm-guard-stale-banner.test.sh	watcher-wake-lock
 test	tests/fm-pi-watch-extension.test.sh	watcher-wake-lock
@@ -159,6 +166,10 @@ test	tests/fm-send-secondmate-marker-herdr-e2e.test.sh	live-harness-optin
 test	tests/fm-send-inbox-doorbell-live-e2e.test.sh	live-harness-optin
 test	tests/fm-calm-claude-mod-plugin.test.sh	live-harness-optin
 test	tests/fm-calm-claude-mod-live-e2e.test.sh	live-harness-optin
+test	tests/fm-calm-pi-queue-retention-live-e2e.test.sh	live-harness-optin
+test	tests/fm-devin-signals-live-e2e.test.sh	live-harness-optin
+test	tests/fm-supervision-host-live-e2e.test.sh	live-harness-optin
+test	tests/fm-worker-account-live-e2e.test.sh	live-harness-optin
 test	tests/fm-herdr-submit-confirm-live-e2e.test.sh	live-harness-optin
 test	tests/fm-spawn-compact-adviser-disable-remote.test.sh	backend-dispatch
 test	tests/fm-spawn-compact-adviser-disable.test.sh	backend-dispatch
@@ -405,6 +416,11 @@ duration	tests/fm-watch-checkpoint.test.sh	6076
 duration	tests/fm-watch-recovery-loop.test.sh	58946
 duration	tests/fm-watch-triage.test.sh	697969
 duration	tests/fm-watcher-lock.test.sh	108940
+duration	tests/fm-dod-lib.test.sh	4000
+duration	tests/fm-forge-detect.test.sh	160
+duration	tests/fm-supervision-host-live-e2e.test.sh	50
+duration	tests/fm-supervision-host.test.sh	41512
+duration	tests/fm-timeout-lib.test.sh	8541
 parallel-duration	tests/fm-arm-pretool-check.test.sh	30898
 parallel-duration	tests/fm-backend-herdr.test.sh	22144
 parallel-duration	tests/fm-brief.test.sh	1625
@@ -442,6 +458,7 @@ map	route-bin-fm-backend-sh	1000	bin/fm-backend.sh|bin/fm-backend-hometag-lib.sh
 map	route-bin-fm-agent-process-lib-sh	1050	bin/fm-agent-process-lib.sh	backend-dispatch,real-herdr-gated,pure-contract-unit,orca,live-harness-optin
 map	route-bin-fm-watch	1100	bin/fm-watch*|bin/fm-wake*|bin/fm-inactive-reconcile.sh|bin/fm-classify-lib.sh|bin/fm-daemon*|bin/fm-turnend-guard*|bin/fm-guard.sh	watcher-wake-lock
 map	route-bin-fm-afk	1200	bin/fm-afk*	afk,real-herdr-gated
+map	route-bin-fm-supervision-host	1250	bin/fm-supervision-host.sh|bin/fm-supervision-engine-lib.sh|bin/fm-branch-report.sh|bin/fm-branch-dispatch.mjs	afk,__script__:fm-claude-stop-autoarm.test.sh,live-harness-optin
 map	route-bin-fm-supervisor-target-lib-sh	1300	bin/fm-supervisor-target-lib.sh	watcher-wake-lock,real-herdr-gated,live-harness-optin,afk
 map	route-bin-fm-startup-memory-budget-sh	1400	bin/fm-startup-memory-budget.sh|bin/fm-startup-memory-budget-lib.sh	secondmate,session-bootstrap
 map	route-bin-fm-secondmate	1500	bin/fm-secondmate*|bin/fm-remote*|bin/fm-on.sh|bin/fm-home-seed.sh|bin/fm-backlog-handoff.sh|bin/fm-backlog-receive.sh|bin/fm-procevent-remote-reply.sh|bin/fm-config-inherit-lib.sh|bin/fm-config-push.sh|bin/fm-shared*|bin/fm-stow-cascade.sh	secondmate
@@ -450,7 +467,7 @@ map	route-bin-fm-procevent-quota-sh	1800	bin/fm-procevent-quota.sh	__script__:fm
 map	route-bin-fm-quota-choose-sh	1900	bin/fm-quota-choose.sh	__script__:fm-quota-choose.test.sh
 map	route-bin-fm-dispatch-resolve-sh	1910	bin/fm-dispatch-resolve.sh	__script__:fm-dispatch-resolve.test.sh
 map	route-bin-fm-env-lib-sh	1920	bin/fm-env-lib.sh	pr-forge,__script__:fm-dispatch-resolve.test.sh
-map	route-pi-extensions-fm-branch-supervision-ts	2000	.pi/extensions/fm-branch-supervision.ts|.pi/extensions/lib/fm-async-exec.ts|.pi/extensions/lib/fm-branch-dispatch.ts|.pi/extensions/lib/fm-native-contract.ts	__script__:fm-pi-branch-extension.test.sh,__script__:fm-pi-watch-extension.test.sh,__script__:fm-calm-pi-extension.test.sh,__script__:fm-watch-recovery-loop.test.sh,__script__:fm-wake-queue.test.sh,__script__:fm-pi-primary-types.test.sh,live-harness-optin
+map	route-pi-extensions-fm-branch-supervision-ts	2000	.pi/extensions/fm-branch-supervision.ts|.pi/extensions/lib/fm-async-exec.ts|.pi/extensions/lib/fm-branch-dispatch.ts|.pi/extensions/lib/fm-native-contract.ts	__script__:fm-pi-branch-extension.test.sh,__script__:fm-pi-watch-extension.test.sh,__script__:fm-calm-pi-extension.test.sh,__script__:fm-watch-recovery-loop.test.sh,__script__:fm-wake-queue.test.sh,__script__:fm-pi-primary-types.test.sh,__script__:fm-supervision-host.test.sh,live-harness-optin
 map	route-pi-extensions-lib-fm-operational-input-ts	2100	.pi/extensions/lib/fm-operational-input.ts	__script__:fm-pi-windows-shell-invocation.test.sh,__script__:fm-pi-branch-extension.test.sh,__script__:fm-pi-watch-extension.test.sh,__script__:fm-calm-pi-extension.test.sh,__script__:fm-watch-recovery-loop.test.sh,__script__:fm-turnend-guard.test.sh,__script__:fm-sessionstart-nudge.test.sh,__script__:fm-pi-primary-types.test.sh,live-harness-optin
 map	route-calm-mod-and-sprite	2150	.agents/skills/firstmate-calm|.claude/mods/firstmate-calm/*|.pi/extensions/lib/fm-calm-working-ship.ts|.pi/extensions/lib/fm-calm-working-ship-sprite.ts|.pi/extensions/lib/fm-calm-preservation.ts	__script__:fm-calm-claude-mod.test.sh,__script__:fm-calm-pi-extension.test.sh,__script__:fm-pi-primary-types.test.sh,live-harness-optin
 map	route-bin-fm-sessionstart-run-sh	2200	bin/fm-sessionstart-run.sh|.claude/settings.json|.codex/hooks.json|.pi/extensions/fm-primary-turnend-guard.ts	__script__:fm-pi-windows-shell-invocation.test.sh,session-bootstrap,live-harness-optin
@@ -462,10 +479,15 @@ map	route-bin-fm-nm-run-lib-sh	2700	bin/fm-nm-run-lib.sh	pure-contract-unit,pr-f
 map	route-bin-fm-control-lib-sh	2800	bin/fm-control-lib.sh	backend-dispatch,session-bootstrap,__script__:fm-quota-choose.test.sh
 map	route-bin-fm-composer-lib-sh	2900	bin/fm-composer-lib.sh	backend-dispatch,pure-contract-unit,live-harness-optin
 map	route-bin-fm-spawn-sh	3000	bin/fm-spawn.sh|bin/fm-send.sh|bin/fm-harness.sh|bin/fm-peek.sh|bin/fm-composer*	backend-dispatch,pure-contract-unit
+map	route-bin-fm-worker-account	3010	bin/fm-worker-account-lib.sh	backend-dispatch,live-harness-optin
+map	route-bin-fm-devin-config	3020	bin/fm-devin-config.sh	pure-contract-unit,live-harness-optin
+map	route-bin-fm-fleet-ledger	3030	bin/fm-fleet-ledger.sh	backend-dispatch,pr-forge,watcher-wake-lock
+map	route-bin-fm-brief-heading	3040	bin/fm-brief-heading-lib.sh	pure-contract-unit,__script__:fm-dispatch-resolve.test.sh
+map	route-bin-fm-lab-home	3050	bin/fm-lab-home.sh	session-bootstrap
 map	route-bin-fm-task-inbox-lib-sh	3100	bin/fm-task-inbox-lib.sh	backend-dispatch,watcher-wake-lock,live-harness-optin
 map	route-bin-fm-bearings-snapshot-sh	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-contributions.sh|bin/fm-contributions.jq|bin/fm-home-summary-refresh.sh	snapshot-bearings
 map	route-bin-fm-install-herdr-sh	3300	bin/fm-install-herdr.sh|bin/fm-install-treehouse.sh|bin/fm-herdr-ci-cleanup.sh	pure-contract-unit,real-herdr-gated
-map	route-bin-fm-lint-sh	3400	bin/fm-lint.sh|bin/fm-lint-workflows.sh|bin/fm-install-shellcheck.sh|bin/fm-install-actionlint.sh|bin/fm-brief.sh|bin/fm-ensure-agents-md.sh|bin/fm-crew-state.sh|bin/fm-captain-hold.sh|bin/fm-decision-hold.sh|bin/fm-supervision*|bin/fm-transition-lib.sh|bin/fm-tmux-lib.sh|bin/fm-marker-lib.sh|bin/fm-operational-input.sh|bin/fm-tasks-axi-lib.sh|bin/fm-vendor-auth-probe.sh|bin/fm-primary-scope-lib.sh|bin/fm-project-mode.sh|bin/fm-promote.sh|bin/fm-ff-lib.sh|bin/fm-gotmp*|bin/*pretool*	pure-contract-unit
+map	route-bin-fm-lint-sh	3400	bin/fm-lint.sh|bin/fm-lint-workflows.sh|bin/fm-install-shellcheck.sh|bin/fm-install-actionlint.sh|bin/fm-brief.sh|bin/fm-ensure-agents-md.sh|bin/fm-crew-state.sh|bin/fm-captain-hold.sh|bin/fm-decision-hold.sh|bin/fm-supervision*|bin/fm-transition-lib.sh|bin/fm-tmux-lib.sh|bin/fm-marker-lib.sh|bin/fm-operational-input.sh|bin/fm-tasks-axi-lib.sh|bin/fm-vendor-auth-probe.sh|bin/fm-primary-scope-lib.sh|bin/fm-project-mode.sh|bin/fm-promote.sh|bin/fm-ff-lib.sh|bin/fm-forge-detect.sh|bin/fm-gotmp*|bin/*pretool*	pure-contract-unit
 map	route-agents-skills-quota-array-dispatch-skill-md	3500	.agents/skills/quota-array-dispatch/SKILL.md	pure-contract-unit,live-harness-optin
 map	route-agents-skills-harness-adapters-skill-md	3600	.agents/skills/harness-adapters/SKILL.md|.agents/skills/harness-adapters/references/*	pure-contract-unit,live-harness-optin
 map	route-agents-skills-skill-md	3700	.agents/skills/*/SKILL.md	pure-contract-unit

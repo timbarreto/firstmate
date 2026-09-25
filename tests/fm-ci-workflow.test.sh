@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Contract tests for .github/workflows/ci.yml's runner-spend safeguards.
+# Contract tests for CI dependency floors and runner-spend safeguards.
 #
 # Origin: the 2026-09-12 GitHub Actions starvation incident. firstmate CI had no
 # concurrency deduplication, so every superseded PR head kept its full job
@@ -219,6 +219,26 @@ puts steps[index].fetch("timeout-minutes", "none")
   pass "Herdr keeps a $step minute step tripwire under a $heavy minute job backstop"
 }
 
+test_tasks_axi_installs_meet_runtime_floor() {
+  ruby -ryaml - "$ROOT" <<'RUBY' || fail "CI tasks-axi dependency floor"
+root = ARGV.fetch(0)
+minimum = File.read(File.join(root, "bin/fm-tasks-axi-lib.sh"))[/^FM_TASKS_AXI_MIN=(\d+\.\d+\.\d+)$/, 1]
+raise "cannot read the tasks-axi runtime floor" unless minimum
+floor = minimum.split(".").map(&:to_i)
+%w[ci.yml fork-ci.yml].each do |workflow|
+  jobs = YAML.load_file(File.join(root, ".github/workflows", workflow)).fetch("jobs")
+  versions = jobs.values.flat_map { |job| job.fetch("steps") }.flat_map do |step|
+    step.fetch("run", "").scan(/\btasks-axi@(\d+\.\d+\.\d+)\b/).flatten
+  end
+  raise "#{workflow} has no pinned tasks-axi installation" if versions.empty?
+  versions.each do |version|
+    raise "#{workflow} installs tasks-axi #{version} below runtime floor #{minimum}" if (version.split(".").map(&:to_i) <=> floor) < 0
+  end
+end
+RUBY
+  pass "shared and fork CI tasks-axi installations meet the runtime dependency floor"
+}
+
 test_ci_matrices_match_executable_partitions() {
   ruby -ryaml -ropen3 - "$CI_WORKFLOW" "$ROOT" <<'RUBY' || fail "CI partition contract"
 jobs = YAML.load_file(ARGV[0]).fetch("jobs")
@@ -249,6 +269,7 @@ RUBY
   pass "CI matrices cover every executable serial lane and canonical lint root exactly once"
 }
 
+test_tasks_axi_installs_meet_runtime_floor
 test_ci_matrices_match_executable_partitions
 test_pr_pushes_supersede_within_one_pr
 test_separate_prs_do_not_cancel_each_other

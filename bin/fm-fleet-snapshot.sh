@@ -716,7 +716,7 @@ prefetch_task_current_states() {
 }
 
 task_json_lines() {
-  local meta original_meta id kind harness mode yolo project worktree home projects spawn_gen backend target status_log report_path
+  local meta original_meta id kind harness mode yolo project worktree home projects spawn_gen branch backend target status_log report_path
   local remote_host remote_root current_file endpoint_file observation_line index=0
   local pr pr_head pr_source current_json endpoint_exists agent_alive pr_from_status
   local last_event_raw last_event_verb last_event_note last_event_epoch last_event_age open_decisions_tsv
@@ -731,7 +731,7 @@ task_json_lines() {
     # One in-process pass avoids a shell and filesystem open for every field.
     fm_meta_read "$meta" kind kind harness harness mode mode yolo yolo \
       project project worktree worktree home home projects projects \
-      spawn_gen spawn_gen remote_host remote_host remote_root remote_root pr pr pr_head pr_head
+      spawn_gen spawn_gen branch branch remote_host remote_host remote_root remote_root pr pr pr_head pr_head
     [ -n "$kind" ] || kind=ship
     if [ -n "$remote_host" ]; then
       fm_meta_get "$meta" remote_backend backend
@@ -816,6 +816,7 @@ task_json_lines() {
       --arg harness "$harness" \
       --arg mode "$mode" \
       --arg yolo "$yolo" \
+      --arg branch "$branch" \
       --arg project "$project" \
       --arg worktree "$worktree" \
       --arg home "$home" \
@@ -861,6 +862,7 @@ task_json_lines() {
         harness:($harness // ""),
         mode:($mode // ""),
         yolo:($yolo // ""),
+        branch:($branch | if . == "" then null else . end),
         project:($project // ""),
         spawn_gen:($spawn_gen | if . == "" then null else . end),
         backend:$backend,

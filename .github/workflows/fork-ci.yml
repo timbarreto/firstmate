@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -eu
-          npm install -g tasks-axi@0.2.5
+          npm install -g tasks-axi@0.2.6
           tasks-axi --version
       - name: Run focused native Windows contracts
         if: matrix.subject == 'core'

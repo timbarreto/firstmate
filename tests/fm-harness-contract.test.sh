@@ -27,6 +27,9 @@ test_pilot_control_and_busy_contracts() {
     fm_control_harness_supports_kind "$harness" secondmate || fail "$harness secondmate support"
     assert_equals "$key" "$(fm_control_interrupt_key "$harness")" "$harness interrupt"
     assert_equals 1 "$(fm_control_interrupt_repeat "$harness")" "$harness interrupt count"
+    assert_equals '' "$(fm_control_interrupt_arm_signal "$harness")" "$harness has no armed-interrupt hint"
+    assert_equals 0.2 "$(fm_control_interrupt_press_gap "$harness")" "$harness keeps its ordinary interrupt gap"
+    assert_equals '' "$(fm_control_interrupt_hazard_signal "$harness")" "$harness has no interrupt picker"
     assert_equals '' "$(fm_control_interrupt_clear_key "$harness")" "$harness composer clear"
     assert_equals none "$(fm_control_interrupt_ack_source "$harness")" "$harness acknowledgement"
     assert_equals "$exit_command" "$(fm_control_exit_command "$harness")" "$harness exit"
@@ -144,10 +147,10 @@ test_shared_backend_process_identity_keeps_pilot_boundaries() {
   local name
   # shellcheck source=bin/fm-agent-process-lib.sh
   . "$ROOT/bin/fm-agent-process-lib.sh" || fail "shared backend classifier dependencies"
-  for name in copilot copilot.exe pi pi-signed omp agy; do
+  for name in copilot copilot.exe pi pi-signed omp agy devin; do
     assert_equals agent "$(fm_agent_process_classify "$name" "$name" "$name")" "$name backend identity"
   done
-  for name in copilot-helper mycopilot comp agy-helper; do
+  for name in copilot-helper mycopilot comp agy-helper devin-helper; do
     assert_equals other "$(fm_agent_process_classify "$name" "$name" "$name")" "$name must not become an agent"
   done
   assert_equals shell "$(fm_agent_process_classify bash -bash -bash)" "bare shell remains agent-free"

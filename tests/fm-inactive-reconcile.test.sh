@@ -27,6 +27,7 @@ case "$(uname -s)" in
     PROCESS_START_WAIT_STEPS=400
     ;;
 esac
+fm_git_identity fmtest fmtest@example.invalid
 
 set_mtime() { # <epoch> <path>
   local epoch=$1 path=$2 stamp
@@ -98,11 +99,17 @@ EOF
 }
 
 write_child() { # <home> <id> <status> [spawn-gen]
-  local home=$1 id=$2 status=$3 spawn_gen=${4:-s${BASHPID:-$$}.$RANDOM}
+  local home=$1 id=$2 status=$3 spawn_gen=${4:-s${BASHPID:-$$}.$RANDOM} sha
+  mkdir -p "$home/projects/$id"
+  git -C "$home/projects/$id" init -q
+  git -C "$home/projects/$id" commit -q --allow-empty -m init
+  sha=$(git -C "$home/projects/$id" rev-parse HEAD)
+  git -C "$home/projects/$id" update-ref refs/remotes/origin/main "$sha"
   fm_write_meta "$home/state/$id.meta" \
-    "window=firstmate:fm-$id" "worktree=$home/projects/$id" "project=alpha" \
+    "window=firstmate:fm-$id" "worktree=$home/projects/$id" "project=$home/projects/$id" \
     'harness=codex' 'kind=ship' 'mode=no-mistakes' 'yolo=off' \
-    "spawn_gen=$spawn_gen" 'pr=https://example.test/owner/repo/pull/1'
+    "spawn_gen=$spawn_gen" 'pr=https://example.test/owner/repo/pull/1' \
+    "pr_head=$sha"
   printf '%s\n' "$status" > "$home/state/$id.status"
   : > "$home/state/$id.turn-ended"
   age "$home/state/$id.meta" "$home/state/$id.status" "$home/state/$id.turn-ended"
@@ -181,6 +188,42 @@ test_main_direct_terminal_presentation_receipt() {
   FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" "$DRAIN" --ack-through "$seq" --recovery-generation "$generation"
   [ "$(outcome_count "$MAIN" presented)" = 1 ] || fail "acknowledged presentation did not receive its own receipt"
   pass "main direct terminal presentation has a durable receipt"
+}
+
+# An unpushed CI-ready ship done: is not a parent-facing ready signal. The
+# ledger pass reads the child's line before any PR is recorded for it, so the
+# gate tests the worker copy's HEAD.
+test_unpushed_ci_ready_done_is_not_published() {
+  make_world unpushed-ready; bind_secondmate local
+  write_child "$MATE" child 'done: PR https://example.test/owner/repo/pull/1 checks green, risk low'
+  git -C "$MATE/projects/child" commit -q --allow-empty -m 'only in the copy'
+  grep -v '^pr=\|^pr_head=' "$MATE/state/child.meta" > "$MATE/state/child.meta.tmp"
+  mv "$MATE/state/child.meta.tmp" "$MATE/state/child.meta"
+  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
+  [ ! -s "$MAIN/state/mate.status" ] || fail "unpushed CI-ready done: was published upstream"
+  [ "$(outcome_count "$MATE" reported)" = 0 ] || fail "unpushed CI-ready done: left a delivery receipt"
+  pass "unpushed CI-ready ship done: is not published upstream"
+}
+
+# The ledger pass runs on every poll, so a ship done: already delivered does
+# not pay for the git reachability check again.
+test_delivered_ledger_done_skips_git_gate() {
+  local real_git
+  make_world gate-once; bind_secondmate local
+  write_child "$MATE" child 'done: PR https://example.test/owner/repo/pull/2 checks green'
+  real_git=$(command -v git)
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> %q\nexec %q "$@"\n' \
+    "$WORLD/git.log" "$real_git" > "$WORLD/fakebin/git"
+  chmod +x "$WORLD/fakebin/git"
+  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
+  [ "$(outcome_count "$MATE" reported)" = 1 ] || fail "pushed CI-ready done: was not delivered"
+  [ -s "$WORLD/git.log" ] || fail "first delivery did not test the named head"
+  : > "$WORLD/git.log"
+  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
+  [ ! -s "$WORLD/git.log" ] || fail "a poll after delivery re-ran the git gate: $(cat "$WORLD/git.log")"
+  [ "$(grep -c 'child-outcome-child-done' "$MAIN/state/mate.status")" = 1 ] \
+    || fail "the delivered done: was published again"
+  pass "a delivered ship done: skips the git gate on later polls"
 }
 
 # A secondmate delivers a child's terminal ledger line to the parent on the
@@ -515,6 +558,26 @@ test_secondmate_remote_route_ledger_delivery() {
   [ "$(grep -c 'child-outcome-child-done' "$MATE/state/parent-replies.status")" = 1 ] \
     || fail "remote ledger delivery was not once-only: $(cat "$MATE/state/parent-replies.status" 2>/dev/null)"
   pass "the remote route carries a child's ledger line once"
+}
+
+# A ship done: the gate accepted stays owed while its parent write is pending.
+# Teardown removes the worktree before `report`, so the retry delivers that
+# line instead of re-testing a copy that no longer exists.
+test_pending_ledger_done_is_delivered_after_worktree_removal() {
+  local key
+  make_world pending-retry; bind_secondmate local
+  write_child "$MATE" child 'done: PR https://example.test/owner/repo/pull/2 checks green'
+  cp "$MATE/.fm-secondmate-parent" "$WORLD/parent-binding"
+  printf 'schema=fm-secondmate-parent.v1\nroute=invalid\n' > "$MATE/.fm-secondmate-parent"
+  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
+  [ "$(outcome_count "$MATE" pending)" = 1 ] || fail "failed parent write did not leave a pending delivery"
+  rm -rf "$MATE/projects/child"
+  cp "$WORLD/parent-binding" "$MATE/.fm-secondmate-parent"
+  run_report "$MATE" child || fail "report refused the pending delivery"
+  key=$(reported_outcome_key "$MATE" child 'done') || fail "pending delivery was dropped instead of reported"
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fq "done [key=$key]: child child done: PR https://example.test/owner/repo/pull/2 checks green" \
+    || fail "report did not deliver the pending done after the worktree was removed"
+  pass "a pending ship done: is delivered by report after teardown removed the worktree"
 }
 
 # `report <child>` is the teardown-side delivery: it delivers or says nothing
@@ -968,6 +1031,10 @@ SH
   pass "reconciliation state reads set no-forge mode"
 }
 
+
+
+echo "all inactive reconciliation tests passed"
+
 fm_test_run_cases \
   test_main_direct_terminal_presentation_receipt \
   test_local_secondmate_delivers_terminal_ledger_line \
@@ -1001,6 +1068,7 @@ fm_test_run_cases \
   test_notice_recovery_does_not_duplicate_wake \
   test_missing_parent_binding_names_itself \
   test_reconciliation_never_calls_forge \
-  test_reconciliation_sets_no_forge_mode_for_state_read
-
-echo "all inactive reconciliation tests passed"
+  test_reconciliation_sets_no_forge_mode_for_state_read \
+  test_unpushed_ci_ready_done_is_not_published \
+  test_delivered_ledger_done_skips_git_gate \
+  test_pending_ledger_done_is_delivered_after_worktree_removal

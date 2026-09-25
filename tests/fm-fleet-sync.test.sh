@@ -409,6 +409,27 @@ test_local_only_skipped() {
   pass "local-only clone is skipped (benign), not flagged STUCK"
 }
 
+# A registry entry the parser refuses resolves to no posture at all, so sync must
+# skip the clone rather than fall back to the default posture: reading a refusal
+# as "no-mistakes" is how a local-only clone would be fetched and fast-forwarded.
+test_unresolvable_registry_posture_skipped() {
+  local home clone out before
+  home=$(new_home)
+  clone=$(build_pair "$home" omicron)
+  advance_origin "$home" omicron C1
+  before=$(head_sha "$clone")
+  mkdir -p "$home/data"
+  printf -- '- omicron [local-only forge=githb] - test project (added 2026-06-27)\n' > "$home/data/projects.md"
+
+  out=$(run_sync "$home" "$clone")
+
+  assert_contains "$out" "omicron: skipped: registry entry does not resolve to a delivery posture" \
+    "a refused registry entry was not reported as a skip"
+  assert_not_contains "$out" "STUCK" "a refused registry entry was escalated to STUCK"
+  [ "$(head_sha "$clone")" = "$before" ] || fail "a clone whose registry entry was refused was still fast-forwarded"
+  pass "a clone whose registry entry the parser refuses is skipped, never synced on the default posture"
+}
+
 test_single_project_by_bare_name_resolves() {
   local home out
   home=$(new_home)
@@ -831,4 +852,5 @@ fm_test_run_cases \
   test_symlinked_clone_still_syncs \
   test_clone_root_identity_forms \
   test_directory_aliases_preserve_local_only \
-  test_pruning_preserves_unlanded_gone_branches
+  test_pruning_preserves_unlanded_gone_branches \
+  test_unresolvable_registry_posture_skipped
