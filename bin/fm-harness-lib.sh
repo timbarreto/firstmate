@@ -17,7 +17,9 @@
 # lifecycle callers bind them, never evaluate adapter-supplied configuration.
 #
 # Describe returns immutable control/profile/launch facts; identify returns the
-# existing identity or 1 for no match. Prepare resolves the executable and
+# existing identity or 1 for no match. Describe's relaunch-resume-flag takes the
+# registered agent label and returns a compatible flag or empty, never a session.
+# Prepare resolves the executable and
 # capability-gated template before allocation, setting FM_HARNESS_LAUNCH,
 # FM_HARNESS_EXECUTABLE and FM_HARNESS_EXECUTABLE_TOKEN. Callers retain their
 # existing order of generic model/effort and operational-path substitution.

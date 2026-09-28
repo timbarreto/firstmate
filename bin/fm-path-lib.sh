@@ -26,6 +26,11 @@
 #   overrides retain their fallback meaning and export attributes are retained.
 #   This never creates directories or modifies the calling process's parent.
 #
+# fm_dirname_to <output-variable> <path>
+# fm_basename_to <output-variable> <path>
+#   Fork-free POSIX component helpers, including command substitution's
+#   removal of trailing newlines, without filesystem access.
+#
 # Path spelling is not filesystem identity or authorization. Existing callers
 # retain existence, traversal, symlink/reparse, ACL, ownership, and publication
 # checks; fm_platform_same_directory owns existing-directory identity.
@@ -142,4 +147,36 @@ fm_path_normalize_context() {
     printf -v "${_fm_context_names[$_fm_context_index]}" '%s' "${_fm_context_values[$_fm_context_index]}" || return 1
     _fm_context_index=$((_fm_context_index + 1))
   done
+}
+
+fm_dirname_to() {  # <output-variable> <path>
+  local fm_path=$2
+  case "$fm_path" in
+    '') fm_path=. ;;
+    *[!/]*)
+      fm_path=${fm_path%"${fm_path##*[!/]}"}
+      case "$fm_path" in
+        */*)
+          fm_path=${fm_path%/*}
+          fm_path=${fm_path%"${fm_path##*[!/]}"}
+          [ -n "$fm_path" ] || fm_path=/
+          ;;
+        *) fm_path=. ;;
+      esac
+      ;;
+    *) fm_path=/ ;;
+  esac
+  while [ "${fm_path%$'\n'}" != "$fm_path" ]; do fm_path=${fm_path%$'\n'}; done
+  printf -v "$1" '%s' "$fm_path"
+}
+
+fm_basename_to() {  # <output-variable> <path>
+  local fm_path=$2
+  case "$fm_path" in
+    '') ;;
+    *[!/]*) fm_path=${fm_path%"${fm_path##*[!/]}"}; fm_path=${fm_path##*/} ;;
+    *) fm_path=/ ;;
+  esac
+  while [ "${fm_path%$'\n'}" != "$fm_path" ]; do fm_path=${fm_path%$'\n'}; done
+  printf -v "$1" '%s' "$fm_path"
 }

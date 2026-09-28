@@ -45,6 +45,10 @@ EOF
   ! fm_control_harness_supports_kind gemini secondmate || fail "Gemini gained secondmate support"
   ! fm_control_harness_supported unknown || fail "unknown control support"
   ! fm_control_verb_allowed resume || fail "resume gained a control contract"
+  assert_equals --session "$(fm_harness_describe pi relaunch-resume-flag pi)" "Pi consumes its own runtime reference"
+  assert_equals '' "$(fm_harness_describe pi relaunch-resume-flag codex)" "Pi refuses another adapter's reference"
+  assert_equals '' "$(fm_harness_describe copilot relaunch-resume-flag copilot)" "Copilot remains a fresh relaunch"
+  assert_contains "$(fm_harness_describe pi launch-template ship)" '__PIRESUME__' "Pi launch carries the lifecycle-owned reference slot"
   pass "pilot and nonpilot control mechanics and busy sources retain their contracts"
 }
 
@@ -289,7 +293,7 @@ test_invalid_interface_calls_are_explicit() {
 test_supervision_does_not_hide_adapter_load_errors() {
   local fixture="$TMP_ROOT/supervision-error" out rc=0
   mkdir -p "$fixture/bin"
-  cp "$ROOT/bin/fm-wake-lib.sh" "$fixture/bin/"
+  cp "$ROOT/bin/fm-wake-lib.sh" "$ROOT/bin/fm-path-lib.sh" "$fixture/bin/"
   printf '#!/usr/bin/env bash\nexit 2\n' > "$fixture/bin/fm-harness.sh"
   chmod +x "$fixture/bin/fm-harness.sh"
   out=$(FM_SUPERVISION_MODEL='' bash -c '. "$1"; fm_supervision_model' \

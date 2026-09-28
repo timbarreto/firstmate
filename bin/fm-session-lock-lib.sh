@@ -18,13 +18,14 @@
 # cursor-agent and the far-too-generic legacy alias `agent`, and it runs as a
 # bundled node script. bin/fm-cursor-lib.sh is the fleet's single owner of that
 # decision, so this file delegates to it rather than widening the name match.
-_FM_SESSION_LOCK_LIB_DIR=$(dirname -- "${BASH_SOURCE[0]}")
+_FM_SESSION_LOCK_LIB_DIR=${BASH_SOURCE[0]%/*}
+[ "$_FM_SESSION_LOCK_LIB_DIR" != "${BASH_SOURCE[0]}" ] || _FM_SESSION_LOCK_LIB_DIR=.
 # shellcheck source=bin/fm-cursor-lib.sh
-. "$_FM_SESSION_LOCK_LIB_DIR/fm-cursor-lib.sh"
+. "${_FM_SESSION_LOCK_LIB_DIR:-/}/fm-cursor-lib.sh"
 # shellcheck source=bin/fm-platform-process-lib.sh
-. "$_FM_SESSION_LOCK_LIB_DIR/fm-platform-process-lib.sh" || return 1
+. "${_FM_SESSION_LOCK_LIB_DIR:-/}/fm-platform-process-lib.sh" || return 1
 # shellcheck source=bin/fm-harness-lib.sh
-. "$_FM_SESSION_LOCK_LIB_DIR/fm-harness-lib.sh" || return 2
+. "${_FM_SESSION_LOCK_LIB_DIR:-/}/fm-harness-lib.sh" || return 2
 unset _FM_SESSION_LOCK_LIB_DIR
 
 fm_session_process_comm() {  # <pid>

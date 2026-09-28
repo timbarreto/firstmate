@@ -5,7 +5,7 @@ fm_harness_pi_describe() {
   local capability=${1:-}
   shift
   case "$capability" in
-    kind-supported|busy-kind|remote-supported|launch-template)
+    kind-supported|busy-kind|remote-supported|launch-template|relaunch-resume-flag)
       _fm_harness_argument_count "pi $capability" 1 "$#" || return 2 ;;
     effort-option|native-effort)
       _fm_harness_argument_count "pi $capability" 2 "$#" || return 2 ;;
@@ -22,6 +22,7 @@ fm_harness_pi_describe() {
     interrupt-clear-key) ;;
     interrupt-ack-source) printf none ;;
     exit-command) printf /quit ;;
+    relaunch-resume-flag) [ "${1:-}" != pi ] || printf -- '--session' ;;
     supervision) printf 'extension\n' ;;
     busy-source) printf pi-ext ;;
     model-option) printf -- --model ;;
@@ -46,7 +47,7 @@ fm_harness_pi_describe() {
     launch-template)
       # shellcheck disable=SC2016 # Expansion happens in the launched pane.
       {
-        printf '%s' '__PIBIN____PITUIMODE__'
+        printf '%s' '__PIBIN____PITUIMODE____PIRESUME__'
         if [ "${1:-ship}" = secondmate ]; then
           printf '%s' ' __MODELFLAG____EFFORTFLAG__-e __PITURNEND__ -e __PIWATCH__ "$(__OPINPUT__ encode launch-brief < __BRIEF__)"'
         else
