@@ -483,7 +483,7 @@ SH
   [ -d "$dir/home/state/.home-summary-refresh.request" ] \
     || fail "relaunch did not leave a durable summary refresh request"
   [ "$(journal_field "$dir" rl45 phase)" = complete ] || fail "relaunch did not complete delivery"
-  assert_grep "encode launch-brief" "$dir/fake/literal" "the replacement must actually launch"
+  assert_grep "Firstmate operational input waiting: read" "$dir/fake/literal" "the replacement must actually launch"
   pass "fm-control relaunch: report refresh is deferred without changing delivery or identity"
 }
 
@@ -1456,7 +1456,7 @@ test_terminal_report_during_launch_confirmation() {
   assert_contains "$out" "done" "confirmation must return the replacement's terminal outcome"
   [ "$(journal_field "$dir" rl51 phase)" = complete ] \
     || fail "a terminal replacement left a failed launch transaction"
-  [ "$(grep -c 'encode launch-brief' "$dir/fake/literal")" = 1 ] \
+  [ "$(grep -c 'Firstmate operational input waiting: read' "$dir/fake/literal")" = 1 ] \
     || fail "terminal confirmation launched a duplicate replacement"
   assert_grep 'done: replacement finished' "$dir/home/state/rl51.status" \
     "terminal confirmation lost the replacement's report"

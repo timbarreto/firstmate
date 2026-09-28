@@ -1590,7 +1590,10 @@ EOF
   printf 'window=sess:p-slow\nkind=ship\nbackend=herdr\n' > "$home/state/task-a-slow.meta"
   printf 'window=sess:p-live\nkind=ship\nbackend=herdr\n' > "$home/state/task-z-live.meta"
 
-  out=$(FM_SESSION_START_ENDPOINT_TIMEOUT=2 run_session_start "$home" "$root" "$fakebin:$BASE_PATH") || status=$?
+  # The same digest read runs on re-emit, without independently owned startup
+  # probes querying this fake backend and contaminating the leftover count.
+  out=$(FM_SESSION_START_ENDPOINT_TIMEOUT=2 run_named_harness_session_start \
+    claude "$home" "$root" "$fakebin:$BASE_PATH" --reemit) || status=$?
 
   expect_code 0 "$status" "a hung endpoint read must not fail the digest"
   assert_contains "$out" \
@@ -1622,7 +1625,8 @@ EOF
   printf 'window=sess:p-slow\nkind=ship\nbackend=herdr\n' > "$home/state/task-a-slow.meta"
   printf 'window=sess:p-live\nkind=ship\nbackend=herdr\n' > "$home/state/task-z-live.meta"
 
-  out=$(FM_SESSION_START_ENDPOINT_TIMEOUT=00 run_session_start "$home" "$root" "$fakebin:$BASE_PATH") || status=$?
+  out=$(FM_SESSION_START_ENDPOINT_TIMEOUT=00 run_named_harness_session_start \
+    claude "$home" "$root" "$fakebin:$BASE_PATH" --reemit) || status=$?
 
   expect_code 0 "$status" "a padded-zero per-read bound must not fail the digest"
   assert_contains "$out" \

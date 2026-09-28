@@ -166,6 +166,7 @@ jobs:
             tests/fm-pr-local-cost.test.sh \
             tests/fm-herdr-unregistered-agent.test.sh
           for test_case in \
+            test_claude_settings_are_inert_for_copilot \
             test_windows_powershell_pretool_transport \
             test_windows_worker_hook_semantic_lifecycle \
             test_windows_command_hooks_do_not_load_git_bash \
