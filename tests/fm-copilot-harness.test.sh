@@ -109,7 +109,7 @@ test_claude_settings_are_inert_for_copilot() {
   local dir="$TMP_ROOT/claude-settings" settings="$ROOT/.claude/settings.json" script cmd count=0 out rc
   mkdir -p "$dir/bin"
   for script in fm-sessionstart-run.sh fm-arm-pretool-check.sh fm-cd-pretool-check.sh \
-    fm-subagent-pretool-check.sh fm-turnend-guard.sh fm-claude-stop-autoarm.sh; do
+    fm-subagent-pretool-check.sh fm-turnend-guard.sh fm-claude-stop-autoarm.sh fm-host-mirror.sh; do
     printf '#!/usr/bin/env bash\nprintf ran >> %q\n' "$dir/invoked" > "$dir/bin/$script"
     chmod +x "$dir/bin/$script"
   done
@@ -122,7 +122,7 @@ test_claude_settings_are_inert_for_copilot() {
     [ -z "$out" ] || fail "Copilot's imported Claude hook emitted output: $out"
     count=$((count + 1))
   done < <(jq -r '.hooks[][].hooks[] | .bash // .command' "$settings")
-  [ "$count" -eq 6 ] || fail "expected all six imported Claude hooks to be checked, saw $count"
+  [ "$count" -eq 8 ] || fail "expected all eight imported Claude hooks to be checked, saw $count"
 
   case "$(uname -s 2>/dev/null)" in
     MINGW*|MSYS*|CYGWIN*)
@@ -136,7 +136,7 @@ test_claude_settings_are_inert_for_copilot() {
         [ -z "$out" ] || fail "Copilot's imported Windows hook emitted output: $out"
         count=$((count + 1))
       done < <(jq -r '.hooks[][].hooks[] | .powershell // .command' "$settings")
-      [ "$count" -eq 6 ] || fail "expected all six imported Windows hooks to be checked, saw $count"
+      [ "$count" -eq 8 ] || fail "expected all eight imported Windows hooks to be checked, saw $count"
       ;;
   esac
   # Claude still uses command, including when a parent shell left Copilot's
@@ -151,7 +151,7 @@ test_claude_settings_are_inert_for_copilot() {
     [ -e "$dir/invoked" ] || fail "a Claude command was disabled by Copilot compatibility fields"
     count=$((count + 1))
   done < <(jq -r '.hooks[][].hooks[].command' "$settings")
-  [ "$count" -eq 6 ] || fail "expected all six Claude commands to remain active, saw $count"
+  [ "$count" -eq 8 ] || fail "expected all eight Claude commands to remain active, saw $count"
   pass "Copilot imports are silent no-ops in both shells while all Claude commands remain active"
 }
 

@@ -72,7 +72,7 @@
 #   --per-script-timeout-secs N
 #                   terminate a script that runs longer than N seconds and
 #                   record it as exit 124 (0 disables, the default). --changed
-#                   applies a 900s automatic floor, with larger measured bounds
+#                   applies a 1500s automatic floor, with larger measured bounds
 #                   for process-heavy Git-for-Windows scripts. --max-wall-ms is
 #                   checked after the run and so cannot catch a hang on its own.
 #                   External interruption cleanup is outside this runner's
@@ -197,12 +197,18 @@ PER_SCRIPT_TIMEOUT_SECS=0
 CHANGED_TIMEOUT_AUTOMATIC=0
 RUNNER_UNAME_S=$(uname -s 2>/dev/null || true)
 # Bound applied automatically on the automatic --changed path, derived from
-# measured healthy runtimes with margin rather than picked. On ordinary hosts,
-# 900s remains well above the slowest measured behavior script. Git-for-Windows
-# exceptions below preserve the same role against that platform's much higher
-# process-launch cost. These are guards, not speed controls: a HUNG script
-# becomes a bounded failure instead of silently outrunning its caller.
-CHANGED_DEFAULT_TIMEOUT_SECS=900
+# measured healthy runtimes with margin rather than picked: the slowest measured
+# script is tests/fm-watch-triage.test.sh in the watcher-wake-lock family, at
+# about 434s alone and about 698s under CI load (the hint table below records
+# that loaded figure), and the slowest script in a runner-file changed selection
+# is tests/fm-calm-pi-extension.test.sh at 77s once its Chrome reap terminates.
+# 1500s keeps every measured script under the bound with roughly 2.1x headroom
+# over the slowest loaded measurement, and it stays under the 30-minute normal
+# CI tier so a wedged script fails here, with its output, before the job cap
+# cancels the lane. It is a guard, not a speed control: a HUNG script becomes a
+# bounded failure instead of an unbounded suite, which is the shape that
+# silently outruns a caller's invocation budget.
+CHANGED_DEFAULT_TIMEOUT_SECS=1500
 # Git Bash pays a much higher process-launch cost. These bounds retain a
 # fail-closed tripwire above the measured September 4, 2026 healthy runs:
 # 797s for the arm policy matrix, 2,638s for the Herdr backend contract, and

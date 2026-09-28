@@ -5,7 +5,7 @@ fm_harness_copilot_describe() {
   local capability=${1:-}
   shift
   case "$capability" in
-    kind-supported|busy-kind|remote-supported|launch-template)
+    kind-supported|busy-kind|remote-supported|launch-template|relaunch-resume-flag)
       _fm_harness_argument_count "copilot $capability" 1 "$#" || return 2 ;;
     effort-option|native-effort)
       _fm_harness_argument_count "copilot $capability" 2 "$#" || return 2 ;;
@@ -21,6 +21,7 @@ fm_harness_copilot_describe() {
     interrupt-clear-key) ;;
     interrupt-ack-source) printf none ;;
     exit-command) printf /exit ;;
+    relaunch-resume-flag) ;;
     supervision) printf 'autoarm\n' ;;
     busy-source) printf copilot-hook ;;
     model-option) printf -- --model ;;

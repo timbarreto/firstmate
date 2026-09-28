@@ -58,10 +58,15 @@ test	tests/fm-test-isolation-proof.test.sh	pure-contract-unit
 test	tests/fm-devin-harness.test.sh	pure-contract-unit
 test	tests/fm-dod-lib.test.sh	pure-contract-unit
 test	tests/fm-forge-detect.test.sh	pure-contract-unit
+test	tests/fm-fork-free-helpers.test.sh	pure-contract-unit
 test	tests/fm-timeout-lib.test.sh	pure-contract-unit
 test	tests/fm-fleet-ledger.test.sh	backend-dispatch
 test	tests/fm-worker-account.test.sh	backend-dispatch
 test	tests/fm-supervision-host.test.sh	afk
+test	tests/fm-host-mirror.test.sh	afk
+test	tests/fm-supervision-host-attended-live-e2e.test.sh	live-harness-optin
+test	tests/fm-host-mirror-live-e2e.test.sh	live-harness-optin
+test	tests/fm-git-strip-ai-trailers.test.sh	backend-dispatch
 test	tests/fm-daemon.test.sh	watcher-wake-lock
 test	tests/fm-guard-stale-banner.test.sh	watcher-wake-lock
 test	tests/fm-pi-watch-extension.test.sh	watcher-wake-lock
@@ -109,6 +114,7 @@ test	tests/fm-remote-job-orphan-reap.test.sh	secondmate
 test	tests/fm-remote-transport-lanes.test.sh	secondmate
 test	tests/fm-remote-reply.test.sh	secondmate
 test	tests/fm-remote-secondmate-lifecycle-e2e.test.sh	secondmate
+test	tests/fm-remote-secondmate-relaunch.test.sh	secondmate
 test	tests/fm-remote-secondmate-trace-context.test.sh	secondmate
 test	tests/fm-secondmate-harness.test.sh	secondmate
 test	tests/fm-secondmate-lifecycle-e2e.test.sh	secondmate
@@ -484,6 +490,8 @@ map	route-bin-fm-devin-config	3020	bin/fm-devin-config.sh	pure-contract-unit,liv
 map	route-bin-fm-fleet-ledger	3030	bin/fm-fleet-ledger.sh	backend-dispatch,pr-forge,watcher-wake-lock
 map	route-bin-fm-brief-heading	3040	bin/fm-brief-heading-lib.sh	pure-contract-unit,__script__:fm-dispatch-resolve.test.sh
 map	route-bin-fm-lab-home	3050	bin/fm-lab-home.sh	session-bootstrap
+map	route-bin-fm-jev-mem-guard	3060	bin/fm-jev-mem-guard.py|bin/fm-jev-mem-guard.sh	__script__:fm-jev-mem-guard.test.sh
+map	route-bin-fm-voice-records	3070	bin/fm_voice_records.py	__script__:fm-voice-relay.test.sh
 map	route-bin-fm-task-inbox-lib-sh	3100	bin/fm-task-inbox-lib.sh	backend-dispatch,watcher-wake-lock,live-harness-optin
 map	route-bin-fm-bearings-snapshot-sh	3200	bin/fm-bearings-snapshot.sh|bin/fm-fleet-snapshot.sh|bin/fm-fleet-view.sh|bin/fm-contributions.sh|bin/fm-contributions.jq|bin/fm-home-summary-refresh.sh	snapshot-bearings
 map	route-bin-fm-install-herdr-sh	3300	bin/fm-install-herdr.sh|bin/fm-install-treehouse.sh|bin/fm-herdr-ci-cleanup.sh	pure-contract-unit,real-herdr-gated

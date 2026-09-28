@@ -2,8 +2,9 @@
 # Shared durable wake queue and portable lock helpers.
 # Stale lock recovery is single-level: a recovery lock is created or
 # reclaimed in place and never through a nested .steal.steal suffix.
+# docs/watcher-continuity.md owns the recovery-episode state contract.
 
-FM_WAKE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FM_WAKE_LIB_DIR="$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)"
 FM_WAKE_DEFAULT_ROOT="$(cd "$FM_WAKE_LIB_DIR/.." && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-${FM_ROOT:-$FM_WAKE_DEFAULT_ROOT}}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
@@ -11,6 +12,8 @@ STATE="${FM_STATE_OVERRIDE:-${STATE:-$FM_HOME/state}}"
 FM_WAKE_QUEUE="${FM_WAKE_QUEUE:-$STATE/.wake-queue}"
 FM_WAKE_QUEUE_LOCK="${FM_WAKE_QUEUE_LOCK:-$STATE/.wake-queue.lock}"
 FM_LOCK_STALE_AFTER="${FM_LOCK_STALE_AFTER:-2}"
+# shellcheck source=bin/fm-path-lib.sh
+. "$FM_WAKE_LIB_DIR/fm-path-lib.sh"
 # Resolved once at source time: fm_pid_identity and fm_path_mtime run inside 0.2s
 # confirm and 0.5s attach polls, and forking uname per call is a measurable cost on
 # the platform (Git Bash/MSYS) that already pays the highest fork price.
@@ -46,6 +49,15 @@ fm_current_pid() {  # [output-variable]
     printf '%s\n' "$fm_pid"
   fi
 }
+
+# Fork-free stand-in for `$(date +%s)` on the watcher, drain, and lock paths
+# that read the clock every cycle.
+# printf's %(...)T is a bash 4.2 builtin; stock macOS Bash 3.2 still forks date.
+if [ "${BASH_VERSINFO[0]}" -gt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -ge 2 ]; }; then
+  fm_epoch_seconds_to() { printf -v "$1" '%(%s)T' -1; }
+else
+  fm_epoch_seconds_to() { printf -v "$1" '%s' "$(date +%s)"; }
+fi
 
 fm_pid_alive() {
   local pid=$1
@@ -109,10 +121,7 @@ fm_path_mtime() {
 fm_path_age() {
   local path=$1 m now
   m=$(fm_path_mtime "$path") || { echo 999999; return; }
-  now=${EPOCHSECONDS:-}
-  case "$now" in
-    ''|*[!0-9]*) now=$(date +%s) ;;
-  esac
+  fm_epoch_seconds_to now
   echo $(( now - m ))
 }
 
@@ -521,11 +530,8 @@ fm_lock_abs_path() {
       return 0
       ;;
   esac
-  dir=${path%/*}
-  base=${path##*/}
-  if [ "$dir" = "$path" ]; then
-    dir=.
-  fi
+  fm_dirname_to dir "$path"
+  fm_basename_to base "$path"
   dir=$(cd "$dir" 2>/dev/null && pwd -P) || return 1
   printf '%s/%s\n' "$dir" "$base"
 }
@@ -703,17 +709,19 @@ fm_lock_recheck_stale_owner() {
 
 FM_RECOVERY_MARKER_TOKEN=
 FM_RECOVERY_MARKER_ACTION='none'
+FM_RECOVERY_MARKER_WRITTEN_TOKEN=
+FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN=
+FM_WAKE_APPEND_RECOVERY_PUBLISHED_TOKEN=
 
 # Token grammar (one owner): <pending|announced|acked>:<handling|downtime>:<generation>
 # docs/watcher-continuity.md owns the recovery-episode contract, including the
 # once-per-generation announcement rule for unacknowledged downtime.
 fm_recovery_marker_read() {
-  local marker=$1 line count
+  local marker=$1 line extra
   FM_RECOVERY_MARKER_TOKEN=
   [ -f "$marker" ] && [ ! -L "$marker" ] || return 1
-  count=$(wc -l < "$marker" 2>/dev/null | tr -d '[:space:]') || return 1
-  [ "$count" = 1 ] || return 1
-  IFS= read -r line < "$marker" || return 1
+  # Exactly one newline byte: the first line is terminated and no second is.
+  { IFS= read -r line && ! IFS= read -r extra; } < "$marker" || return 1
   case "$line" in
     pending:handling:*|pending:downtime:*|announced:handling:*|announced:downtime:*|acked:handling:*|acked:downtime:*) ;;
     *) return 1 ;;
@@ -729,29 +737,50 @@ _fm_atomic_replace() {
 }
 
 _fm_recovery_marker_write_locked() {
-  local marker=$1 kind=$2 generation=${3:-} status=${4:-pending} tmp
+  # Mint and write with sequential assignments only: two sibling $() on one
+  # command is a bash 5.2 parse-error landmine when a CHLD trap is set
+  # (regression: test_recovery_mint_and_delivery_log_avoid_sibling_subst in
+  # tests/fm-wake-queue.test.sh).
+  # Pid/date failures stay unchecked like the pre-fix sibling assignment so a
+  # grammar-valid token is still minted and the durable wake row still appends.
+  local marker=$1 kind=$2 generation=${3:-} status=${4:-pending} tmp pid epoch token
+  FM_RECOVERY_MARKER_WRITTEN_TOKEN=
   case "$kind" in handling|downtime) ;; *) return 1 ;; esac
-  case "$status" in pending|announced) ;; *) return 1 ;; esac
+  case "$status" in pending|announced|acked) ;; *) return 1 ;; esac
   tmp=$(mktemp "${marker}.tmp.XXXXXX") || return 1
-  [ -n "$generation" ] || generation="$(fm_current_pid).$(date +%s).${tmp##*.}"
-  if ! printf '%s:%s:%s\n' "$status" "$kind" "$generation" > "$tmp" \
+  if [ -z "$generation" ]; then
+    # Prefer fm_current_pid's output-var form so the pid is not itself a $().
+    fm_current_pid pid
+    epoch=$(date +%s)
+    generation="${pid}.${epoch}.${tmp##*.}"
+  fi
+  token="$status:$kind:$generation"
+  if ! printf '%s\n' "$token" > "$tmp" \
     || ! chmod 0600 "$tmp" \
     || ! _fm_atomic_replace "$tmp" "$marker"; then
     rm -f -- "$tmp"
     return 1
   fi
+  FM_RECOVERY_MARKER_WRITTEN_TOKEN=$token
 }
 
-# Preserve a pending or announced episode's generation across downtime
-# republication so its outstanding acknowledgement remains usable, and keep an
-# already-announced generation announced so it cannot be re-presented until a
-# new down stretch mints a new generation.
-# docs/watcher-continuity.md owns the recovery contract and sequence-safety rationale.
+# Apply the downtime republication states owned by docs/watcher-continuity.md
+# while preserving an outstanding generation-bound acknowledgement.
 _fm_recovery_marker_publish() {
-  local marker=$1 kind=${2:-downtime} lock saved_token generation='' status=pending
+  local marker=$1 kind=${2:-downtime} bound=${3:-} source=${4:-watcher}
+  local lock saved_token generation='' status=pending previous_append_token=''
   case "$kind" in handling|downtime) ;; *) return 1 ;; esac
+  case "$source" in watcher|append) ;; *) return 1 ;; esac
+  if [ "$source" = append ]; then
+    FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN=
+    FM_WAKE_APPEND_RECOVERY_PUBLISHED_TOKEN=
+  fi
   lock="${marker}.lock"
-  fm_lock_acquire_wait "$lock" || return 1
+  if [ -n "$bound" ]; then
+    fm_lock_acquire_wait_max "$lock" "$bound" || return 1
+  else
+    fm_lock_acquire_wait "$lock" || return 1
+  fi
   if [ -d "$marker" ] && [ ! -L "$marker" ]; then
     fm_lock_release "$lock"
     return 1
@@ -762,14 +791,23 @@ _fm_recovery_marker_publish() {
     # The token is restored because publishing owns no snapshot of its own.
     saved_token=$FM_RECOVERY_MARKER_TOKEN
     if fm_recovery_marker_read "$marker"; then
+      if [ "$source" = append ]; then
+        previous_append_token=$FM_RECOVERY_MARKER_TOKEN
+      fi
       case "$FM_RECOVERY_MARKER_TOKEN" in
         pending:handling:*|pending:downtime:*)
           generation=${FM_RECOVERY_MARKER_TOKEN##*:}
           status=pending
           ;;
-        announced:handling:*|announced:downtime:*)
+        announced:handling:*)
           generation=${FM_RECOVERY_MARKER_TOKEN##*:}
-          status=announced
+          status=pending
+          ;;
+        announced:downtime:*)
+          if [ "$source" = watcher ]; then
+            generation=${FM_RECOVERY_MARKER_TOKEN##*:}
+            status=announced
+          fi
           ;;
       esac
     fi
@@ -779,6 +817,39 @@ _fm_recovery_marker_publish() {
     fm_lock_release "$lock"
     return 1
   fi
+  if [ -n "$previous_append_token" ] \
+    && [ "$previous_append_token" != "$FM_RECOVERY_MARKER_WRITTEN_TOKEN" ]; then
+    FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN=$previous_append_token
+    FM_WAKE_APPEND_RECOVERY_PUBLISHED_TOKEN=$FM_RECOVERY_MARKER_WRITTEN_TOKEN
+  fi
+  fm_lock_release "$lock"
+}
+
+_fm_recovery_marker_restore_token_locked() {
+  local marker=$1 token=$2 status kind_and_generation kind generation
+  status=${token%%:*}
+  kind_and_generation=${token#*:}
+  kind=${kind_and_generation%%:*}
+  generation=${token##*:}
+  _fm_recovery_marker_write_locked "$marker" "$kind" "$generation" "$status"
+}
+
+_fm_wake_append_recovery_restore_locked() {
+  local marker="$STATE/.watcher-down" lock previous=$FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN
+  [ -n "$previous" ] || return 0
+  lock="${marker}.lock"
+  fm_lock_acquire_wait "$lock" || return 1
+  if ! fm_recovery_marker_read "$marker" \
+    || [ "$FM_RECOVERY_MARKER_TOKEN" != "$FM_WAKE_APPEND_RECOVERY_PUBLISHED_TOKEN" ]; then
+    fm_lock_release "$lock"
+    return 1
+  fi
+  if ! _fm_recovery_marker_restore_token_locked "$marker" "$previous"; then
+    fm_lock_release "$lock"
+    return 1
+  fi
+  FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN=
+  FM_WAKE_APPEND_RECOVERY_PUBLISHED_TOKEN=
   fm_lock_release "$lock"
 }
 
@@ -927,34 +998,40 @@ _fm_recovery_marker_arm_check() {
   fm_lock_release "$FM_WAKE_QUEUE_LOCK"
 }
 
-# A non-successor watcher start after an announced-but-unacked episode is a new
-# down stretch: mint a fresh pending generation so a still-open decision or
-# buried note can be presented once more. Handling successors must not call
-# this, because Option B re-arm is not a new down stretch.
+# Apply the owner-documented announced-episode arm transition atomically with
+# the queue read. Handling successors must not call this transition.
 _fm_recovery_marker_reopen_announced() {
   local marker=$1 lock
   lock="${marker}.lock"
-  fm_lock_acquire_wait "$lock" || return 1
+  fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK" || return 1
+  if ! fm_lock_acquire_wait "$lock"; then
+    fm_lock_release "$FM_WAKE_QUEUE_LOCK"
+    return 1
+  fi
   if ! fm_recovery_marker_read "$marker"; then
     fm_lock_release "$lock"
+    fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 0
   fi
   case "$FM_RECOVERY_MARKER_TOKEN" in
     announced:*)
-      if ! _fm_recovery_marker_write_locked "$marker" downtime ""; then
+      if [ -s "$FM_WAKE_QUEUE" ] \
+        && ! _fm_recovery_marker_write_locked "$marker" downtime ""; then
         fm_lock_release "$lock"
+        fm_lock_release "$FM_WAKE_QUEUE_LOCK"
         return 1
       fi
       ;;
   esac
   fm_lock_release "$lock"
+  fm_lock_release "$FM_WAKE_QUEUE_LOCK"
 }
 
 fm_recovery_transition() {
-  local marker=$1 action=$2 target=${3:-} value=${4:-}
+  local marker=$1 action=$2 target=${3:-} value=${4:-} bound=${5:-}
   case "$action" in
     publish)
-      _fm_recovery_marker_publish "$marker" "${target:-downtime}"
+      _fm_recovery_marker_publish "$marker" "${target:-downtime}" "$bound"
       ;;
     acknowledge)
       _fm_recovery_marker_ack "$marker" "$target"
@@ -967,13 +1044,17 @@ fm_recovery_transition() {
       ;;
     release-lock)
       [ -n "$target" ] || return 1
-      _fm_recovery_marker_publish "$marker" "${value:-downtime}" || return 1
+      _fm_recovery_marker_publish "$marker" "${value:-downtime}" "$bound" || return 1
       fm_lock_release "$target"
       ;;
     release-lock-existing)
       [ -n "$target" ] || return 1
       local lock="${marker}.lock"
-      fm_lock_acquire_wait "$lock" || return 1
+      if [ -n "$bound" ]; then
+        fm_lock_acquire_wait_max "$lock" "$bound" || return 1
+      else
+        fm_lock_acquire_wait "$lock" || return 1
+      fi
       if ! fm_recovery_marker_read "$marker"; then
         fm_lock_release "$lock"
         return 1
@@ -983,7 +1064,7 @@ fm_recovery_transition() {
       ;;
     clear-stale-lock)
       [ -n "$target" ] || return 1
-      _fm_recovery_marker_publish "$marker" "${value:-downtime}" || return 1
+      _fm_recovery_marker_publish "$marker" "${value:-downtime}" "$bound" || return 1
       fm_lock_remove_path "$target"
       ;;
     *) return 2 ;;
@@ -1015,11 +1096,12 @@ fm_recovery_marker_reopen_announced() {
 # .steal.steal... chain instead of racing it. A live or mid-acquire holder
 # anywhere in the suffix refuses rather than taking a live lock.
 fm_lock_discard_stale_steal_suffix() {
-  local lockdir=$1 path next stripped pid owner cur depth=0
+  local lockdir=$1 path next stripped pid cur current depth=0
   path="$lockdir.steal"
   if [ ! -e "$path" ] && [ ! -L "$path" ]; then
     return 0
   fi
+  fm_current_pid current || return 1
   next=$path
   while [ -e "$next.steal" ] || [ -L "$next.steal" ]; do
     next="$next.steal"
@@ -1028,19 +1110,17 @@ fm_lock_discard_stale_steal_suffix() {
   done
   while [ "$next" != "$lockdir" ]; do
     pid=$(cat "$next/pid" 2>/dev/null || true)
-    if [ -n "$pid" ] && [ "$pid" = "${BASHPID:-$$}" ]; then
+    if [ -n "$pid" ] && [ "$pid" = "$current" ]; then
       fm_lock_remove_path "$next" || true
     elif fm_pid_alive "$pid"; then
       return 1
     elif fm_lock_mid_acquire_is_fresh "$next" "$pid"; then
       return 1
+    elif [ -L "$next" ]; then
+      fm_lock_reap_dead_link "$next" || return 1
     else
-      owner=
-      if [ -L "$next" ]; then
-        owner=$(fm_lock_link_owner "$next" 2>/dev/null || true)
-      fi
       cur=$(cat "$next/pid" 2>/dev/null || true)
-      if ! fm_lock_recheck_stale_owner "$next" "$owner" "$cur"; then
+      if ! fm_lock_recheck_stale_owner "$next" "" "$cur"; then
         return 1
       fi
       fm_lock_remove_path "$next" || true
@@ -1055,10 +1135,10 @@ fm_lock_discard_stale_steal_suffix() {
   return 0
 }
 
-# Recover a stale lock in place, or create it when absent. Never opens
-# <lockdir>.steal, so a recovery lock cannot grow a steal hierarchy.
+# Retain recovery of legacy directory mutexes without adding a nested mutex.
+# Current owner-link mutexes use the elected reaper below.
 fm_lock_try_acquire_recovery() {
-  local lockdir=$1 pid cur primary_owner
+  local lockdir=$1 pid cur current
   FM_LOCK_HELD_PID=
   FM_LOCK_OWNER_DIR=
   FM_LOCK_RECOVERED_PID=
@@ -1067,8 +1147,9 @@ fm_lock_try_acquire_recovery() {
     return 0
   fi
 
+  fm_current_pid current || return 1
   pid=$(cat "$lockdir/pid" 2>/dev/null || true)
-  if [ -n "$pid" ] && [ "$pid" = "${BASHPID:-$$}" ]; then
+  if [ -n "$pid" ] && [ "$pid" = "$current" ]; then
     fm_lock_remove_path "$lockdir" || true
     if fm_lock_try_create "$lockdir"; then
       return 0
@@ -1089,17 +1170,17 @@ fm_lock_try_acquire_recovery() {
     FM_LOCK_OWNER_DIR=
     return 1
   fi
-  primary_owner=
   if [ -L "$lockdir" ]; then
-    primary_owner=$(fm_lock_link_owner "$lockdir" 2>/dev/null || true)
+    fm_lock_reap_dead_link "$lockdir" || return 1
+  else
+    cur=$(cat "$lockdir/pid" 2>/dev/null || true)
+    if ! fm_lock_recheck_stale_owner "$lockdir" "" "$cur"; then
+      FM_LOCK_HELD_PID=$(cat "$lockdir/pid" 2>/dev/null || true)
+      FM_LOCK_OWNER_DIR=
+      return 1
+    fi
+    fm_lock_remove_path "$lockdir" || true
   fi
-  cur=$(cat "$lockdir/pid" 2>/dev/null || true)
-  if ! fm_lock_recheck_stale_owner "$lockdir" "$primary_owner" "$cur"; then
-    FM_LOCK_HELD_PID=$(cat "$lockdir/pid" 2>/dev/null || true)
-    FM_LOCK_OWNER_DIR=
-    return 1
-  fi
-  fm_lock_remove_path "$lockdir" || true
   if fm_lock_try_create "$lockdir"; then
     return 0
   fi
@@ -1147,6 +1228,66 @@ fm_lock_release_fast() {
   fm_lock_release "$lockdir"
 }
 
+# fm_lock_reap_dead_link <lockdir>
+# Remove a link lock whose owner is dead without a nested mutex. Renaming the
+# dead owner directory to this process's tombstone elects exactly one reaper,
+# so a competing reaper that verified the same dead owner cannot remove a
+# successor's link. A reaper that died after winning leaves its tombstone; a
+# later reaper re-elects itself by renaming that dead reaper's tombstone, and a
+# reaper whose own election a trap interrupted resumes it from its tombstone.
+fm_lock_reap_dead_link() {
+  local lockdir=$1 owner pid token tomb current
+  [ -L "$lockdir" ] || return 1
+  owner=$(fm_lock_link_owner "$lockdir" 2>/dev/null) || return 1
+  fm_current_pid current || return 1
+  if [ -d "$owner" ]; then
+    pid=$(cat "$owner/pid" 2>/dev/null || true)
+    fm_lock_recheck_stale_owner "$lockdir" "$owner" "$pid" || return 1
+    token=$owner
+  else
+    token=
+    for tomb in "$owner".reaped.*; do
+      [ -d "$tomb" ] || continue
+      if [ "${tomb##*.reaped.}" != "$current" ]; then
+        fm_pid_alive "${tomb##*.reaped.}" && return 1
+      fi
+      token=$tomb
+    done
+    [ -n "$token" ] || return 1
+  fi
+  tomb="$owner.reaped.$current"
+  if [ "$token" != "$tomb" ]; then
+    mv -- "$token" "$tomb" 2>/dev/null || return 1
+  fi
+  if fm_lock_points_to_owner "$lockdir" "$owner"; then
+    rm -f "$lockdir" 2>/dev/null || true
+  fi
+  fm_lock_discard_owner "$tomb"
+}
+
+# Acquire the short-lived steal mutex without recursively creating another
+# steal mutex. A dead holder is reaped once; a dead nested steal marker left by
+# the former recursive reclaim is reaped too so it cannot block the claim. A
+# hold abandoned by this very process (a trap interrupted its critical section)
+# is reclaimed like fm_lock_try_acquire's self-held branch.
+fm_lock_try_acquire_steal_mutex() {  # <steal-lock>
+  local lockdir=$1 current
+  FM_LOCK_OWNER_DIR=
+  fm_lock_try_create "$lockdir" && return 0
+  fm_current_pid current || return 1
+  fm_lock_discard_stale_steal_suffix "$lockdir" || return 1
+  if [ -d "$lockdir" ] && [ ! -L "$lockdir" ]; then
+    fm_lock_try_acquire_recovery "$lockdir"
+    return
+  fi
+  if [ "$(cat "$lockdir/pid" 2>/dev/null || true)" = "$current" ]; then
+    fm_lock_remove_path "$lockdir" || true
+  elif [ -e "$lockdir" ] || [ -L "$lockdir" ]; then
+    fm_lock_reap_dead_link "$lockdir" || return 1
+  fi
+  fm_lock_try_create "$lockdir"
+}
+
 fm_lock_try_acquire() {
   local lockdir=$1 pid steal cur rc steal_owner primary_owner current
   FM_LOCK_HELD_PID=
@@ -1188,13 +1329,13 @@ fm_lock_try_acquire() {
   # on a stale steal lock is what grew .steal.steal... chains.
   case "$lockdir" in
     *.steal)
-      fm_lock_try_acquire_recovery "$lockdir"
+      fm_lock_try_acquire_steal_mutex "$lockdir"
       return
       ;;
   esac
 
   steal="$lockdir.steal"
-  if ! fm_lock_try_acquire_recovery "$steal"; then
+  if ! fm_lock_try_acquire_steal_mutex "$steal"; then
     FM_LOCK_HELD_PID=$(cat "$lockdir/pid" 2>/dev/null || true)
     FM_LOCK_OWNER_DIR=
     return 1
@@ -1259,6 +1400,19 @@ fm_lock_try_acquire() {
 fm_lock_acquire_wait() {
   local lockdir=$1
   while ! fm_lock_try_acquire "$lockdir"; do
+    sleep 0.1
+  done
+}
+
+# Bounded in-process variant of fm_lock_acquire_wait for the watcher's EXIT
+# cleanup: a live foreign holder must not let one TERM strand the watcher in
+# its trap, so the wait gives up after <seconds> and leaves the ordinary
+# stale-owner evidence for the next acquirer to reclaim.
+fm_lock_acquire_wait_max() {  # <lockdir> <max-seconds>
+  local lockdir=$1 seconds=$2 deadline
+  deadline=$((SECONDS + seconds))
+  while ! fm_lock_try_acquire "$lockdir"; do
+    [ "$SECONDS" -lt "$deadline" ] || return 1
     sleep 0.1
   done
 }
@@ -1992,7 +2146,7 @@ fm_autoarm_release_abandoned() {  # <state-dir> [grace]
   steal="$lock.steal"
   epoch="$state/.claude-autoarm-epoch"
   fm_autoarm_claim_abandoned "$state" "$grace" || return 1
-  fm_lock_try_acquire "$steal" || return 1
+  fm_lock_try_acquire_steal_mutex "$steal" || return 1
   if ! fm_autoarm_claim_abandoned "$state" "$grace"; then
     fm_lock_release "$steal"
     return 1
@@ -2075,7 +2229,7 @@ fm_wake_append_locked() {
   recovery_marker="$STATE/.watcher-down"
   status=0
 
-  _fm_recovery_marker_publish "$recovery_marker" downtime || status=$?
+  _fm_recovery_marker_publish "$recovery_marker" downtime "" append || status=$?
   if [ "$status" -eq 0 ]; then
     seq=$(cat "$seq_file" 2>/dev/null || echo 0)
     case "$seq" in
@@ -2086,6 +2240,12 @@ fm_wake_append_locked() {
   fi
   if [ "$status" -eq 0 ]; then
     printf '%s\t%s\t%s\t%s\t%s\n' "$epoch" "$seq" "$kind" "$clean_key" "$clean_payload" >> "$FM_WAKE_QUEUE" || status=$?
+  fi
+  if [ "$status" -ne 0 ]; then
+    _fm_wake_append_recovery_restore_locked || true
+  else
+    FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN=
+    FM_WAKE_APPEND_RECOVERY_PUBLISHED_TOKEN=
   fi
   return "$status"
 }
@@ -2387,13 +2547,8 @@ fm_wake_signal_sig() {  # <file> -> reported-state signature
 
 fm_wake_signal_seen_path() {  # <state> <file>
   local task
-  case "$2" in
-    *.status)
-      task=$(basename "$2"); task=${task%.status}
-      printf '%s/.seen-%s' "$1" "$(printf '%s.status' "$task" | tr '.' '_')"
-      ;;
-    *) printf '%s/.seen-%s' "$1" "$(basename "$2" | tr '.' '_')" ;;
-  esac
+  fm_basename_to task "$2"
+  printf '%s/.seen-%s' "$1" "${task//./_}"
 }
 
 # The byte size recorded in <file>'s seen marker, or 0 when no marker exists, it

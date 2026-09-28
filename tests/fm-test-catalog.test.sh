@@ -49,7 +49,7 @@ expect_bad_catalog() {
 }
 
 test_catalog_preserves_existing_gate_classes() {
-  local family expected
+  local family expected script
   fm_test_catalog_load "$ROOT" || fail "real catalogs must load"
   while IFS= read -r family; do
     [ -n "$family" ] || continue
@@ -65,6 +65,17 @@ test_catalog_preserves_existing_gate_classes() {
   fm_test_catalog_get test tests/fm-herdr-pi-stale-registration-live-e2e.test.sh \
     || fail "stale-registration live guard is unclassified"
   assert_equals live-harness-optin "$FM_TEST_CATALOG_VALUE" "live guard lost its capability gate"
+  while IFS='|' read -r script expected; do
+    fm_test_catalog_get test "tests/$script" || fail "upstream test is unclassified: $script"
+    assert_equals "$expected" "$FM_TEST_CATALOG_VALUE" "upstream family changed for $script"
+  done <<'EOF'
+fm-fork-free-helpers.test.sh|pure-contract-unit
+fm-git-strip-ai-trailers.test.sh|backend-dispatch
+fm-host-mirror.test.sh|afk
+fm-host-mirror-live-e2e.test.sh|live-harness-optin
+fm-remote-secondmate-relaunch.test.sh|secondmate
+fm-supervision-host-attended-live-e2e.test.sh|live-harness-optin
+EOF
   assert_equals "$(printf 'backend-dispatch\nreal-herdr-gated\npure-contract-unit\norca\nlive-harness-optin\n__script__:fm-backend-herdr-treehouse.test.sh')" \
     "$(fm_test_catalog_maps bin/fm-agent-process-lib.sh)" "shared classifier must select both backend consumers"
   assert_equals "$(printf 'real-herdr-gated\nbackend-dispatch\npure-contract-unit')" \
@@ -89,6 +100,9 @@ test_management_routes_preserve_existing_owners() {
     'bin/fm-agent-process-lib.sh|backend-dispatch' \
     'bin/fm-control-lib.sh|session-bootstrap' \
     'bin/fm-control-lib.sh|__script__:fm-control-recovery.test.sh' \
+    'bin/fm-jev-mem-guard.py|__script__:fm-jev-mem-guard.test.sh' \
+    'bin/fm-jev-mem-guard.sh|__script__:fm-jev-mem-guard.test.sh' \
+    'bin/fm_voice_records.py|__script__:fm-voice-relay.test.sh' \
     'bin/fm-ghcp-hook.ps1|__script__:fm-update-windows.test.sh'; do
     path=${pair%%|*}
     wanted=${pair#*|}
