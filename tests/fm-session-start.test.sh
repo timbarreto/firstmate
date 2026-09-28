@@ -1724,7 +1724,11 @@ SH
     "the abnormal-death banner did not list every stage that never ran"
   assert_not_contains "$out" "RUNTIME BOUND" \
     "an abnormal death was misreported as the runtime bound firing"
-  assert_contains "$out" "report the exit status and the stage" \
+  assert_not_contains "$out" "cumulative deadline expired" \
+    "an abnormal death was misreported as a deadline expiry"
+  assert_contains "$out" "current breadcrumb, not a measured bottleneck" \
+    "the abnormal-death banner treated its breadcrumb as a measured bottleneck"
+  assert_contains "$out" "Report the exit status and stage" \
     "the abnormal-death banner did not tell the reader to report the exit status"
   assert_not_contains "$out" "raise FM_SESSION_START_TIMEOUT" \
     "the abnormal-death banner advised raising a bound that did not fire"

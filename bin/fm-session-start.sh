@@ -357,11 +357,15 @@ if [ -z "${FM_SESSION_START_STAGE_FILE:-}" ]; then
     printf '\n%s\n' "$BAR"
     if [ "$SESSION_START_RC" -eq 124 ]; then
       printf '●  STARTUP TRUNCATED - SESSION START HIT ITS %ss RUNTIME BOUND\n' "$SESSION_START_BUDGET"
+      printf '●  The cumulative deadline expired while the "%s" stage was current,\n' "$SESSION_START_LAST_STAGE"
+      printf '●  so everything above is COMPLETE only up to that point.\n'
+      SESSION_START_TIMINGS_HEADING="TIMINGS - session-start stages completed before the bound (ms):"
     else
       printf '●  STARTUP TRUNCATED - SESSION START DIED UNEXPECTEDLY (exit %s, not its runtime bound)\n' "$SESSION_START_RC"
+      printf '●  It stopped during the "%s" stage, so everything above is COMPLETE\n' "$SESSION_START_LAST_STAGE"
+      printf '●  only up to that point.\n'
+      SESSION_START_TIMINGS_HEADING="TIMINGS - session-start stages completed before truncation (ms):"
     fi
-    printf '●  It stopped during the "%s" stage, so everything above is COMPLETE\n' "$SESSION_START_LAST_STAGE"
-    printf '●  only up to that point.\n'
     printf '●  The named stage is the current breadcrumb, not a measured bottleneck.\n'
     printf '●  RECONCILE these stages before acting on anything they would have shown:\n'
     printf '●    %s\n' "${SESSION_START_PENDING% }"
@@ -374,8 +378,7 @@ if [ -z "${FM_SESSION_START_STAGE_FILE:-}" ]; then
     printf '●  After fixing the cause, rerun bin/fm-session-start.sh to reconcile the missing stages.\n'
     printf '%s\n' "$BAR"
     if [ -s "$SESSION_START_TIMINGS" ]; then
-      fm_timing_render "$SESSION_START_TIMINGS" \
-        "TIMINGS - session-start stages completed before truncation (ms):"
+      fm_timing_render "$SESSION_START_TIMINGS" "$SESSION_START_TIMINGS_HEADING"
     fi
   fi
   rm -f "$SESSION_START_STAGE_FILE" 2>/dev/null || true

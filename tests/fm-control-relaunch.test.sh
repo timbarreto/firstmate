@@ -2323,7 +2323,7 @@ HERDR_CASE_DIR=
 run_herdr_control() (
   local dir=$1 code="$1/code" namespace="$1/fake/herdr-locks"
   shift
-  mkdir -p "$code"
+  mkdir -p "$code/.agents/skills" || fail "could not create the recovery fixture layout"
   cp -R "$ROOT/bin" "$code/bin" || fail "could not copy the recovery fixture dependencies"
   cat >> "$code/bin/backends/herdr.sh" <<'SH'
 
