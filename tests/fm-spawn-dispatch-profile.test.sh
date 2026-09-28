@@ -1918,7 +1918,7 @@ fm_test_run_cases \
   test_cursor_threads_model_workspace_and_omits_effort_axis \
   test_cursor_refuses_model_absent_from_live_catalog \
   test_cursor_failed_catalog_probe_does_not_block_spawn \
-  test_opencode_threads_model_and_ignores_effort_axis \
+  test_opencode_threads_model_and_effort_variant \
   test_native_effort_validator_keeps_axes_separate \
   test_native_pi_ultra_is_explicit_and_model_scoped \
   test_batch_preserves_native_ultra \
@@ -1950,7 +1950,6 @@ fm_test_run_cases \
   test_claude_secondmate_launch_brief_publishes_into_its_own_home \
   test_claude_spawn_refuses_when_the_brief_record_cannot_publish \
   test_chained_raw_launch_strips_ai_trailer_in_every_step \
-  test_opencode_threads_model_and_effort_variant \
   test_opencode_without_effort_keeps_launch_config_unchanged \
   test_opencode_emits_variant_for_openai_family_effort \
   test_opencode_omits_variant_when_model_family_lacks_effort \

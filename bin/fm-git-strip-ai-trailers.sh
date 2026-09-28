@@ -202,13 +202,19 @@ pre-merge-commit prepare-commit-msg post-commit pre-rebase post-checkout
 post-merge pre-push post-rewrite pre-auto-gc sendemail-validate'
 
 install_hooks() {
-  local hooks_dir=$1 wt=$2 name
+  local hooks_dir=$1 wt=$2 git_wt name
   [ -n "$hooks_dir" ] && [ -n "$wt" ] || usage
+  # shellcheck source=bin/fm-path-lib.sh
+  . "${SELF%/*}/fm-path-lib.sh" || return 1
   [ -d "$wt" ] || {
     echo "error: worktree is not a directory: $wt" >&2
     return 1
   }
-  git -C "$wt" rev-parse --is-inside-work-tree >/dev/null || {
+  fm_path_native_argument "$wt" git_wt || {
+    echo "error: could not prepare the worktree path for Git: $wt" >&2
+    return 1
+  }
+  git -C "$git_wt" rev-parse --is-inside-work-tree >/dev/null || {
     echo "error: not a git worktree: $wt" >&2
     return 1
   }

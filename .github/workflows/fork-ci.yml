@@ -199,6 +199,9 @@ jobs:
               bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
                 tests/fm-control-relaunch.test.sh
           done
+          FM_TEST_ONLY=test_windows_paths_strip_and_chain_hooks \
+            bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 180 \
+              tests/fm-git-strip-ai-trailers.test.sh
           FM_TEST_ONLY=test_windows_home_spellings_enqueue_once \
             bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 300 \
               tests/fm-send-inbox.test.sh

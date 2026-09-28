@@ -1033,8 +1033,8 @@ SH
     grep -Eq "^FM_TEST_END .+ $script exit=124 " "$tmp/timeout.out" \
       || fail "$script did not receive its automatic timeout: $(cat "$tmp/timeout.out")"
   done
-  grep -q $'^tests/fm-calm-pi-extension.test.sh\t900$' "$timeout_log" \
-    || fail "the ordinary changed-script timeout was not 900s: $(cat "$timeout_log")"
+  grep -q $'^tests/fm-calm-pi-extension.test.sh\t1500$' "$timeout_log" \
+    || fail "the ordinary changed-script timeout was not 1500s: $(cat "$timeout_log")"
   case "$(uname -s 2>/dev/null)" in
     MSYS*|MINGW*|CYGWIN*)
       grep -q $'^tests/fm-arm-pretool-check.test.sh\t1800$' "$timeout_log" \
@@ -1045,11 +1045,11 @@ SH
         || fail "the Windows captain timeout was not 7200s: $(cat "$timeout_log")"
       ;;
     *)
-      grep -q $'^tests/fm-arm-pretool-check.test.sh\t900$' "$timeout_log" \
+      grep -q $'^tests/fm-arm-pretool-check.test.sh\t1500$' "$timeout_log" \
         || fail "the non-Windows arm timeout changed: $(cat "$timeout_log")"
-      grep -q $'^tests/fm-backend-herdr.test.sh\t900$' "$timeout_log" \
+      grep -q $'^tests/fm-backend-herdr.test.sh\t1500$' "$timeout_log" \
         || fail "the non-Windows Herdr timeout changed: $(cat "$timeout_log")"
-      grep -q $'^tests/fm-captain-hold-lifecycle.test.sh\t900$' "$timeout_log" \
+      grep -q $'^tests/fm-captain-hold-lifecycle.test.sh\t1500$' "$timeout_log" \
         || fail "the non-Windows captain timeout changed: $(cat "$timeout_log")"
       ;;
   esac

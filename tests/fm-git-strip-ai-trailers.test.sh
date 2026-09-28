@@ -301,18 +301,46 @@ test_strip_msgfile_alone_does_not_rewrite_author_fields() {
   pass "commit-msg file mode strips the trailer and keeps the subject"
 }
 
-test_cursor_trailer_does_not_reach_the_commit_object
-test_human_coauthor_is_kept
-test_human_at_a_vendor_domain_is_kept
-test_hook_manager_cannot_displace_the_strip
-test_reinstall_replaces_a_read_only_install
-test_previous_commit_msg_hook_still_runs
-test_relative_project_hookspath_still_runs
-test_inherited_hookspath_env_does_not_decide_the_chain
-test_project_hook_generated_after_install_still_runs
-test_pane_hookspath_does_not_reroute_another_repository
-test_repository_pre_push_runs_on_every_override_channel
-test_git_c_override_still_strips_and_chains_commit_hooks
-test_strip_msgfile_alone_does_not_rewrite_author_fields
+test_windows_paths_strip_and_chain_hooks() {
+  local dir repo hooks git_repo git_hooks body
+  case "${OS:-}" in
+    Windows_NT) ;;
+    *) pass "native Git hook paths (skipped outside Windows)"; return 0 ;;
+  esac
+  dir="$TMP_ROOT/"$'native caf\xc3\xa9 \'[x] &'
+  repo="$dir/repo"
+  hooks="$dir/hooks"
+  git_repo=$(cygpath -m "$repo") || fail "native repository path unavailable"
+  git_hooks=$(cygpath -m "$hooks") || fail "native hooks path unavailable"
+  make_repo "$git_repo" || fail "native repository setup failed"
+  write_marker_hook "$repo/.git/hooks/pre-commit" windows-pre-commit
+  "$STRIP" install "$hooks" "$repo" || fail "install refused a valid Windows worktree path"
+  printf 'note\n' >> "$repo/README.md"
+  git -C "$git_repo" add README.md || fail "native Git could not stage the fixture"
+  with_hooks_env "$git_hooks" git -C "$git_repo" commit -q \
+    --trailer 'Co-authored-by: Cursor <cursoragent@cursor.com>' -m 'fix: native hook paths' \
+    || fail "native Git could not commit through the installed hooks"
+  body=$(git -C "$git_repo" log -1 --format=%B) || fail "native commit object unavailable"
+  [ -f "$repo/windows-pre-commit.ran" ] || fail "native Git did not chain the repository hook"
+  assert_not_contains "$body" "cursoragent@cursor.com" "native Git bypassed the trailer strip"
+  assert_contains "$body" "fix: native hook paths" "native hook changed the commit subject"
+  pass "native Git paths preserve the trailer strip and the repository hook"
+}
+
+fm_test_run_cases \
+  test_cursor_trailer_does_not_reach_the_commit_object \
+  test_human_coauthor_is_kept \
+  test_human_at_a_vendor_domain_is_kept \
+  test_hook_manager_cannot_displace_the_strip \
+  test_reinstall_replaces_a_read_only_install \
+  test_previous_commit_msg_hook_still_runs \
+  test_relative_project_hookspath_still_runs \
+  test_inherited_hookspath_env_does_not_decide_the_chain \
+  test_project_hook_generated_after_install_still_runs \
+  test_pane_hookspath_does_not_reroute_another_repository \
+  test_repository_pre_push_runs_on_every_override_channel \
+  test_git_c_override_still_strips_and_chains_commit_hooks \
+  test_strip_msgfile_alone_does_not_rewrite_author_fields \
+  test_windows_paths_strip_and_chain_hooks
 
 echo "# all fm-git-strip-ai-trailers tests passed"

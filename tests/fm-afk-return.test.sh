@@ -18,6 +18,8 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # shellcheck source=tests/private-path-helpers.sh
 . "$ROOT/tests/private-path-helpers.sh"
+# shellcheck source=tests/harness-helpers.sh
+. "$ROOT/tests/harness-helpers.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-afk-return-tests)
 
@@ -31,6 +33,8 @@ install_runner() {  # <case-dir>
   # fm-timeout-lib.sh: the shared hard bound fm-classify-lib.sh sources for the
   # wedge detector's bounded worktree write probe.
   cp "$ROOT/bin/fm-timeout-lib.sh" "$dir/bin/"
+  cp "$ROOT/bin/fm-session-lock-lib.sh" "$dir/bin/"
+  fm_test_install_harness_modules "$dir" || fail "could not install the harness detector's dependencies"
   # The return brief's durable sources: the posture-record owner, the outcome
   # store owner, and the backlog reader with its tasks-axi probe.
   cp "$ROOT/bin/fm-afk-contract.sh" "$dir/bin/"

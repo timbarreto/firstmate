@@ -4141,8 +4141,8 @@ test_capped_transition_without_successor_is_unknown_then_stable_cancellation_is_
   FM_FAKE_AXI_HOME=$(printf '%s\n' "$FM_FAKE_AXI_HOME" | sed '/01NEW/s/,running,/,cancelled,/')
   : > "$d/reader-calls"
   out=$(run_capped_rerun_state "$d" no-successor)
-  assert_contains "$out" 'state: failed' 'a subsequent stable cancellation was hidden'
-  assert_contains "$out" 'run cancelled' 'the stable terminal result changed'
+  assert_contains "$out" 'state: unknown' 'a stable cancellation must not invent a failed verdict'
+  assert_contains "$out" 'run cancelled: no verdict' 'a subsequent stable cancellation was hidden'
   [ "$(wc -l < "$d/reader-calls" | tr -d '[:space:]')" = 1 ] || fail 'a stable cancellation was retried'
   pass 'a missing successor reports uncertainty once while a later stable cancellation remains visible'
 }

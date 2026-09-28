@@ -5,6 +5,7 @@
 # replaces on the same input, under every available Bash (stock macOS
 # /bin/bash 3.2 included) and under both the C and a UTF-8 locale, so an edge
 # case where the two disagree fails here instead of drifting silently.
+# Absolute lock paths retain the fork's spelling-preserving fast path.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -118,14 +119,18 @@ for f in "$state/crew.status" "$state/a.b.c.status" "state/x.status" ".status" \
   [ "$got" = "$want" ] || printf 'seen path %q: helper %q, commands %q\n' "$f" "$got" "$want"
 done
 cd "$3" || exit 1
-for p in "$3/x.lock" "$3/sub/x.lock" "$3//sub//x.lock" "sub/x.lock" "x.lock" "sub/x.lock/" "./sub/../x.lock"; do
+for p in "$3/x.lock" "$3/sub/x.lock" "$3//sub//x.lock" "$3/sub/../x.lock" \
+  "$3/sub/x.lock/" "$3/missing/x.lock" "sub/x.lock" "x.lock" "sub/x.lock/" "./sub/../x.lock"; do
   got=$(fm_lock_abs_path "$p")
-  want="$(cd "$(dirname "$p")" && pwd -P)/$(basename "$p")"
-  [ "$got" = "$want" ] || printf 'lock path %q: helper %q, commands %q\n' "$p" "$got" "$want"
+  case "$p" in
+    /*) want=$p ;;
+    *) want="$(cd "$(dirname "$p")" && pwd -P)/$(basename "$p")" ;;
+  esac
+  [ "$got" = "$want" ] || printf 'lock path %q: helper %q, reference %q\n' "$p" "$got" "$want"
 done
 SH
   run_everywhere "seen and lock paths" "$script" "$TMP_ROOT/state" "$dir"
-  pass "signal seen paths and absolute lock paths are byte-identical to the dirname/basename/tr forms"
+  pass "seen and relative lock paths match the commands, while absolute lock paths preserve their spelling"
 }
 
 test_recovery_marker_read_accepts_exactly_one_newline() {
