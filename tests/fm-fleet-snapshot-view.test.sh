@@ -1207,6 +1207,38 @@ SH
   pass "fleet snapshots retain Azure status URLs and completed notes without manufacturing row links"
 }
 
+test_status_log_scan_reads_latest_event_and_first_pr() {
+  local home fakebin out azure
+  home=$(make_home status-scan)
+  fakebin=$(make_fakebin "$home")
+  azure='https://dev.azure.com/o/p/_git/r/pullrequest/7?api-version=7.1-preview.1'
+  fm_write_meta "$home/state/scan-one.meta" "kind=ship" "mode=direct-PR" "harness=codex"
+  printf 'note: see https://example.com/docs\r\nworking: PR (%s) then https://github.com/o/r/pull/8\r\n  \t\r\npaused: waiting on review' \
+    "$azure" > "$home/state/scan-one.status"
+  fm_write_meta "$home/state/scan-meta.meta" "kind=ship" "mode=direct-PR" "harness=codex" \
+    "pr=https://github.com/o/r/pull/99"
+  printf 'working: mentions https://github.com/o/r/pull/5\n\n   \n' > "$home/state/scan-meta.status"
+  fm_write_meta "$home/state/scan-blank.meta" "kind=ship" "mode=direct-PR" "harness=codex"
+  printf '\n \t\n\n' > "$home/state/scan-blank.status"
+  fm_write_meta "$home/state/scan-missing.meta" "kind=ship" "mode=direct-PR" "harness=codex"
+
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --json) || fail "snapshot failed for status-scan fixture"
+  printf '%s' "$out" | jq -e --arg azure "$azure" '
+    def task($id): .tasks[] | select(.id == $id);
+    (task("scan-one") | .pr.url == $azure and .pr.source == "status_event"
+      and .paths.status_log.last_event.raw == "paused: waiting on review"
+      and .paths.status_log.last_event.state == "paused"
+      and .paths.status_log.last_event.note == "waiting on review")
+    and (task("scan-meta") | .pr.url == "https://github.com/o/r/pull/99" and .pr.source == "meta"
+      and .paths.status_log.last_event.raw == "working: mentions https://github.com/o/r/pull/5")
+    and (task("scan-blank") | .pr.url == null and .pr.source == "absent"
+      and .paths.status_log.last_event.raw == "" and .paths.status_log.last_event.state == "")
+    and (task("scan-missing") | .pr.url == null and .pr.source == "absent"
+      and .paths.status_log.last_event.raw == "")
+  ' >/dev/null || fail "status log scan lost the latest event or first PR link: $out"
+  pass "fleet snapshot reads the latest non-blank event and the first PR link from a status log"
+}
+
 fm_test_run_cases \
   test_empty_fleet_json \
   test_fixture_snapshot_json \
@@ -1226,4 +1258,5 @@ fm_test_run_cases \
   test_backlog_tasks_axi_forms_and_overrides \
   test_view_renders_snapshot \
   test_view_renders_dead_secondmate_agent_status \
-  test_azure_links_survive_status_and_backlog_notes
+  test_azure_links_survive_status_and_backlog_notes \
+  test_status_log_scan_reads_latest_event_and_first_pr

@@ -560,6 +560,37 @@ test_record_changes_refuse_while_a_reader_holds_the_lock() {
   pass "enter and archive refuse while the record is locked, and proceed once it clears"
 }
 
+# Sourced consumers (merge authority, watcher, return path) read presence and
+# the record path through the library helpers rather than the CLI.
+test_sourced_path_and_presence_helpers() {
+  local home out
+  home=$(make_home sourced-helpers)
+  out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" bash -c '
+    . "$1"
+    printf "stdout=%s\n" "$(fm_afk_contract_path)"
+    printf "explicit=%s\n" "$(fm_afk_contract_path "$2/other")"
+    p=stale; fm_afk_contract_path "" p; printf "dest=%s\n" "$p"
+    fm_afk_contract_path "$2/other" p; printf "dest-explicit=%s\n" "$p"
+    rc=0; fm_afk_contract_path "" bad-name || rc=$?; printf "invalid=%s\n" "$rc"
+    fm_afk_contract_present && echo "absent=present" || echo "absent=missing"
+    mkdir -p "$2/state/.afk-contract"
+    fm_afk_contract_present && echo "dir=present" || echo "dir=missing"
+    rmdir "$2/state/.afk-contract"; : > "$2/state/.afk-contract"
+    fm_afk_contract_present && echo "file=present" || echo "file=missing"
+    fm_afk_contract_present "$2/other" && echo "other=present" || echo "other=missing"
+  ' _ "$CONTRACT" "$home")
+  [ "$out" = "stdout=$home/state/.afk-contract
+explicit=$home/other/.afk-contract
+dest=$home/state/.afk-contract
+dest-explicit=$home/other/.afk-contract
+invalid=2
+absent=missing
+dir=missing
+file=present
+other=missing" ] || fail "sourced path/presence helpers drifted: $out"
+  pass "sourced path and presence helpers agree in stdout and destination forms"
+}
+
 test_readback_renders_words_verbatim_with_the_record_scalars
 test_words_preserve_final_newline_shape
 test_enter_writes_a_v2_record_in_one_step_and_announces_hold_for_return
@@ -578,3 +609,4 @@ test_retired_clause_and_grant_inputs_are_usage_errors_by_name
 test_version_1_record_still_validates_reads_and_archives
 test_version_1_record_is_replaced_by_a_version_2_record
 test_record_changes_refuse_while_a_reader_holds_the_lock
+test_sourced_path_and_presence_helpers

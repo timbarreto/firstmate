@@ -833,16 +833,18 @@ _fm_decision_line_may_transition() {  # <status-line> <resolve-verb> <held-verb>
   esac
 }
 
-_fm_status_kind() {
-  local meta=${1%.status}.meta kind=${2:-} line
-  if [ -z "$kind" ]; then
-    [ -f "$meta" ] && [ -r "$meta" ] && [ ! -L "$meta" ] || { printf unknown; return 0; }
-    while IFS= read -r line || [ -n "$line" ]; do
-      case "$line" in kind=*) kind=${line#kind=} ;; esac
-    done < "$meta"
-    kind=${kind:-ship}
+_fm_status_kind() {  # <status-file> [<kind>] [<destination>]
+  local _fm_status_kind_meta=${1%.status}.meta _fm_status_kind_v=${2:-} _fm_status_kind_line
+  if [ -z "$_fm_status_kind_v" ]; then
+    [ -f "$_fm_status_kind_meta" ] && [ -r "$_fm_status_kind_meta" ] && [ ! -L "$_fm_status_kind_meta" ] \
+      || { _fm_classify_result unknown "${3:-}"; return; }
+    while IFS= read -r _fm_status_kind_line || [ -n "$_fm_status_kind_line" ]; do
+      case "$_fm_status_kind_line" in kind=*) _fm_status_kind_v=${_fm_status_kind_line#kind=} ;; esac
+    done < "$_fm_status_kind_meta"
+    _fm_status_kind_v=${_fm_status_kind_v:-ship}
   fi
-  case "$kind" in ship|scout|secondmate) printf '%s' "$kind" ;; *) printf unknown ;; esac
+  case "$_fm_status_kind_v" in ship|scout|secondmate) ;; *) _fm_status_kind_v=unknown ;; esac
+  _fm_classify_result "$_fm_status_kind_v" "${3:-}"
 }
 
 _fm_decision_fold_line() {  # <open-set> <line> <resolve> <held> <kind> [<destination>]
@@ -901,17 +903,23 @@ _fm_decision_fold_line() {  # <open-set> <line> <resolve> <held> <kind> [<destin
 # before any read - a cheap builtin, unlike fm_wake_latest_event's O_NOFOLLOW
 # subprocess read, which exists for that function's much narrower payload-driven
 # path resolution rather than this directory-local glob.
-status_open_decisions() {  # <status-file> [<kind>]
-  local f=$1 kind=${2:-} line resolve held open=''
-  [ -f "$f" ] && [ -r "$f" ] && [ ! -L "$f" ] || return 0
-  kind=$(_fm_status_kind "$f" "$kind")
-  resolve=${FM_CLASSIFY_RESOLVE_VERB:-$FM_CLASSIFY_RESOLVE_VERB_DEFAULT}
-  held=${FM_CLASSIFY_CAPTAIN_HELD_VERB:-$FM_CLASSIFY_CAPTAIN_HELD_VERB_DEFAULT}
-  while IFS= read -r line || [ -n "$line" ]; do
-    _fm_decision_line_may_transition "$line" "$resolve" "$held" || continue
-    _fm_decision_fold_line "$open" "$line" "$resolve" "$held" "$kind" open
-  done < "$f"
-  printf '%s' "$open"
+# An optional <destination> receives the same set in-process, without its
+# trailing newline, instead of printing it.
+status_open_decisions() {  # <status-file> [<kind>] [<destination>]
+  local _fm_open_file=$1 _fm_open_kind=${2:-} _fm_open_line _fm_open_resolve _fm_open_held _fm_open_set=''
+  if ! { [ -f "$_fm_open_file" ] && [ -r "$_fm_open_file" ] && [ ! -L "$_fm_open_file" ]; }; then
+    _fm_classify_result '' "${3:-}"
+    return
+  fi
+  _fm_status_kind "$_fm_open_file" "$_fm_open_kind" _fm_open_kind
+  _fm_open_resolve=${FM_CLASSIFY_RESOLVE_VERB:-$FM_CLASSIFY_RESOLVE_VERB_DEFAULT}
+  _fm_open_held=${FM_CLASSIFY_CAPTAIN_HELD_VERB:-$FM_CLASSIFY_CAPTAIN_HELD_VERB_DEFAULT}
+  while IFS= read -r _fm_open_line || [ -n "$_fm_open_line" ]; do
+    _fm_decision_line_may_transition "$_fm_open_line" "$_fm_open_resolve" "$_fm_open_held" || continue
+    _fm_decision_fold_line "$_fm_open_set" "$_fm_open_line" "$_fm_open_resolve" "$_fm_open_held" \
+      "$_fm_open_kind" _fm_open_set
+  done < "$_fm_open_file"
+  _fm_classify_result "$_fm_open_set" "${3:-}"
 }
 
 # Resolve the log's current declaration at one boundary for crew-state consumers.

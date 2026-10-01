@@ -301,9 +301,26 @@ meta_value() {  # <meta-file> <key>
   fm_meta_get "$1" "$2"
 }
 
-last_nonempty_line() {  # <file>
-  [ -f "$1" ] || return 1
-  grep -v '^[[:space:]]*$' "$1" 2>/dev/null | tail -1
+# One in-process pass over a captured status log. <last-destination> receives
+# its last line containing a non-space character (the latest event) and, when
+# named, <pr-destination> receives the first PR_DISPLAY_URL_PATTERN match in
+# the log. Both are left empty for an absent or unreadable log. This is the
+# per-task read, so it stays free of subprocesses.
+status_log_scan() {  # <file> <last-destination> [<pr-destination>]
+  local _scan_line _scan_last='' _scan_pr='' _scan_want_pr=${3:+1}
+  if [ -f "$1" ] && [ -r "$1" ]; then
+    while IFS= read -r _scan_line || [ -n "$_scan_line" ]; do
+      case "$_scan_line" in *[![:space:]]*) _scan_last=$_scan_line ;; *) continue ;; esac
+      [ -n "$_scan_want_pr" ] || continue
+      case "$_scan_line" in *://*) ;; *) continue ;; esac
+      if [[ $_scan_line =~ $PR_DISPLAY_URL_PATTERN ]]; then
+        _scan_pr=${BASH_REMATCH[0]}
+        _scan_want_pr=
+      fi
+    done < "$1"
+  fi
+  printf -v "$2" '%s' "$_scan_last"
+  [ -z "${3:-}" ] || printf -v "$3" '%s' "$_scan_pr"
 }
 
 # A local crew-state read is bounded so one slow child cannot extend this
@@ -323,7 +340,7 @@ crew_state_json() {  # <id> [<captured-meta>] [<captured-status>]
       FM_CONFIG_OVERRIDE="$CONFIG" \
       "$SCRIPT_DIR/fm-crew-state.sh" "$id" 2>/dev/null || true
   )
-  raw=$(printf '%s\n' "$raw" | head -1)
+  raw=${raw%%$'\n'*}
   sep=' · '
   state=unknown
   source=none
@@ -345,11 +362,6 @@ crew_state_json() {  # <id> [<captured-meta>] [<captured-status>]
 
 # Observational link discovery only; registration owns forge identity validation.
 PR_DISPLAY_URL_PATTERN='https?://[^[:space:])"<>]+/(pull|pullrequest|pullRequests|pullrequests|merge_requests)/[1-9][0-9]*(\?api-version=[0-9]+\.[0-9]+(-preview(\.[0-9]+)?)?)?'
-
-first_pr_url_in_file() {  # <file>
-  [ -f "$1" ] || return 1
-  grep -Eo "$PR_DISPLAY_URL_PATTERN" "$1" 2>/dev/null | head -1
-}
 
 backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
   local backlog=${1:-$BACKLOG}
@@ -629,8 +641,8 @@ prefetch_task_observations() {  # <meta> <id>
   elif [ "$generation_current" = 1 ]; then
     crew_state_json "$id" "$meta" "$status_capture" > "$current_file" &
     current_pid=$!
-    backend=$(fm_backend_of_meta "$meta")
-    target=$(fm_backend_target_of_meta "$meta")
+    fm_backend_of_meta "$meta" backend
+    fm_backend_target_of_meta "$meta" target
     if [ -n "$target" ]; then
       if fm_backend_target_exists "$backend" "$target" "fm-$id" >/dev/null 2>&1; then
         endpoint_exists=true
@@ -675,7 +687,8 @@ prefetch_task_current_states() {
   # composition one coherent task manifest even if publication or teardown races it.
   for meta in "$STATE"/*.meta; do
     [ -e "$meta" ] || continue
-    id=$(basename "$meta" .meta)
+    id=${meta##*/}
+    id=${id%.meta}
     captured_meta="$SNAPSHOT_TASK_DIR/$id.meta"
     if ! cp -- "$meta" "$captured_meta" 2>"$captured_meta.copy-error"; then
       # Teardown may unlink a task after the glob selected it but before cp opens
@@ -695,7 +708,8 @@ prefetch_task_current_states() {
   done
   while [ "$index" -lt "$SNAPSHOT_TASK_META_COUNT" ]; do
     meta=${SNAPSHOT_TASK_METAS[index]}
-    id=$(basename "$meta" .meta)
+    id=${meta##*/}
+    id=${id%.meta}
     prefetch_task_observations "$meta" "$id" &
     pids[active]=$!
     active=$((active + 1))
@@ -725,7 +739,8 @@ task_json_lines() {
   while [ "$index" -lt "$SNAPSHOT_TASK_META_COUNT" ]; do
     meta=${SNAPSHOT_TASK_METAS[index]}
     index=$((index + 1))
-    id=$(basename "$meta" .meta)
+    id=${meta##*/}
+    id=${id%.meta}
     original_meta="$STATE/$id.meta"
     # These fields belong to the captured generation, not a cross-call cache.
     # One in-process pass avoids a shell and filesystem open for every field.
@@ -738,16 +753,18 @@ task_json_lines() {
       [ -n "$backend" ] || backend=unknown
       fm_meta_get "$meta" remote_target target
     else
-      backend=$(fm_backend_of_meta "$meta")
-      target=$(fm_backend_target_of_meta "$meta")
+      fm_backend_of_meta "$meta" backend
+      fm_backend_target_of_meta "$meta" target
     fi
     status_log="$SNAPSHOT_TASK_DIR/$id.status"
     report_path="$SNAPSHOT_TASK_DIR/$id.report"
     pr_source=meta
     if [ -z "$pr" ]; then
-      pr_from_status=$(first_pr_url_in_file "$status_log" || true)
+      status_log_scan "$status_log" last_event_raw pr_from_status
       pr=$pr_from_status
       pr_source=status_event
+    else
+      status_log_scan "$status_log" last_event_raw
     fi
     if [ -z "$pr" ]; then
       pr_source=absent
@@ -758,9 +775,8 @@ task_json_lines() {
       snapshot_task_cleanup
       return 1
     }
-    last_event_raw=$(last_nonempty_line "$status_log" || true)
-    last_event_verb=$(status_line_verb "$last_event_raw")
-    last_event_note=$(status_line_note "$last_event_raw")
+    status_line_verb "$last_event_raw" last_event_verb
+    status_line_note "$last_event_raw" last_event_note
     last_event_age=null
     if _fm_status_at_epoch "$last_event_raw" last_event_epoch && [ "$last_event_epoch" -le "$SNAPSHOT_EPOCH" ]; then
       last_event_age=$((SNAPSHOT_EPOCH - last_event_epoch))
@@ -783,7 +799,7 @@ task_json_lines() {
     # never clear another concern's keyed decision. A parked/blocked state, or a
     # non-authoritative status-log/none read on a still-live task, keeps the fold's
     # open decision surfacing.
-    open_decisions_tsv=$(status_open_decisions "$status_log" "$kind")
+    status_open_decisions "$status_log" "$kind" open_decisions_tsv
 
     endpoint_exists=null
     agent_alive=not_checked
@@ -1938,7 +1954,8 @@ scout_report_lines() {
   LC_ALL=C find "$DATA" -mindepth 2 -maxdepth 2 -type f -name report.md -print \
     | sort \
     | while IFS= read -r report; do
-      id=$(basename "$(dirname "$report")")
+      id=${report%/report.md}
+      id=${id##*/}
       jq -n --arg id "$id" --arg path "$report" '{id:$id,path:$path}'
     done \
     | jq -s 'sort_by(.id)'
@@ -1949,7 +1966,8 @@ contribution_tasks_json() {
   local meta id kind='' url='' head='' merge_authority
   for meta in "$STATE"/*.meta; do
     [ -f "$meta" ] && [ ! -L "$meta" ] || continue
-    id=$(basename "$meta" .meta)
+    id=${meta##*/}
+    id=${id%.meta}
     merge_authority=unknown
     if fm_merge_authority_resolve "$FM_HOME" "$STATE" "$meta" "$id"; then
       merge_authority=$FM_MERGE_AUTHORITY

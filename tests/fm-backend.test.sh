@@ -610,6 +610,50 @@ test_meta_get_and_backend_of_meta() {
   pass "fm_meta_get / fm_backend_of_meta: read last key=value and default backend to tmux"
 }
 
+test_backend_target_of_meta_forms() {
+  local tmux_meta=$TMP_ROOT/target-tmux.meta orca_meta=$TMP_ROOT/target-orca.meta
+  local orca_bare=$TMP_ROOT/target-orca-bare.meta none=$TMP_ROOT/target-none.meta
+  local target out rc
+  fm_write_meta "$tmux_meta" "window=firstmate:fm-t1"
+  fm_write_meta "$orca_meta" "backend=orca" "terminal=term-7" "window=win-7"
+  fm_write_meta "$orca_bare" "backend=orca" "window=win-8"
+  fm_write_meta "$none" "harness=claude"
+
+  [ "$(fm_backend_target_of_meta "$tmux_meta")" = "firstmate:fm-t1" ] \
+    || fail "fm_backend_target_of_meta should print a tmux record's window="
+  [ "$(fm_backend_target_of_meta "$orca_meta")" = term-7 ] \
+    || fail "fm_backend_target_of_meta should prefer an orca record's terminal="
+  [ "$(fm_backend_target_of_meta "$orca_bare")" = win-8 ] \
+    || fail "fm_backend_target_of_meta should fall back to window= for an orca record without terminal="
+  rc=0
+  out=$(fm_backend_target_of_meta "$none") || rc=$?
+  [ "$rc" = 1 ] && [ -z "$out" ] \
+    || fail "fm_backend_target_of_meta stdout form should print nothing and return 1 without a target (rc=$rc out=$out)"
+
+  target=stale
+  out=$(fm_backend_target_of_meta "$orca_meta" target; printf '[%s]' "$target")
+  [ "$out" = "[term-7]" ] \
+    || fail "fm_backend_target_of_meta destination form should assign and print nothing (got $out)"
+  fm_backend_target_of_meta "$tmux_meta" target
+  [ "$target" = "firstmate:fm-t1" ] || fail "fm_backend_target_of_meta destination form did not assign in the caller's shell"
+  fm_backend_target_of_meta "$orca_bare" target
+  [ "$target" = win-8 ] || fail "fm_backend_target_of_meta destination form lost the orca window= fallback"
+  rc=0
+  fm_backend_target_of_meta "$none" target || rc=$?
+  [ "$rc" = 0 ] && [ -z "$target" ] \
+    || fail "fm_backend_target_of_meta destination form should assign empty and succeed without a target (rc=$rc target=$target)"
+
+  target=kept
+  for out in '' 9lives 'bad-name' _fm_target_of_meta_v; do
+    rc=0
+    fm_backend_target_of_meta "$tmux_meta" "$out" 2>/dev/null || rc=$?
+    [ "$rc" = 2 ] || fail "fm_backend_target_of_meta should refuse destination '$out' with status 2 (got $rc)"
+  done
+  [ "$target" = kept ] || fail "a refused destination changed the caller's value"
+
+  pass "fm_backend_target_of_meta: stdout and destination forms agree on terminal=/window= targets"
+}
+
 test_resolve_selector_three_forms() {
   local state=$TMP_ROOT/resolve-state fakebin out
   mkdir -p "$state"
@@ -1227,6 +1271,7 @@ test_backend_source_shell_portable
 test_backend_source_requires_adapter_file
 test_backend_validate_spawn_accepts_orca
 test_meta_get_and_backend_of_meta
+test_backend_target_of_meta_forms
 test_resolve_selector_three_forms
 test_backend_of_selector_matches_explicit_target_meta
 test_send_tmux_contract
