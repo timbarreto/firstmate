@@ -627,9 +627,14 @@ fi
 # destructive step, so "cannot tell" can refuse while everything is intact.
 TEARDOWN_BACKLOG_TRANSITION=close
 if [ "$TEARDOWN_BACKLOG_APPLIES" = 1 ]; then
+  # The backlog gate above already settled tasks-axi compatibility in this
+  # process; hand that verdict one hop to the decision read instead of letting
+  # it probe again (bin/fm-tasks-axi-lib.sh owns the one-hop contract).
+  if fm_tasks_axi_compatible; then TEARDOWN_TASKS_AXI_COMPATIBLE=1; else TEARDOWN_TASKS_AXI_COMPATIBLE=0; fi
   TEARDOWN_CAPTAIN_OPEN_STATUS=0
   TEARDOWN_CAPTAIN_OPEN_OUT=$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
     FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" \
+    FM_TASKS_AXI_COMPATIBLE="$TEARDOWN_TASKS_AXI_COMPATIBLE" \
     "$SCRIPT_DIR/fm-captain-hold.sh" open "$ID" 2>&1) || TEARDOWN_CAPTAIN_OPEN_STATUS=$?
   case "$TEARDOWN_CAPTAIN_OPEN_STATUS" in
     0) TEARDOWN_BACKLOG_TRANSITION=retain ;;

@@ -733,6 +733,31 @@ test_teardown_closes_the_backlog_item_itself() {
   pass "teardown closes its own backlog item before reporting success"
 }
 
+test_teardown_hands_its_tasks_axi_verdict_to_the_decision_read() {
+  local case_dir real_tasks_axi probes
+  case_dir=$(make_case tasks-axi-verdict-reuse)
+  write_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  real_tasks_axi=$(command -v tasks-axi)
+  # Every tasks-axi call is logged; a compatibility probe always starts with
+  # `--version`, so the whole teardown, including its decision read, must
+  # probe exactly once.
+  cat > "$case_dir/fakebin/tasks-axi" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> '$case_dir/tasks-axi.calls'
+exec '$real_tasks_axi' "\$@"
+SH
+  chmod +x "$case_dir/fakebin/tasks-axi"
+
+  run_teardown "$case_dir" >/dev/null || fail "teardown failed with a counting tasks-axi"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] \
+    || fail "verdict reuse changed the backlog close: $(backlog_row_state "$case_dir")"
+  probes=$(grep -cx -- '--version' "$case_dir/tasks-axi.calls" || true)
+  [ "$probes" = 1 ] \
+    || fail "teardown and its decision read probed tasks-axi compatibility $probes times instead of once: $(cat "$case_dir/tasks-axi.calls")"
+  pass "teardown hands its tasks-axi compatibility verdict to the decision read instead of re-probing"
+}
+
 test_teardown_manual_backend_leaves_the_backlog_to_the_operator() {
   local case_dir out backlog_path
   case_dir=$(make_case tasks-axi-manual-optout)
@@ -4640,6 +4665,7 @@ fm_test_run_cases \
   test_azure_unlanded_work_is_preserved \
   test_local_only_fork_remote_allows \
   test_teardown_closes_the_backlog_item_itself \
+  test_teardown_hands_its_tasks_axi_verdict_to_the_decision_read \
   test_teardown_manual_backend_leaves_the_backlog_to_the_operator \
   test_local_only_truly_unpushed_refuses \
   test_local_only_merged_to_local_main_allows \
