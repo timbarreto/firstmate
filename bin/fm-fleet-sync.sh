@@ -35,6 +35,30 @@
 # falling back to an explicit path. Example: from anywhere,
 # `fm-fleet-sync.sh dotfiles-private` syncs just that one clone, same as
 # passing its full projects/dotfiles-private path.
+#
+# Usage: fm-fleet-sync.sh --request <project-dir-or-name>
+# Task cleanup uses this form so it never waits for a clone refresh after its
+# worker is already gone. It records one request file under
+# state/.fleet-sync-requests/, starts one detached background server, and
+# returns at once with a single line naming the request; it never runs the guard,
+# which the cleanup already ran. The server serializes on
+# state/.fleet-sync-service.lock: a server that finds the lock held waits only
+# while requests are pending, and a third server exits at once when one is
+# already waiting, because the waiter serves every request filed before it gets
+# the lock. Each pass takes a snapshot of the request files, syncs every distinct
+# project in it once, and removes exactly those files, so a request filed
+# mid-pass is served by the next pass and requests for one project that
+# arrive together cost one sync. A server killed mid-pass leaves its requests for the
+# next one. Each project sync is bounded by FM_FLEET_SYNC_SERVICE_TIMEOUT
+# seconds (default 300). The server never recreates a missing state directory,
+# so a retired home stays retired. Its stdout and stderr are appended to the
+# bounded state/.fleet-sync.log, and any skipped:, STUCK:, or recovered: line
+# that session start would relay as FLEET_SYNC raises one check wake per pass
+# naming that log, so diagnostics a synchronous call printed still reach
+# firstmate. When the project path is not a directory, the state directory is
+# missing, or the request cannot be recorded, the clone is synced in the
+# foreground exactly like the single-project form, so clone freshness never
+# depends on the background server.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,7 +73,52 @@ PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
 # shellcheck source=bin/fm-timing-lib.sh
 . "$SCRIPT_DIR/fm-timing-lib.sh"
 FM_LOCK_LOG_PREFIX=fleet-sync
-"$FM_ROOT/bin/fm-guard.sh" || true
+
+usage() {
+  echo "usage: fm-fleet-sync.sh [<project-dir-or-name>]" >&2
+  echo "       fm-fleet-sync.sh --request <project-dir-or-name>" >&2
+}
+
+FLEET_SYNC_MODE=direct
+REQUEST_ARG=
+case "${1:-}" in
+  --help|-h)
+    usage
+    exit 0
+    ;;
+  --request)
+    [ $# -eq 2 ] && [ -n "$2" ] || { usage; exit 1; }
+    FLEET_SYNC_MODE=request
+    REQUEST_ARG=$2
+    ;;
+  --_serve)
+    [ $# -eq 1 ] || { usage; exit 1; }
+    FLEET_SYNC_MODE=serve
+    ;;
+  --_sync)
+    [ $# -eq 2 ] || { usage; exit 1; }
+    FLEET_SYNC_MODE=sync
+    REQUEST_ARG=$2
+    ;;
+  *)
+    [ $# -le 1 ] || { usage; exit 1; }
+    ;;
+esac
+
+STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+SYNC_REQUESTS="$STATE/.fleet-sync-requests"
+SYNC_SERVICE_LOCK="$STATE/.fleet-sync-service.lock"
+SYNC_WAITER_LOCK="$STATE/.fleet-sync-waiter.lock"
+SYNC_LOG="$STATE/.fleet-sync.log"
+SYNC_LOG_MAX_BYTES=${FM_FLEET_SYNC_LOG_MAX_BYTES:-65536}
+SYNC_SERVICE_TIMEOUT=${FM_FLEET_SYNC_SERVICE_TIMEOUT:-300}
+case "$SYNC_LOG_MAX_BYTES" in ''|*[!0-9]*|0) SYNC_LOG_MAX_BYTES=65536 ;; esac
+case "$SYNC_SERVICE_TIMEOUT" in ''|*[!0-9]*|0) SYNC_SERVICE_TIMEOUT=300 ;; esac
+
+# Only the direct forms run the guard: a request comes from a cleanup that
+# already ran it, and the background server's output goes to a log, where a
+# full banner would be lost while still counting as shown for its episode.
+[ "$FLEET_SYNC_MODE" != direct ] || "$FM_ROOT/bin/fm-guard.sh" || true
 
 # Bounded recovery for an orphaned .git/packed-refs.lock. A git ref rewrite
 # (fetch --prune, branch -D, pack-refs) killed after creating the lock but before
@@ -66,16 +135,6 @@ if ! [[ "$FLEET_SYNC_PACKED_REFS_LOCK_RETRY_WAIT_SECS" =~ ^([0-9]+([.][0-9]*)?|[
   echo "fleet-sync: invalid packed-refs lock retry wait '$FLEET_SYNC_PACKED_REFS_LOCK_RETRY_WAIT_SECS'; using 1s" >&2
   FLEET_SYNC_PACKED_REFS_LOCK_RETRY_WAIT_SECS=1
 fi
-
-usage() {
-  echo "usage: fm-fleet-sync.sh [<project-dir-or-name>]" >&2
-}
-
-if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
-  usage
-  exit 0
-fi
-[ $# -le 1 ] || { usage; exit 1; }
 
 project_label() {
   local candidate matched=''
@@ -467,6 +526,195 @@ sync_project() {
   fi
   return 0
 }
+
+# fleet_sync_absolute <path>: print <path> anchored at the caller's cwd unless
+# it is already absolute, because the background server may serve it from a
+# different working directory.
+fleet_sync_absolute() {
+  case "$1" in
+    /*|[A-Za-z]:[/\\]*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "$PWD" "$1" ;;
+  esac
+}
+
+# fleet_sync_record_request <project-path>: atomically publish one request file.
+# The content is written under a dot name the server ignores and renamed into
+# place, so the server never reads a half-written request.
+fleet_sync_record_request() {
+  local proj=$1 tmp name nl='
+'
+  case "$proj" in *"$nl"*) return 1 ;; esac
+  [ -d "$STATE" ] && [ ! -L "$STATE" ] || return 1
+  [ ! -L "$SYNC_REQUESTS" ] || return 1
+  if [ ! -d "$SYNC_REQUESTS" ]; then
+    (umask 077; mkdir "$SYNC_REQUESTS") 2>/dev/null || [ -d "$SYNC_REQUESTS" ] || return 1
+  fi
+  name="$$.${RANDOM}${RANDOM}.$SECONDS"
+  tmp="$SYNC_REQUESTS/.new.$name"
+  (umask 077; printf '%s\n' "$proj" > "$tmp") 2>/dev/null || { rm -f "$tmp"; return 1; }
+  mv -f "$tmp" "$SYNC_REQUESTS/req.$name" 2>/dev/null || { rm -f "$tmp"; return 1; }
+}
+
+fleet_sync_request() {
+  local proj
+  proj=$(fleet_sync_absolute "$(resolve_project_arg "$REQUEST_ARG")")
+  # A path that is not a directory has nothing to refresh and its skip line is
+  # instant, so it is reported here exactly as the single-project form would.
+  # Without a usable request record, refresh in the foreground as that form
+  # always has, rather than leaving the clone stale.
+  if [ ! -d "$proj" ] || ! fleet_sync_record_request "$proj"; then
+    sync_project "$proj"
+    return 0
+  fi
+  "$SCRIPT_DIR/fm-fleet-sync.sh" --_serve </dev/null >/dev/null 2>&1 &
+  disown "$!" 2>/dev/null || true
+  echo "fleet-sync: ${proj##*/}: refresh requested in the background; results land in $SYNC_LOG"
+}
+
+fleet_sync_pending() {
+  local f
+  for f in "$SYNC_REQUESTS"/req.*; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    return 0
+  done
+  return 1
+}
+
+fleet_sync_log_append() {  # <file>
+  local size
+  [ -s "$1" ] || return 0
+  cat "$1" >> "$SYNC_LOG" 2>/dev/null || return 0
+  size=$(wc -c < "$SYNC_LOG" 2>/dev/null) || return 0
+  size=${size//[!0-9]/}
+  [ -n "$size" ] && [ "$size" -gt "$SYNC_LOG_MAX_BYTES" ] || return 0
+  if tail -c "$((SYNC_LOG_MAX_BYTES / 2))" "$SYNC_LOG" > "$SYNC_LOG.tmp" 2>/dev/null; then
+    mv -f "$SYNC_LOG.tmp" "$SYNC_LOG" 2>/dev/null || rm -f "$SYNC_LOG.tmp"
+  else
+    rm -f "$SYNC_LOG.tmp"
+  fi
+}
+
+# fleet_sync_relay_lines <stdout-file>: print the lines session start would
+# relay as FLEET_SYNC (fm-bootstrap.sh's fleet_sync_relay_filtered_output).
+fleet_sync_relay_lines() {
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      *': skipped: local-only project') ;;
+      *': skipped: no origin remote') ;;
+      *': skipped:'*|*': STUCK:'*|*': recovered:'*) printf 'FLEET_SYNC: %s\n' "$line" ;;
+    esac
+  done < "$1"
+}
+
+# fleet_sync_serve_pass: serve one snapshot of request files. Returns 1 when
+# there was nothing to serve.
+fleet_sync_serve_pass() {
+  local f proj rc stamp seen nl='
+' payload relay line count=0 out err
+  local -a batch=()
+  for f in "$SYNC_REQUESTS"/req.*; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    batch+=("$f")
+  done
+  [ "${#batch[@]}" -gt 0 ] || return 1
+  out="$SYNC_REQUESTS/.out.$$"
+  err="$SYNC_REQUESTS/.err.$$"
+  stamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || stamp=unknown
+  printf '== %s background refresh of %s request(s)\n' "$stamp" "${#batch[@]}" > "$out"
+  : > "$err"
+  seen=$nl
+  for f in "${batch[@]}"; do
+    proj=
+    IFS= read -r proj < "$f" || [ -n "$proj" ] || continue
+    case "$seen" in *"$nl$proj$nl"*) continue ;; esac
+    seen="$seen$proj$nl"
+    rc=0
+    fm_run_timed "$SYNC_SERVICE_TIMEOUT" "$SCRIPT_DIR/fm-fleet-sync.sh" --_sync "$proj" \
+      >> "$out" 2>> "$err" || rc=$?
+    if [ "$rc" -eq 124 ]; then
+      echo "${proj##*/}: skipped: background refresh exceeded its ${SYNC_SERVICE_TIMEOUT}-second bound" >> "$out"
+    elif [ "$rc" -ne 0 ]; then
+      echo "${proj##*/}: skipped: background refresh failed with exit $rc" >> "$out"
+    fi
+  done
+  fleet_sync_log_append "$out"
+  fleet_sync_log_append "$err"
+  payload=
+  relay=$(fleet_sync_relay_lines "$out") || relay=
+  if [ -n "$relay" ]; then
+    while IFS= read -r line; do
+      count=$((count + 1))
+      [ "$count" -le 5 ] || continue
+      payload="${payload:+$payload; }$line"
+    done <<EOF
+$relay
+EOF
+  fi
+  if [ "$count" -gt 5 ]; then
+    payload="$payload; and $((count - 5)) more"
+  fi
+  if [ -n "$payload" ]; then
+    fm_wake_append check fleet-sync \
+      "check: fleet-sync: background clone refresh after cleanup reported $payload; full output in $SYNC_LOG" \
+      || true
+  fi
+  rm -f "$out" "$err" "${batch[@]}" 2>/dev/null
+  # A request that cannot be removed would be served again on every pass.
+  for f in "${batch[@]}"; do
+    [ ! -e "$f" ] || return 1
+  done
+  return 0
+}
+
+fleet_sync_serve() {
+  local waiting=0
+  while ! fm_lock_try_acquire "$SYNC_SERVICE_LOCK"; do
+    if ! fleet_sync_pending; then
+      [ "$waiting" -eq 1 ] || return 0
+      fm_lock_release "$SYNC_WAITER_LOCK"
+      waiting=0
+      # A server that found this waiter in place exited trusting it, so look
+      # once more after the release: its request is already on disk by then.
+      fleet_sync_pending || return 0
+    fi
+    if [ "$waiting" -eq 0 ]; then
+      # One waiter serves every request filed before it gets the lock.
+      fm_lock_try_acquire "$SYNC_WAITER_LOCK" || return 0
+      waiting=1
+    fi
+    sleep 1
+  done
+  trap 'fm_lock_release "$SYNC_SERVICE_LOCK"' EXIT
+  trap 'exit 143' HUP INT TERM
+  [ "$waiting" -eq 0 ] || fm_lock_release "$SYNC_WAITER_LOCK"
+  while fleet_sync_serve_pass; do :; done
+}
+
+case "$FLEET_SYNC_MODE" in
+  request)
+    fleet_sync_request
+    exit 0
+    ;;
+  serve)
+    [ -d "$STATE" ] && [ ! -L "$STATE" ] || exit 0
+    # Sourced only after the check above, because sourcing it creates the
+    # state directory.
+    # shellcheck source=bin/fm-wake-lib.sh
+    . "$SCRIPT_DIR/fm-wake-lib.sh"
+    # shellcheck source=bin/fm-timeout-lib.sh
+    . "$SCRIPT_DIR/fm-timeout-lib.sh"
+    case "$STATE" in
+      /*|[A-Za-z]:[/\\]*) case "$PROJECTS" in /*|[A-Za-z]:[/\\]*) cd / ;; esac ;;
+    esac
+    fleet_sync_serve
+    exit 0
+    ;;
+  sync)
+    sync_project "$REQUEST_ARG"
+    exit 0
+    ;;
+esac
 
 if [ $# -eq 1 ]; then
   sync_project "$(resolve_project_arg "$1")"

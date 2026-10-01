@@ -73,6 +73,15 @@
 # foreground process group; the perl fallback does it explicitly with setpgrp
 # plus a negative pid, and the bash fallback uses monitor mode to give the
 # bounded child its own process group before signaling its negative pid.
+#
+# The bash fallback's watchdog never holds a capturing caller's output, so a
+# command that finishes early returns at once instead of after its whole
+# bound. On Bash 4+ with a plain decimal bound the watchdog is a coprocess
+# that waits out the bound inside the `read` builtin on a release channel the
+# call closes once the command is done, which leaves no sleeper process to
+# signal. Otherwise it is a sleeper with detached stdio, stopped by a group
+# signal. A coprocess watchdog whose owner dies without releasing it still
+# bounds the orphaned command to the original deadline.
 set -u
 
 fm_timeout_mechanism() {
@@ -91,13 +100,68 @@ fm_timeout_mechanism() {
   fi
 }
 
+# A plain positive decimal is the only bound the Bash 4+ watchdog's `read -t`
+# accepts with the same meaning sleep gives it; anything else keeps the
+# sleep-based watchdog so an odd bound behaves exactly as it always has.
+fm_bash_timeout_released_bound() {  # <seconds>
+  case ${1:-} in
+    '' | . | *[!0-9.]* | *.*.*) return 1 ;;
+    *[1-9]*) return 0 ;;
+  esac
+  return 1
+}
+
+# The Bash 4+ watchdog, run as the bounded call's coprocess in a process group
+# of its own. Its only input is a release channel the owner holds open, so it
+# waits out the bound inside the `read` builtin with no sleeper process, and
+# its stdio is detached so it never holds a capturing caller's output. The
+# owner releases it by writing the release marker and closing the channel once
+# the command is done. A channel that closes without that marker means the
+# owner is gone, so the watchdog keeps bounding the orphaned command to the
+# original deadline and then removes the call's scratch files itself.
+fm_bash_timeout_watchdog() {  # <seconds> <child-pid> <command-status> <deadline-status> <release-marker>
+  local seconds=$1 child_pid=$2 command_status=$3 deadline_status=$4 release_marker=$5
+  local read_rc=0 orphaned=0 remaining watch_began=$SECONDS
+  set +m
+  exec >/dev/null 2>&1
+  IFS= read -r -t "$seconds" _ || read_rc=$?
+  if [ "$read_rc" -le 128 ]; then
+    [ ! -e "$release_marker" ] || exit 0
+    orphaned=1
+    remaining=$(awk -v bound="$seconds" -v spent="$((SECONDS - watch_began))" 'BEGIN { left = bound - spent; print (left > 0 ? left : 0) }') || remaining=0
+    [ "$remaining" = 0 ] || sleep "$remaining" || true
+  fi
+  printf 'expired\n' > "$deadline_status" 2>/dev/null || true
+  kill -TERM -- "-$child_pid" 2>/dev/null || true
+  read_rc=0
+  IFS= read -r -t 0.2 _ || read_rc=$?
+  if [ "$read_rc" -le 128 ]; then
+    # A release that raced the bound means the command finished first.
+    [ ! -e "$release_marker" ] || exit 124
+    orphaned=1
+    sleep 0.2 || true
+  fi
+  kill -KILL -- "-$child_pid" 2>/dev/null || true
+  [ "$orphaned" -eq 0 ] || rm -f "$command_status" "$deadline_status" 2>/dev/null || true
+  exit 124
+}
+
 fm_run_bash_timeout() {
-  local seconds=$1 command_status deadline_status child_pid watchdog_pid command_rc recorded_rc monitor_was_on=0
+  local seconds=$1 command_status deadline_status release_marker child_pid watchdog_pid command_rc recorded_rc='' monitor_was_on=0
+  local release_fd='' watchdog_out_fd='' released_watchdog=0
   shift
   command_status=$(mktemp "${TMPDIR:-/tmp}/fm-bash-timeout-command.XXXXXX" 2>/dev/null) || return 124
   deadline_status="${command_status}.deadline"
+  release_marker="${command_status}.released"
+  if [ "${BASH_VERSINFO[0]}" -ge 4 ] && fm_bash_timeout_released_bound "$seconds"; then
+    released_watchdog=1
+  fi
   case $- in *m*) monitor_was_on=1 ;; esac
   set -m
+  # The command is forked before the watchdog so neither it nor anything it
+  # leaves behind can inherit the watchdog's release channel. Monitor mode
+  # stays on only for the forks: a finished command's job notice can print at
+  # any later statement boundary while it is on, into a capturing caller.
   (
     set +m
     "$@"
@@ -106,17 +170,30 @@ fm_run_bash_timeout() {
     exit "$command_rc"
   ) &
   child_pid=$!
-  (
-    set +m
-    sleep "$seconds"
-    printf 'expired\n' > "$deadline_status"
-    kill -TERM -- "-$child_pid" 2>/dev/null || true
-    sleep 0.2
-    kill -KILL -- "-$child_pid" 2>/dev/null || true
-    exit 124
-  ) &
-  watchdog_pid=$!
-  [ "$monitor_was_on" -eq 1 ] || set +m
+  if [ "$released_watchdog" -eq 1 ]; then
+    # Kept behind eval so Bash 3.2 can still parse this file.
+    eval 'coproc FM_BASH_TIMEOUT_WATCHDOG { fm_bash_timeout_watchdog "$seconds" "$child_pid" "$command_status" "$deadline_status" "$release_marker"; }'
+    [ "$monitor_was_on" -eq 1 ] || set +m
+    watchdog_pid=$FM_BASH_TIMEOUT_WATCHDOG_PID
+    watchdog_out_fd=${FM_BASH_TIMEOUT_WATCHDOG[0]}
+    release_fd=${FM_BASH_TIMEOUT_WATCHDOG[1]}
+    eval "exec $watchdog_out_fd<&-"
+  else
+    # Bash 3.2 has no coprocess, so its watchdog sleeps in an external process
+    # and is stopped by a group signal; detached stdio keeps even a sleeper
+    # that outlives that signal from holding a capturing caller's output.
+    (
+      set +m
+      sleep "$seconds"
+      printf 'expired\n' > "$deadline_status"
+      kill -TERM -- "-$child_pid" 2>/dev/null || true
+      sleep 0.2
+      kill -KILL -- "-$child_pid" 2>/dev/null || true
+      exit 124
+    ) </dev/null >/dev/null 2>&1 &
+    watchdog_pid=$!
+    [ "$monitor_was_on" -eq 1 ] || set +m
+  fi
 
   if wait "$child_pid" 2>/dev/null; then
     command_rc=0
@@ -127,12 +204,21 @@ fm_run_bash_timeout() {
     wait "$watchdog_pid" 2>/dev/null || true
     command_rc=124
   else
-    kill -TERM -- "-$watchdog_pid" 2>/dev/null || kill "$watchdog_pid" 2>/dev/null || true
+    if [ -n "$release_fd" ]; then
+      if ! : > "$release_marker" 2>/dev/null; then
+        kill -TERM "$watchdog_pid" 2>/dev/null || true
+      fi
+      eval "exec $release_fd>&-"
+      release_fd=''
+    else
+      kill -TERM -- "-$watchdog_pid" 2>/dev/null || kill "$watchdog_pid" 2>/dev/null || true
+    fi
     wait "$watchdog_pid" 2>/dev/null || true
-    recorded_rc=$(cat "$command_status" 2>/dev/null || true)
+    IFS= read -r recorded_rc 2>/dev/null < "$command_status" || true
     case "$recorded_rc" in ''|*[!0-9]*) ;; *) command_rc=$recorded_rc ;; esac
   fi
-  rm -f "$command_status" "$deadline_status" 2>/dev/null || true
+  [ -z "$release_fd" ] || eval "exec $release_fd>&-"
+  rm -f "$command_status" "$deadline_status" "$release_marker" 2>/dev/null || true
   return "$command_rc"
 }
 

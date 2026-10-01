@@ -227,7 +227,12 @@ elif [ "$watcher_healthy" = false ]; then
     "$queue_pending" && queue_arg=1
     x_mode=0
     [ -f "$CONFIG/x-mode.env" ] && x_mode=1
+    # Reuse the own harness the verdict above already detected and validated in
+    # this invocation; without one the instructions detect it themselves.
+    harness_args=()
+    [ -z "$FM_WATCHER_VERDICT_HARNESS" ] || harness_args=(--harness "$FM_WATCHER_VERDICT_HARNESS")
     fix=$("$SCRIPT_DIR/fm-supervision-instructions.sh" \
+      ${harness_args[@]+"${harness_args[@]}"} \
       --read-only "$READ_ONLY" \
       --afk "$afk" \
       --afk-mode "$(fm_afk_mode "$STATE")" \

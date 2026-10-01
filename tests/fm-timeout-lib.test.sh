@@ -5,7 +5,10 @@
 # refusal instead of an unbounded run when nothing on the host can enforce the
 # bound. Most cases pin the perl watchdog, the preferred mechanism and the only
 # one a stock macOS host has, under a PATH that holds no timeout variant; the
-# GNU fallback case runs only where a real timeout exists.
+# GNU fallback case runs only where a real timeout exists. The bash-mechanism
+# cases force fm_run_timed's dependency-free fallback, the one every
+# Git-for-Windows host uses, and pin that a quick command's captured output is
+# not held until the bound.
 # shellcheck disable=SC2016 # each bounded bash -c script expands its own arguments
 set -u
 
@@ -327,9 +330,144 @@ test_run_timed_passes_a_natural_exit_through_a_fired_bound() {
   pass 'fm_run_timed passes a natural exit through when the bound fired after completion'
 }
 
+# bash_timed <tmpdir> <seconds> <command...>: fm_run_timed forced onto the
+# dependency-free bash mechanism, the one every Git-for-Windows host uses,
+# with its scratch files kept under <tmpdir> so a test can see them go.
+bash_timed() {
+  local tmpdir=$1
+  shift
+  (
+    . "$ROOT/bin/fm-timeout-lib.sh"
+    TMPDIR=$tmpdir FM_TIMEOUT_MECHANISM_OVERRIDE=bash fm_run_timed "$@"
+  )
+}
+
+assert_no_scratch_left() {  # <tmpdir> <what>
+  local left
+  left=$(ls -A "$1")
+  [ -z "$left" ] || fail "$2 left its scratch files behind: $left"
+}
+
+# Shell functions that finish at once: a command that ends while the watchdog
+# is still starting is the case where a stop signal could miss it.
+# shellcheck disable=SC2329 # fm_run_timed invokes these
+quick_status() { printf '%s\n' "$1"; return "$2"; }
+# shellcheck disable=SC2329
+quick_both() { printf '%s\n' "$1"; printf '%s\n' "$2" >&2; }
+# shellcheck disable=SC2329
+quick_err() { printf '%s\n' "$1" >&2; }
+# shellcheck disable=SC2329
+quick_exit() { return "$1"; }
+
+# A capturing caller reads until every holder of its pipe closes it, so a
+# watchdog that kept the capture open would make a quick command wait out its
+# whole bound. The bound here is far longer than any slow host needs to run a
+# command that finishes at once.
+test_bash_run_timed_returns_a_quick_command_long_before_the_bound() {
+  local dir out err rc started elapsed
+  dir="$TMP_ROOT/bash-quick"
+  mkdir -p "$dir"
+
+  rc=0
+  started=$SECONDS
+  out=$(bash_timed "$dir" 120 quick_status captured-out 7) || rc=$?
+  elapsed=$((SECONDS - started))
+  [ "$rc" -eq 7 ] || fail "a captured bash-bounded command lost its own status (rc=$rc)"
+  [ "$out" = captured-out ] || fail "a captured bash-bounded command lost its stdout: $out"
+  [ "$elapsed" -lt 60 ] || fail "captured stdout waited out the bound (${elapsed}s)"
+  assert_no_scratch_left "$dir" "a captured bash-bounded command"
+
+  rc=0
+  started=$SECONDS
+  out=$(bash_timed "$dir" 120 quick_both both-out both-err 2>&1) || rc=$?
+  elapsed=$((SECONDS - started))
+  [ "$rc" -eq 0 ] || fail "a bash-bounded command capturing both streams failed (rc=$rc)"
+  assert_contains "$out" both-out "a bash-bounded command lost its stdout under 2>&1"
+  assert_contains "$out" both-err "a bash-bounded command lost its stderr under 2>&1"
+  [ "$elapsed" -lt 60 ] || fail "captured stdout and stderr waited out the bound (${elapsed}s)"
+
+  rc=0
+  started=$SECONDS
+  err=$(bash_timed "$dir" 120 quick_err only-err 2>&1 >/dev/null) || rc=$?
+  elapsed=$((SECONDS - started))
+  [ "$rc" -eq 0 ] || fail "a bash-bounded command capturing stderr failed (rc=$rc)"
+  [ "$err" = only-err ] || fail "a bash-bounded command lost its captured stderr: $err"
+  [ "$elapsed" -lt 60 ] || fail "captured stderr waited out the bound (${elapsed}s)"
+
+  rc=0
+  started=$SECONDS
+  bash_timed "$dir" 120 quick_exit 3 || rc=$?
+  elapsed=$((SECONDS - started))
+  [ "$rc" -eq 3 ] || fail "a plainly invoked bash-bounded command lost its own status (rc=$rc)"
+  [ "$elapsed" -lt 60 ] || fail "a plain invocation waited out the bound (${elapsed}s)"
+  assert_no_scratch_left "$dir" "a bash-bounded command"
+  pass "fm_run_timed's bash mechanism returns captured stdout, captured stderr, and plain calls as soon as the command ends"
+}
+
+test_bash_run_timed_bounds_a_hung_command() {
+  local dir out rc=0 started elapsed pid
+  dir="$TMP_ROOT/bash-hung"
+  mkdir -p "$dir/tmp"
+  started=$SECONDS
+  out=$(bash_timed "$dir/tmp" 2 bash -c 'echo $$ > "$1"; echo before-the-bound; exec sleep 300' _ "$dir/pid") || rc=$?
+  elapsed=$((SECONDS - started))
+  [ "$rc" -eq 124 ] || fail "an expired bash bound did not report 124 (rc=$rc)"
+  [ "$out" = before-the-bound ] || fail "a bash-bounded command lost output written before the bound: $out"
+  [ "$elapsed" -ge 2 ] || fail "the bash bound fired before it elapsed (${elapsed}s)"
+  [ "$elapsed" -lt 60 ] || fail "the bash bound did not end a hung command (${elapsed}s)"
+  pid=$(cat "$dir/pid")
+  ! kill -0 "$pid" 2>/dev/null || fail "a bash-bounded command outlived its bound"
+  assert_no_scratch_left "$dir/tmp" "an expired bash bound"
+  pass "fm_run_timed's bash mechanism ends a hung command at the bound and reports 124"
+}
+
+test_bash_run_timed_runs_a_function_under_a_fractional_bound() {
+  local out rc=0
+  out=$(
+    . "$ROOT/bin/fm-timeout-lib.sh"
+    # shellcheck disable=SC2329 # fm_run_timed invokes it
+    answer() { printf 'fn:%s\n' "$1"; return 5; }
+    FM_TIMEOUT_MECHANISM_OVERRIDE=bash fm_run_timed 30.5 answer arg
+  ) || rc=$?
+  [ "$rc" -eq 5 ] || fail "a bash-bounded function lost its own status under a fractional bound (rc=$rc)"
+  [ "$out" = fn:arg ] || fail "a bash-bounded function lost its output under a fractional bound: $out"
+  pass "fm_run_timed's bash mechanism runs a shell function under a fractional bound"
+}
+
+# An owner torn down before the command finishes, as by an outer group-kill
+# of the caller, must not leave the command unbounded or its scratch behind.
+test_bash_run_timed_still_bounds_a_command_whose_owner_died() {
+  local dir owner pid i=0
+  dir="$TMP_ROOT/bash-orphan"
+  mkdir -p "$dir/tmp"
+  bash_timed "$dir/tmp" 4 bash -c 'echo $$ > "$1"; exec sleep 300' _ "$dir/pid" &
+  owner=$!
+  wait_for_file "$dir/pid"
+  pid=$(cat "$dir/pid")
+  kill -KILL "$owner" 2>/dev/null || true
+  wait "$owner" 2>/dev/null || true
+  kill -0 "$pid" 2>/dev/null || fail "the bounded command died with its owner, so the orphan case never ran"
+  while kill -0 "$pid" 2>/dev/null; do
+    i=$((i + 1))
+    [ "$i" -lt 300 ] || { kill -KILL "$pid" 2>/dev/null; fail "a command whose owner died outlived its bound"; }
+    sleep 0.2
+  done
+  i=0
+  while [ -n "$(ls -A "$dir/tmp")" ]; do
+    i=$((i + 1))
+    [ "$i" -lt 100 ] || assert_no_scratch_left "$dir/tmp" "a bound whose owner died"
+    sleep 0.2
+  done
+  pass "fm_run_timed's bash mechanism still bounds a command whose owner died, then clears its scratch"
+}
+
 test_passes_the_command_status_and_output_through
 test_run_timed_reports_the_bound_when_the_wrapper_records_a_signal_death
 test_run_timed_passes_a_natural_exit_through_a_fired_bound
+test_bash_run_timed_returns_a_quick_command_long_before_the_bound
+test_bash_run_timed_bounds_a_hung_command
+test_bash_run_timed_runs_a_function_under_a_fractional_bound
+test_bash_run_timed_still_bounds_a_command_whose_owner_died
 test_term_ends_a_cooperative_command_at_the_bound
 test_kill_ends_a_term_ignoring_command_after_the_grace
 test_the_bound_replaces_the_calling_shell

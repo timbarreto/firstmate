@@ -671,7 +671,7 @@ make_path_without_lsof() {  # <case-dir>
 }
 
 test_local_only_fork_remote_allows() {
-  local case_dir rc
+  local case_dir rc waited
   case_dir=$(make_case fork-allow)
   write_meta "$case_dir" local-only ship
   wt_commit "$case_dir" "fix the thing"
@@ -702,6 +702,17 @@ test_local_only_fork_remote_allows() {
     || fail "fork-allow: post-teardown branch report recreated the retired task index"
   [ "$(cat "$case_dir/state/.branch-outcome-index-ready")" = 1 ] \
     || fail "fork-allow: post-teardown branch report did not publish its ready sequence"
+  # Teardown requests the summary and serves it in the background instead of
+  # waiting on it, so wait for that publication within its own bound (twice
+  # the 60-second refresh deadline) plus process-startup margin.
+  waited=0
+  while { [ ! -s "$case_dir/state/home-summary.json" ] \
+          || [ -e "$case_dir/state/.home-summary-refresh.request" ] \
+          || [ -e "$case_dir/state/.home-summary-refresh.inflight" ]; } \
+        && [ "$waited" -lt 1500 ]; do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
   jq -e --arg id task-x1 '
     .schema == "fm-secondmate-home-summary.v1"
     and all(.endpoints[]; .id != $id)
@@ -731,6 +742,31 @@ test_teardown_closes_the_backlog_item_itself() {
   printf '%s\n' "$out" | grep -F 'Run tasks-axi done' >/dev/null \
     && fail "teardown still asked a later turn to close the item it already closed: $out"
   pass "teardown closes its own backlog item before reporting success"
+}
+
+test_teardown_hands_its_tasks_axi_verdict_to_the_decision_read() {
+  local case_dir real_tasks_axi probes
+  case_dir=$(make_case tasks-axi-verdict-reuse)
+  write_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  real_tasks_axi=$(command -v tasks-axi)
+  # Every tasks-axi call is logged; a compatibility probe always starts with
+  # `--version`, so the whole teardown, including its decision read, must
+  # probe exactly once.
+  cat > "$case_dir/fakebin/tasks-axi" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> '$case_dir/tasks-axi.calls'
+exec '$real_tasks_axi' "\$@"
+SH
+  chmod +x "$case_dir/fakebin/tasks-axi"
+
+  run_teardown "$case_dir" >/dev/null || fail "teardown failed with a counting tasks-axi"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] \
+    || fail "verdict reuse changed the backlog close: $(backlog_row_state "$case_dir")"
+  probes=$(grep -cx -- '--version' "$case_dir/tasks-axi.calls" || true)
+  [ "$probes" = 1 ] \
+    || fail "teardown and its decision read probed tasks-axi compatibility $probes times instead of once: $(cat "$case_dir/tasks-axi.calls")"
+  pass "teardown hands its tasks-axi compatibility verdict to the decision read instead of re-probing"
 }
 
 test_teardown_manual_backend_leaves_the_backlog_to_the_operator() {
@@ -4640,6 +4676,7 @@ fm_test_run_cases \
   test_azure_unlanded_work_is_preserved \
   test_local_only_fork_remote_allows \
   test_teardown_closes_the_backlog_item_itself \
+  test_teardown_hands_its_tasks_axi_verdict_to_the_decision_read \
   test_teardown_manual_backend_leaves_the_backlog_to_the_operator \
   test_local_only_truly_unpushed_refuses \
   test_local_only_merged_to_local_main_allows \

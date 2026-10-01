@@ -127,7 +127,12 @@ FM_AFK_CONTRACT_SPEND_DEFAULT=4
 _FM_AFK_CONTRACT_LOCK_TIMEOUT=120
 FM_AFK_CONTRACT_LOCK_HELD=
 
-fm_afk_contract_path() {  # [state-dir]
+fm_afk_contract_path() {  # [state-dir] [destination]
+  if [ -n "${2:-}" ]; then
+    case "$2" in [0-9]*|*[!A-Za-z0-9_]*) return 2 ;; esac
+    printf -v "$2" '%s/.afk-contract' "${1:-$FM_AFK_CONTRACT_STATE}"
+    return
+  fi
   printf '%s/.afk-contract' "${1:-$FM_AFK_CONTRACT_STATE}"
 }
 
@@ -142,7 +147,9 @@ fm_afk_contract_archive_dir() {  # [state-dir]
 }
 
 fm_afk_contract_present() {  # [state-dir]
-  [ -f "$(fm_afk_contract_path "${1:-$FM_AFK_CONTRACT_STATE}")" ]
+  local _fm_afk_present_path
+  fm_afk_contract_path "${1:-$FM_AFK_CONTRACT_STATE}" _fm_afk_present_path
+  [ -f "$_fm_afk_present_path" ]
 }
 
 fm_afk_contract_lock_path() {  # [state-dir]

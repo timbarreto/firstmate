@@ -536,6 +536,40 @@ test_declared_wait_survives_answers_past_the_event_window() {
   pass "a declared wait outlives answers for other keys beyond the event window, and its own resolved line retracts it"
 }
 
+# The optional destination form must assign exactly what the stdout form
+# prints (trailing newline trimmed, as command substitution would), including
+# the kind read from the sibling .meta and an explicit kind override.
+test_open_decisions_destination_form_matches_stdout() {
+  local dir open want rc
+  dir=$(case_dir destination)
+  printf 'needs-decision [key=a]: pick A\nblocked [key=b]: wait on B\n' > "$dir/ship.status"
+  want=$(status_open_decisions "$dir/ship.status")
+  [ "$want" = "$(printf 'a\tneeds-decision\tpick A\nb\tblocked\twait on B')" ] \
+    || fail "stdout fold changed: '$want'"
+  open=stale
+  status_open_decisions "$dir/ship.status" '' open
+  [ "$open" = "$want" ] || fail "destination fold '$open' differs from stdout fold '$want'"
+
+  printf 'kind=scout\n' > "$dir/scout.meta"
+  printf 'needs-decision [key=a]: pick A\ndone: report ready\n' > "$dir/scout.status"
+  open=stale
+  status_open_decisions "$dir/scout.status" '' open
+  [ -z "$open" ] && [ -z "$(status_open_decisions "$dir/scout.status")" ] \
+    || fail "a terminal scout line did not clear the set in both forms: '$open'"
+  status_open_decisions "$dir/scout.status" secondmate open
+  [ "$open" = "$(status_open_decisions "$dir/scout.status" secondmate)" ] && [ -n "$open" ] \
+    || fail "an explicit kind override diverged between forms: '$open'"
+
+  open=stale
+  rc=0
+  status_open_decisions "$dir/missing.status" '' open || rc=$?
+  [ "$rc" = 0 ] && [ -z "$open" ] || fail "an absent status log should assign an empty set (rc=$rc open=$open)"
+  rc=0
+  status_open_decisions "$dir/ship.status" '' bad-name || rc=$?
+  [ "$rc" = 2 ] || fail "an invalid destination name should return 2 (got $rc)"
+  pass "status_open_decisions destination form assigns the same open set the stdout form prints"
+}
+
 fm_test_run_cases \
   test_stated_key_is_honored_in_both_positions \
   test_bare_keyless_line_still_folds_to_default \
@@ -558,4 +592,5 @@ fm_test_run_cases \
   test_bare_prose_cannot_impersonate_a_terminal_declaration \
   test_bare_prose_cannot_open_or_close_a_decision \
   test_keyless_wait_survives_stated_default_retraction \
-  test_declared_wait_survives_answers_past_the_event_window
+  test_declared_wait_survives_answers_past_the_event_window \
+  test_open_decisions_destination_form_matches_stdout

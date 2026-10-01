@@ -393,23 +393,43 @@ fm_meta_get() {  # <meta-file> <key> [<destination>]
 }
 
 # fm_backend_of_meta: the backend recorded in <meta-file>, defaulting to
-# `tmux` when the field is absent - the P1 compatibility contract.
-fm_backend_of_meta() {  # <meta-file>
-  local v
-  fm_meta_get "$1" backend v
-  printf '%s' "${v:-tmux}"
+# `tmux` when the field is absent - the P1 compatibility contract. An optional
+# destination receives the same value in-process instead of printing it.
+fm_backend_of_meta() {  # <meta-file> [<destination>]
+  local _fm_backend_of_meta_v
+  fm_meta_get "$1" backend _fm_backend_of_meta_v
+  if [ "$#" -ge 2 ]; then
+    case "$2" in
+      ''|[0-9]*|*[!A-Za-z0-9_]*|_fm_backend_of_meta_*) return 2 ;;
+    esac
+    printf -v "$2" '%s' "${_fm_backend_of_meta_v:-tmux}"
+    return $?
+  fi
+  printf '%s' "${_fm_backend_of_meta_v:-tmux}"
 }
 
-fm_backend_target_of_meta() {  # <meta-file>
-  local meta=$1 backend terminal window
-  fm_meta_get "$meta" backend backend
-  backend=${backend:-tmux}
-  if [ "$backend" = orca ]; then
-    fm_meta_get "$meta" terminal terminal
-    [ -n "$terminal" ] && { printf '%s' "$terminal"; return 0; }
+# fm_backend_target_of_meta: the endpoint target recorded in <meta-file>, an
+# orca record's terminal= when present and otherwise window=. An optional
+# destination receives the same value (empty when none) in-process instead of
+# printing it.
+fm_backend_target_of_meta() {  # <meta-file> [<destination>]
+  local _fm_target_of_meta_meta=$1 _fm_target_of_meta_backend _fm_target_of_meta_v=''
+  if [ "$#" -ge 2 ]; then
+    case "$2" in
+      ''|[0-9]*|*[!A-Za-z0-9_]*|_fm_target_of_meta_*) return 2 ;;
+    esac
   fi
-  fm_meta_get "$meta" window window
-  [ -n "$window" ] && printf '%s' "$window"
+  fm_meta_get "$_fm_target_of_meta_meta" backend _fm_target_of_meta_backend
+  _fm_target_of_meta_backend=${_fm_target_of_meta_backend:-tmux}
+  if [ "$_fm_target_of_meta_backend" = orca ]; then
+    fm_meta_get "$_fm_target_of_meta_meta" terminal _fm_target_of_meta_v
+  fi
+  [ -n "$_fm_target_of_meta_v" ] || fm_meta_get "$_fm_target_of_meta_meta" window _fm_target_of_meta_v
+  if [ "$#" -ge 2 ]; then
+    printf -v "$2" '%s' "$_fm_target_of_meta_v"
+    return $?
+  fi
+  [ -n "$_fm_target_of_meta_v" ] && printf '%s' "$_fm_target_of_meta_v"
 }
 
 # fm_backend_validate_task_endpoint: validate a task cleanup record entirely

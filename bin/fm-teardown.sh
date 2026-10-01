@@ -420,12 +420,10 @@ TREEHOUSE_PROJECT_LOCK=
 TREEHOUSE_PROJECT_LOCK_HELD=0
 TREEHOUSE_SLOT_LOCK_REQUIRED=0
 if [ -f "$META" ] && [ ! -L "$META" ]; then
-  TEARDOWN_LOCK_KIND=$(fm_meta_get "$META" kind)
+  fm_meta_read "$META" kind TEARDOWN_LOCK_KIND backend TEARDOWN_LOCK_BACKEND \
+    worktree TEARDOWN_LOCK_WT project TEARDOWN_LOCK_PROJECT
   [ -n "$TEARDOWN_LOCK_KIND" ] || TEARDOWN_LOCK_KIND=ship
-  TEARDOWN_LOCK_BACKEND=$(fm_meta_get "$META" backend)
   [ -n "$TEARDOWN_LOCK_BACKEND" ] || TEARDOWN_LOCK_BACKEND=tmux
-  TEARDOWN_LOCK_WT=$(fm_meta_get "$META" worktree)
-  TEARDOWN_LOCK_PROJECT=$(fm_meta_get "$META" project)
   if [ "$TEARDOWN_LOCK_KIND" != secondmate ] \
      && [ "$TEARDOWN_LOCK_BACKEND" != orca ] \
      && fm_treehouse_pool_slot "$TEARDOWN_LOCK_PROJECT" "$TEARDOWN_LOCK_WT"; then
@@ -514,7 +512,7 @@ fm_backlog_record_present "$META" "task record" "$STATE" || {
   echo "error: teardown refused after locking: $FM_BACKLOG_TRANSITION_ERROR" >&2
   exit 1
 }
-TEARDOWN_META_KIND=$(fm_meta_get "$META" kind)
+fm_meta_get "$META" kind TEARDOWN_META_KIND
 [ -n "$TEARDOWN_META_KIND" ] || TEARDOWN_META_KIND=ship
 # Retiring a persistent secondmate is main's alone in both postures; the kind
 # is read under the metadata lock (role partition: bin/fm-lease-lib.sh).
@@ -530,7 +528,7 @@ if [ "$TEARDOWN_META_KIND" = secondmate ]; then
   }
   SM_LIVENESS_LOCK="$STATE/.secondmate-liveness-$ID.lock"
 fi
-TEARDOWN_CLEANUP_RECOVERY=$(fm_meta_get "$META" cleanup_recovery)
+fm_meta_get "$META" cleanup_recovery TEARDOWN_CLEANUP_RECOVERY
 TEARDOWN_META_SPAWN_GEN=
 TEARDOWN_LEGACY_PENDING=0
 TEARDOWN_LEGACY_ACCEPTED=0
@@ -543,9 +541,10 @@ TEARDOWN_WINDOWLESS=0
 TEARDOWN_WINDOWLESS_SHAPE=0
 TEARDOWN_WINDOW_COUNT=$(LC_ALL=C grep -c '^window=' "$META" 2>/dev/null || true)
 TEARDOWN_BACKEND_COUNT=$(LC_ALL=C grep -c '^backend=' "$META" 2>/dev/null || true)
-case "$TEARDOWN_WINDOW_COUNT:$(fm_meta_get "$META" window)" in
+fm_meta_read "$META" window TEARDOWN_META_WINDOW backend TEARDOWN_META_BACKEND
+case "$TEARDOWN_WINDOW_COUNT:$TEARDOWN_META_WINDOW" in
   0:|1:)
-    case "$TEARDOWN_BACKEND_COUNT:$(fm_meta_get "$META" backend)" in
+    case "$TEARDOWN_BACKEND_COUNT:$TEARDOWN_META_BACKEND" in
       0:|1:tmux)
         TEARDOWN_FOREIGN_ENDPOINT_KEYS='^terminal='
         for TEARDOWN_FOREIGN_BACKEND in $FM_BACKEND_KNOWN; do
@@ -627,9 +626,14 @@ fi
 # destructive step, so "cannot tell" can refuse while everything is intact.
 TEARDOWN_BACKLOG_TRANSITION=close
 if [ "$TEARDOWN_BACKLOG_APPLIES" = 1 ]; then
+  # The backlog gate above already settled tasks-axi compatibility in this
+  # process; hand that verdict one hop to the decision read instead of letting
+  # it probe again (bin/fm-tasks-axi-lib.sh owns the one-hop contract).
+  if fm_tasks_axi_compatible; then TEARDOWN_TASKS_AXI_COMPATIBLE=1; else TEARDOWN_TASKS_AXI_COMPATIBLE=0; fi
   TEARDOWN_CAPTAIN_OPEN_STATUS=0
   TEARDOWN_CAPTAIN_OPEN_OUT=$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
     FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" \
+    FM_TASKS_AXI_COMPATIBLE="$TEARDOWN_TASKS_AXI_COMPATIBLE" \
     "$SCRIPT_DIR/fm-captain-hold.sh" open "$ID" 2>&1) || TEARDOWN_CAPTAIN_OPEN_STATUS=$?
   case "$TEARDOWN_CAPTAIN_OPEN_STATUS" in
     0) TEARDOWN_BACKLOG_TRANSITION=retain ;;
@@ -891,10 +895,10 @@ pending_replies_recovery_validate() {
       [ -e "$rec" ] || [ -L "$rec" ] || continue
       [ -f "$rec" ] && [ ! -L "$rec" ] \
         || { echo "REFUSED: pending-replies contains an unsafe recovery entry" >&2; return 1; }
-      base=$(basename "$rec")
+      base=${rec##*/}
       printf '%s' "$base" | grep -Eq '^[a-f0-9]{16}$' \
         || { echo "REFUSED: pending-replies contains an unsafe recovery entry" >&2; return 1; }
-      corr=$(fm_meta_get "$rec" corr_id)
+      fm_meta_get "$rec" corr_id corr
       if [ -n "$corr" ]; then
         printf '%s' "$corr" | grep -Eq '^[a-f0-9]{16}$' \
           || { echo "REFUSED: pending-replies contains an unsafe recovery entry" >&2; return 1; }
@@ -957,11 +961,11 @@ pending_replies_cleanup_for_task() {
     for rec in ./*; do
       [ -e "$rec" ] || [ -L "$rec" ] || continue
       [ -f "$rec" ] && [ ! -L "$rec" ] || exit 1
-      task_id=$(fm_meta_get "$rec" task_id)
+      fm_meta_get "$rec" task_id task_id
       [ "$task_id" = "$ID" ] || continue
       base=${rec#./}
       printf '%s' "$base" | grep -Eq '^[a-f0-9]{16}$' || exit 1
-      corr=$(fm_meta_get "$rec" corr_id)
+      fm_meta_get "$rec" corr_id corr
       [ -z "$corr" ] || [ "$corr" = "$base" ] || exit 1
       rm -f -- "./.delivery-confirmed-$base" "$rec" || exit 1
     done
@@ -980,9 +984,8 @@ secondmate_unresolved_pending_replies_refuse() {
   [ -d "$STATE/pending-replies" ] || return 0
   for rec in "$STATE/pending-replies"/*; do
     [ -f "$rec" ] || continue
-    task_id=$(fm_meta_get "$rec" task_id)
+    fm_meta_read "$rec" task_id task_id phase phase
     [ "$task_id" = "$ID" ] || continue
-    phase=$(fm_meta_get "$rec" phase)
     [ "$phase" = resolved ] || {
       echo "REFUSED: secondmate $ID still has an unresolved routed reply" >&2
       return 1
@@ -1003,12 +1006,10 @@ remote_outbox_cleanup() {
 
 remote_secondmate_teardown() {
   local remote_host remote_root remote_home kind route_host route_root route_home out rc tmp
-  remote_host=$(fm_meta_get "$META" remote_host)
+  fm_meta_read "$META" remote_host remote_host kind kind \
+    remote_root remote_root home remote_home
   [ -n "$remote_host" ] || return 3
-  kind=$(fm_meta_get "$META" kind)
   [ "$kind" = secondmate ] || { echo "REFUSED: remote placement metadata is valid only for a secondmate" >&2; return 1; }
-  remote_root=$(fm_meta_get "$META" remote_root)
-  remote_home=$(fm_meta_get "$META" home)
   [ -n "$remote_root" ] && [ -n "$remote_home" ] || { echo "REFUSED: remote secondmate metadata is incomplete" >&2; return 1; }
   secondmate_registry_line_for_id "$SECONDMATE_REG" "$ID" || { echo "REFUSED: remote secondmate route is missing or ambiguous" >&2; return 1; }
   [ "$SECONDMATE_REGISTRY_REMOTE" -eq 1 ] || { echo "REFUSED: secondmate registry route is not remote" >&2; return 1; }
@@ -1074,8 +1075,9 @@ remote_secondmate_teardown() {
 }
 
 remote_secondmate_teardown_locked() {
-  local rc
-  [ -n "$(fm_meta_get "$META" remote_host)" ] || return 3
+  local rc remote_host
+  fm_meta_get "$META" remote_host remote_host
+  [ -n "$remote_host" ] || return 3
   REMOTE_REGISTRY_LOCK=$(secondmate_registry_lock_path "$STATE")
   fm_lock_acquire_wait "$REMOTE_REGISTRY_LOCK" || return 1
   REMOTE_HANDOFF_LOCK="$STATE/.backlog-handoff-$ID.lock"
@@ -1094,7 +1096,7 @@ remote_secondmate_teardown_locked() {
 }
 
 if remote_secondmate_teardown_locked; then
-  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
+  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --request --service --best-effort || true
   exit 0
 else
   remote_teardown_rc=$?
@@ -1107,8 +1109,7 @@ fi
 # A windowless record names no endpoint: the shared validator would refuse it
 # (and must keep refusing it for control/kill callers), so teardown skips the
 # validator rather than probing or closing an ambient current window.
-WT=$(fm_meta_get "$META" worktree)
-PROJ=$(fm_meta_get "$META" project)
+fm_meta_read "$META" worktree WT project PROJ
 T_ORCA=
 if [ "$TEARDOWN_WINDOWLESS" = 1 ]; then
   BACKEND=tmux
@@ -1126,16 +1127,42 @@ teardown_require_backend_prerequisites "$BACKEND" "$ID" || exit 1
 if [ "${FM_TEARDOWN_GUARD_DONE:-0}" != 1 ]; then
   "$FM_ROOT/bin/fm-guard.sh" || true
 fi
-HOME_PATH=$(grep '^home=' "$META" | cut -d= -f2- || true)
-PR_URL=$(grep '^pr=' "$META" | tail -1 | cut -d= -f2- || true)
+# Every value of <key>, newline-joined in file order, assigned in-process.
+# This is exactly what `grep '^key=' | cut -d= -f2-` captured before, trailing
+# empty values included, so a record that repeats home=, tasktmp=, or mode=
+# reads the same as it always has rather than switching to last-value-wins.
+teardown_meta_all_values() {  # <meta-file> <key> <destination>
+  local _tmav_line _tmav_value='' _tmav_seen=0
+  if [ -f "$1" ]; then
+    while
+      _tmav_line=
+      IFS= read -r _tmav_line || [ -n "$_tmav_line" ]
+    do
+      case "$_tmav_line" in
+        "$2="*)
+          if [ "$_tmav_seen" = 1 ]; then
+            _tmav_value="$_tmav_value"$'\n'"${_tmav_line#*=}"
+          else
+            _tmav_value=${_tmav_line#*=}
+            _tmav_seen=1
+          fi
+          ;;
+      esac
+    done < "$1" 2>/dev/null || true
+  fi
+  while [ "${_tmav_value%$'\n'}" != "$_tmav_value" ]; do
+    _tmav_value=${_tmav_value%$'\n'}
+  done
+  printf -v "$3" '%s' "$_tmav_value"
+}
+teardown_meta_all_values "$META" home HOME_PATH
 # tasktmp is recorded by fm-spawn for tasks that set up a per-task temp root
 # (/tmp/fm-<id>/); absent for tasks spawned before that change, so tolerate empty.
-TASK_TMP=$(grep '^tasktmp=' "$META" | cut -d= -f2- || true)
-BUSY_GEN=$(fm_meta_get "$META" busy_gen)
+teardown_meta_all_values "$META" tasktmp TASK_TMP
+fm_meta_read "$META" pr PR_URL busy_gen BUSY_GEN orca_worktree_id ORCA_WORKTREE_ID
 if [ -z "$BUSY_GEN" ]; then
   BUSY_GEN=$(cat "$STATE/$ID.busy-gen" 2>/dev/null || true)
 fi
-ORCA_WORKTREE_ID=$(fm_meta_get "$META" orca_worktree_id)
 ORCA_PATH_MATCH_VERIFIED=0
 CLEANUP_RECOVERY=$TEARDOWN_CLEANUP_RECOVERY
 
@@ -1156,7 +1183,7 @@ elif [ "$TREEHOUSE_SLOT_LOCK_REQUIRED" = 1 ]; then
   echo "REFUSED: task $ID stopped naming a live Treehouse slot while teardown acquired its locks; nothing was changed" >&2
   exit 1
 fi
-MODE=$(grep '^mode=' "$META" | cut -d= -f2- || true)
+teardown_meta_all_values "$META" mode MODE
 [ -n "$MODE" ] || MODE=no-mistakes
 
 # A record accepted as a legacy incarnation (no spawn_gen, and either
@@ -1203,15 +1230,15 @@ public_followup_canonical_home() {
   CDPATH='' cd -- "$home" 2>/dev/null && pwd -P
 }
 public_followup_resolve_primary_home() {
-  local parent=$1 child=$2 id=$3 parent_meta registry meta_home
+  local parent=$1 child=$2 id=$3 parent_meta registry meta_home parent_kind
   fm_pf_home_id_valid "secondmate:$id" || return 1
   parent=$(public_followup_canonical_home "$parent") || return 1
   child=$(public_followup_canonical_home "$child") || return 1
   [ "$parent" != "$child" ] || return 1
   parent_meta="$parent/state/$id.meta"
   [ -f "$parent_meta" ] && [ ! -L "$parent_meta" ] || return 1
-  [ "$(fm_meta_get "$parent_meta" kind)" = secondmate ] || return 1
-  meta_home=$(fm_meta_get "$parent_meta" home)
+  fm_meta_read "$parent_meta" kind parent_kind home meta_home
+  [ "$parent_kind" = secondmate ] || return 1
   meta_home=$(CDPATH='' cd -- "$meta_home" 2>/dev/null && pwd -P) || return 1
   [ "$meta_home" = "$child" ] || return 1
   registry="$parent/data/secondmates.md"
@@ -1347,14 +1374,9 @@ default_branch() {
   return 1
 }
 
-meta_value() {
-  local meta=$1 key=$2
-  fm_meta_get "$meta" "$key"
-}
-
 require_orca_worktree_id() {
   local meta=$1 id
-  id=$(meta_value "$meta" orca_worktree_id)
+  fm_meta_get "$meta" orca_worktree_id id
   if [ -z "$id" ]; then
     echo "error: missing orca_worktree_id in $meta; cannot remove Orca worktree" >&2
     return 1
@@ -1364,7 +1386,7 @@ require_orca_worktree_id() {
 
 require_orca_terminal() {
   local meta=$1 terminal
-  terminal=$(meta_value "$meta" terminal)
+  fm_meta_get "$meta" terminal terminal
   if [ -z "$terminal" ]; then
     echo "error: missing terminal in $meta; cannot close Orca terminal" >&2
     return 1
@@ -1374,7 +1396,7 @@ require_orca_terminal() {
 
 if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then
   ORCA_WORKTREE_ID=$(require_orca_worktree_id "$META") || exit 1
-  T_ORCA=$(meta_value "$META" terminal)
+  fm_meta_get "$META" terminal T_ORCA
   [ -z "$T_ORCA" ] || T=$T_ORCA
 fi
 
@@ -1724,6 +1746,17 @@ canonical_existing_dir() {
   [ -n "$target" ] || return 1
   [ -d "$target" ] || return 1
   ( cd "$target" && pwd -P )
+}
+
+# canonical_existing_dir assigned to <destination> in the caller's shell: the
+# same empty, missing, and canonical results, with one process for an existing
+# directory and none for an empty or missing one.
+canonical_existing_dir_to() {  # <destination> <target>
+  local _cedt_target=$2 _cedt_value
+  [ -n "$_cedt_target" ] || return 1
+  [ -d "$_cedt_target" ] || return 1
+  _cedt_value=$(cd "$_cedt_target" && pwd -P) || return 1
+  printf -v "$1" '%s' "$_cedt_value"
 }
 
 retry_wait_secs_is_valid() {
@@ -2323,10 +2356,10 @@ require_orca_worktree_path_match_if_present() {
 # to release (a secondmate home, a record with no worktree=, or a path that is
 # already gone). Every slot-ownership check below is scoped to that value, so a
 # record with nothing live to return skips them rather than refusing.
-teardown_live_slot_path() {
+teardown_live_slot_path() {  # <destination>
   [ "$KIND" != secondmate ] || return 1
   fm_treehouse_pool_slot "$PROJ" "$WT" || return 1
-  canonical_existing_dir "$WT"
+  canonical_existing_dir_to "$1" "$WT"
 }
 
 collect_local_firstmate_states() {
@@ -2360,7 +2393,7 @@ collect_local_firstmate_states() {
             return 1
           }
           [ "$SECONDMATE_REGISTRY_REMOTE" -eq 0 ] || continue
-          child=$(canonical_existing_dir "$SECONDMATE_REGISTRY_HOME") || {
+          canonical_existing_dir_to child "$SECONDMATE_REGISTRY_HOME" || {
             echo "REFUSED: registered local Firstmate home is unavailable: $SECONDMATE_REGISTRY_HOME; nothing was changed" >&2
             return 1
           }
@@ -2377,8 +2410,8 @@ collect_local_firstmate_states() {
 
 require_exclusive_worktree_slot_record() {
   local record_meta=$1 record_id=$2 record_state=$3 worktree=$4
-  local slot state_dir other other_id field other_path other_slot
-  slot=$(canonical_existing_dir "$worktree") || return 0
+  local slot state_dir other other_id field other_path other_slot other_worktree other_home
+  canonical_existing_dir_to slot "$worktree" || return 0
   collect_local_firstmate_states "$record_state" || return 1
   for state_dir in "${TREEHOUSE_OWNER_STATES[@]}"; do
     for other in "$state_dir"/*.meta; do
@@ -2388,12 +2421,19 @@ require_exclusive_worktree_slot_record() {
       # differently named hardlink is another task's record, so the name must
       # match too.
       [ "${other##*/}" = "${record_meta##*/}" ] && [ "$other" -ef "$record_meta" ] && continue
-      other_id=$(basename "$other" .meta)
+      # Both fields in one in-process pass; worktree is still checked first.
+      fm_meta_read "$other" worktree other_worktree home other_home
       for field in worktree home; do
-        other_path=$(fm_meta_get "$other" "$field")
+        if [ "$field" = worktree ]; then
+          other_path=$other_worktree
+        else
+          other_path=$other_home
+        fi
         [ -n "$other_path" ] || continue
-        other_slot=$(canonical_existing_dir "$other_path") || continue
+        canonical_existing_dir_to other_slot "$other_path" || continue
         [ "$other_slot" = "$slot" ] || continue
+        other_id=${other##*/}
+        other_id=${other_id%.meta}
         echo "REFUSED: task $record_id's recorded worktree $slot is also task $other_id's recorded $field." >&2
         echo "Returning that pool slot would kill $other_id's processes and reset its copy, so nothing was changed - not even with --force." >&2
         echo "Reconcile whichever record is wrong (bin/fm-crew-state.sh $record_id; bin/fm-crew-state.sh $other_id), then re-run teardown." >&2
@@ -2405,7 +2445,7 @@ require_exclusive_worktree_slot_record() {
 
 require_exclusive_task_worktree_slot() {
   local slot
-  slot=$(teardown_live_slot_path) || return 0
+  teardown_live_slot_path slot || return 0
   require_exclusive_worktree_slot_record "$META" "$ID" "$STATE" "$slot"
 }
 
@@ -2457,7 +2497,7 @@ TEARDOWN_SLOT_REASSIGNED_TO=
 TEARDOWN_SLOT_REASSIGNED_HOME=
 require_owned_task_worktree_slot() {
   local slot rc=0
-  slot=$(teardown_live_slot_path) || return 0
+  teardown_live_slot_path slot || return 0
   require_owned_worktree_slot_record "$ID" "$slot" || rc=$?
   case "$rc" in
     0) return 0 ;;
@@ -2815,11 +2855,10 @@ preflight_firstmate_home_process_event_tree() {
   if [ -d "$sub_state" ]; then
     for child_meta in "$sub_state"/*.meta; do
       [ -e "$child_meta" ] || continue
-      child_kind=$(meta_value "$child_meta" kind)
+      fm_meta_read "$child_meta" kind child_kind worktree child_wt home child_home
       [ "$child_kind" = secondmate ] || continue
-      child_id=$(basename "$child_meta" .meta)
-      child_wt=$(meta_value "$child_meta" worktree)
-      child_home=$(meta_value "$child_meta" home)
+      child_id=${child_meta##*/}
+      child_id=${child_id%.meta}
       [ -n "$child_home" ] || child_home=$child_wt
       preflight_firstmate_home_process_event_tree "$child_home" "child firstmate home for $child_id" || return 1
     done
@@ -2865,18 +2904,18 @@ collect_descendant_task_locks() {
   child_ids=()
   for child_meta in "$sub_state"/*.meta; do
     [ -e "$child_meta" ] || continue
-    child_ids+=("$(basename "$child_meta" .meta)")
+    child_id=${child_meta##*/}
+    child_ids+=("${child_id%.meta}")
   done
   [ "${#child_ids[@]}" -gt 0 ] || return 0
   while IFS= read -r child_id; do
     child_meta="$sub_state/$child_id.meta"
-    child_kind=$(meta_value "$child_meta" kind)
+    fm_meta_read "$child_meta" kind child_kind worktree child_wt home child_home
     [ -n "$child_kind" ] || child_kind=ship
-    child_home=
     if [ "$child_kind" = secondmate ]; then
-      child_wt=$(meta_value "$child_meta" worktree)
-      child_home=$(meta_value "$child_meta" home)
       [ -n "$child_home" ] || child_home=$child_wt
+    else
+      child_home=
     fi
     DESCENDANT_TASK_STATES+=("$sub_state")
     DESCENDANT_TASK_IDS+=("$child_id")
@@ -2926,15 +2965,13 @@ preflight_descendant_task_locks() {
       echo "REFUSED: descendant task $task_id changed while forced teardown acquired its locks; forced teardown changed nothing" >&2
       return 1
     }
-    kind=$(meta_value "$meta" kind)
+    fm_meta_read "$meta" kind kind worktree child_wt home child_home
     [ -n "$kind" ] || kind=ship
     [ "$kind" = "${DESCENDANT_TASK_KINDS[$i]}" ] || {
       echo "REFUSED: descendant task $task_id changed kind while forced teardown acquired its locks; forced teardown changed nothing" >&2
       return 1
     }
     if [ "$kind" = secondmate ]; then
-      child_wt=$(meta_value "$meta" worktree)
-      child_home=$(meta_value "$meta" home)
       [ -n "$child_home" ] || child_home=$child_wt
       [ "$child_home" = "${DESCENDANT_TASK_HOMES[$i]}" ] || {
         echo "REFUSED: descendant task $task_id changed home while forced teardown acquired its locks; forced teardown changed nothing" >&2
@@ -2950,11 +2987,9 @@ preflight_descendant_treehouse_slots() {
     state=${DESCENDANT_TASK_STATES[$i]}
     task_id=${DESCENDANT_TASK_IDS[$i]}
     meta="$state/$task_id.meta"
-    kind=$(meta_value "$meta" kind)
+    fm_meta_read "$meta" kind kind worktree worktree project project
     [ -n "$kind" ] || kind=ship
-    backend=$(fm_backend_of_meta "$meta")
-    worktree=$(meta_value "$meta" worktree)
-    project=$(meta_value "$meta" project)
+    fm_backend_of_meta "$meta" backend
     if [ "$kind" = secondmate ] || [ "$backend" = orca ]; then
       continue
     fi
@@ -2983,11 +3018,9 @@ preflight_descendant_treehouse_slots() {
     state=${DESCENDANT_TASK_STATES[$i]}
     task_id=${DESCENDANT_TASK_IDS[$i]}
     meta="$state/$task_id.meta"
-    kind=$(meta_value "$meta" kind)
+    fm_meta_read "$meta" kind kind worktree worktree project project
     [ -n "$kind" ] || kind=ship
-    backend=$(fm_backend_of_meta "$meta")
-    worktree=$(meta_value "$meta" worktree)
-    project=$(meta_value "$meta" project)
+    fm_backend_of_meta "$meta" backend
     if [ "$kind" = secondmate ] || [ "$backend" = orca ]; then
       continue
     fi
@@ -3011,28 +3044,28 @@ validate_firstmate_home_children_removal() {
   [ -d "$sub_state" ] || return 0
   for child_meta in "$sub_state"/*.meta; do
     [ -e "$child_meta" ] || continue
-    child_id=$(basename "$child_meta" .meta)
+    child_id=${child_meta##*/}
+    child_id=${child_id%.meta}
     fm_backend_validate_task_endpoint "$child_meta" "$child_id" || return 1
     validate_pr_poll_cleanup "$sub_state" "$child_id" || return 1
-    child_wt=$(meta_value "$child_meta" worktree)
-    child_kind=$(meta_value "$child_meta" kind)
+    fm_meta_read "$child_meta" worktree child_wt kind child_kind
     [ -n "$child_kind" ] || child_kind=ship
-    child_backend=$(fm_backend_of_meta "$child_meta")
+    fm_backend_of_meta "$child_meta" child_backend
     teardown_require_backend_prerequisites "$child_backend" "$child_id" || return 1
     if [ "$child_kind" = secondmate ]; then
-      child_home=$(meta_value "$child_meta" home)
+      fm_meta_get "$child_meta" home child_home
       [ -n "$child_home" ] || child_home=$child_wt
       validate_firstmate_home_for_removal "$child_home" "child firstmate home" "$child_id" >/dev/null || return 1
       validate_firstmate_home_children_removal "$child_home" || return 1
     elif [ "$child_backend" = orca ]; then
       child_orca_worktree_id=$(require_orca_worktree_id "$child_meta") || return 1
       if [ -n "$child_wt" ] && [ -e "$child_wt" ]; then
-        child_proj=$(meta_value "$child_meta" project)
+        fm_meta_get "$child_meta" project child_proj
         validate_child_worktree_for_removal "$child_wt" "$child_proj" >/dev/null || return 1
         require_orca_worktree_path_match "$child_orca_worktree_id" "$child_wt" || return 1
       fi
     elif [ -n "$child_wt" ] && [ -e "$child_wt" ]; then
-      child_proj=$(meta_value "$child_meta" project)
+      fm_meta_get "$child_meta" project child_proj
       validate_child_worktree_for_removal "$child_wt" "$child_proj" >/dev/null || return 1
     fi
   done
@@ -3084,7 +3117,11 @@ teardown_herdr_require_prerequisites() {  # <task-id>
     fi
   done
   if ! declare -F fm_lock_try_acquire >/dev/null 2>&1; then
-    # shellcheck source=bin/fm-wake-lib.sh
+    # fm-wake-lib.sh is already expanded by this script's top-level directed
+    # source and is a canonical lint root in its own right; keep this lazy
+    # fallback an analysis boundary so ShellCheck's external-source traversal
+    # does not duplicate that large graph a second time in this root.
+    # shellcheck source=/dev/null
     . "$SCRIPT_DIR/fm-wake-lib.sh"
   fi
   if ! declare -F fm_lock_try_acquire >/dev/null 2>&1 \
@@ -3186,18 +3223,17 @@ preflight_firstmate_home_herdr_children() {  # <home>
   [ -d "$sub_state" ] || return 0
   for child_meta in "$sub_state"/*.meta; do
     [ -e "$child_meta" ] || continue
-    child_id=$(basename "$child_meta" .meta)
+    child_id=${child_meta##*/}
+    child_id=${child_id%.meta}
     fm_backend_validate_task_endpoint "$child_meta" "$child_id" || return 1
     child_backend=$FM_BACKEND_VALIDATED_BACKEND
     child_target=$FM_BACKEND_VALIDATED_TARGET
     if [ "$child_backend" = herdr ]; then
       teardown_herdr_preflight_target "$child_target" "$child_id" || return 1
     fi
-    child_kind=$(meta_value "$child_meta" kind)
+    fm_meta_read "$child_meta" kind child_kind worktree child_wt home child_home
     [ -n "$child_kind" ] || child_kind=ship
     if [ "$child_kind" = secondmate ]; then
-      child_wt=$(meta_value "$child_meta" worktree)
-      child_home=$(meta_value "$child_meta" home)
       [ -n "$child_home" ] || child_home=$child_wt
       preflight_firstmate_home_herdr_children "$child_home" || return 1
     fi
@@ -3250,20 +3286,23 @@ endpoint_close_refusal() {  # <subject> <backend> <target> <honors-force>
 
 cleanup_firstmate_home_children() {
   local home=$1 sub_state child_meta child_id child_t child_wt child_proj child_kind child_home child_backend child_orca_worktree_id child_return_rc child_busy_gen child_owner_rc
+  local child_terminal child_window child_zellij_tab_id
   sub_state="$home/state"
   [ -d "$sub_state" ] || return 0
   for child_meta in "$sub_state"/*.meta; do
     [ -e "$child_meta" ] || continue
-    child_id=$(basename "$child_meta" .meta)
-    child_wt=$(meta_value "$child_meta" worktree)
-    child_proj=$(meta_value "$child_meta" project)
-    child_kind=$(meta_value "$child_meta" kind)
+    child_id=${child_meta##*/}
+    child_id=${child_id%.meta}
+    fm_meta_read "$child_meta" worktree child_wt project child_proj kind child_kind \
+      terminal child_terminal window child_window
     [ -n "$child_kind" ] || child_kind=ship
-    child_backend=$(fm_backend_of_meta "$child_meta")
+    fm_backend_of_meta "$child_meta" child_backend
+    # The same target fm_backend_target_of_meta resolves for a non-Orca
+    # backend, from the read above.
     if [ "$child_backend" = orca ]; then
-      child_t=$(meta_value "$child_meta" terminal)
+      child_t=$child_terminal
     else
-      child_t=$(fm_backend_target_of_meta "$child_meta")
+      child_t=$child_window
     fi
     if [ "$child_backend" = orca ] && [ "$child_kind" != secondmate ]; then
       child_orca_worktree_id=$(require_orca_worktree_id "$child_meta") || return 1
@@ -3286,15 +3325,17 @@ cleanup_firstmate_home_children() {
       elif [ "$child_backend" = zellij ]; then
         # Zellij titles are scoped by the owning home tag, so forced secondmate
         # cleanup must verify child tabs as that child home, not the parent.
-        ( unset FM_ROOT_OVERRIDE; FM_HOME=$home FM_ROOT=$home fm_backend_kill "$child_backend" "$child_t" "$(meta_value "$child_meta" zellij_tab_id)" "fm-$child_id" ) \
+        fm_meta_get "$child_meta" zellij_tab_id child_zellij_tab_id
+        ( unset FM_ROOT_OVERRIDE; FM_HOME=$home FM_ROOT=$home fm_backend_kill "$child_backend" "$child_t" "$child_zellij_tab_id" "fm-$child_id" ) \
           || { endpoint_close_refusal "child $child_id" "$child_backend" "$child_t" 0; return 1; }
       else
-        fm_backend_kill "$child_backend" "$child_t" "$(meta_value "$child_meta" zellij_tab_id)" "fm-$child_id" \
+        fm_meta_get "$child_meta" zellij_tab_id child_zellij_tab_id
+        fm_backend_kill "$child_backend" "$child_t" "$child_zellij_tab_id" "fm-$child_id" \
           || { endpoint_close_refusal "child $child_id" "$child_backend" "$child_t" 0; return 1; }
       fi
     fi
     if [ "$child_kind" = secondmate ]; then
-      child_home=$(meta_value "$child_meta" home)
+      fm_meta_get "$child_meta" home child_home
       [ -n "$child_home" ] || child_home=$child_wt
       if [ -n "$child_home" ] && [ -d "$child_home" ]; then
         cleanup_firstmate_home_children "$child_home" || return $?
@@ -3347,7 +3388,7 @@ cleanup_firstmate_home_children() {
     remove_grok_turnend_auth "$sub_state" "$child_id" || return 1
     remove_kimi_turnend_auth "$sub_state" "$child_id" || return 1
     remove_pr_poll_artifacts "$sub_state" "$child_id" || return 1
-    child_busy_gen=$(meta_value "$child_meta" busy_gen)
+    fm_meta_get "$child_meta" busy_gen child_busy_gen
     if [ -z "$child_busy_gen" ]; then
       child_busy_gen=$(cat "$sub_state/$child_id.busy-gen" 2>/dev/null || true)
     fi
@@ -3481,7 +3522,7 @@ if [ "$KIND" = ship ] && [ -n "$PR_URL" ] \
 fi
 
 # Non-blocking: the legacy Relay link is not guarded as a refusal.
-X_REQUEST=$(grep '^x_request=' "$META" 2>/dev/null | tail -1 | cut -d= -f2- || true)
+fm_meta_get "$META" x_request X_REQUEST
 if [ -n "$X_REQUEST" ]; then
   echo "warning: task $ID still carries an unreconciled Relay request link ($X_REQUEST) on its task record." >&2
 fi
@@ -3532,17 +3573,17 @@ HERDR_PRESENTATION_SAFE_FOCUS=
 HERDR_PRESENTATION_FOCUS=
 HERDR_PRESENTATION_FOREGROUND=0
 HERDR_PRESENTATION_CLOSE_CONFIRMED=0
-HERDR_PRESENTATION_SPAWN_GEN=$(meta_value "$META" spawn_gen)
+fm_meta_get "$META" spawn_gen HERDR_PRESENTATION_SPAWN_GEN
 if [ "$BACKEND" = herdr ]; then
   teardown_herdr_preflight_target "$T" "$ID" || exit 1
   fm_backend_herdr_parse_target "$T" || exit 1
   TEARDOWN_HERDR_SESSION=$FM_BACKEND_HERDR_SESSION
   TEARDOWN_HERDR_PANE=$FM_BACKEND_HERDR_PANE
   if [ -e "$HERDR_PRESENTATION_JOURNAL" ] || [ -L "$HERDR_PRESENTATION_JOURNAL" ]; then
-    HERDR_PRESENTATION_SESSION=$(meta_value "$META" herdr_session)
-    HERDR_PRESENTATION_WORKSPACE=$(meta_value "$META" herdr_workspace_id)
-    HERDR_PRESENTATION_TAB=$(meta_value "$META" herdr_tab_id)
-    HERDR_PRESENTATION_PANE=$(meta_value "$META" herdr_pane_id)
+    fm_meta_read "$META" herdr_session HERDR_PRESENTATION_SESSION \
+      herdr_workspace_id HERDR_PRESENTATION_WORKSPACE \
+      herdr_tab_id HERDR_PRESENTATION_TAB \
+      herdr_pane_id HERDR_PRESENTATION_PANE
     if [ -n "$HERDR_PRESENTATION_SESSION" ] \
        && [ -n "$HERDR_PRESENTATION_WORKSPACE" ] \
        && [ -n "$HERDR_PRESENTATION_TAB" ] \
@@ -3769,7 +3810,8 @@ if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then
       "$WT/.fm-grok-turnend" "$WT/.fm-kimi-turnend"
   fi
   if [ -n "$T_ORCA" ]; then
-    fm_backend_kill "$BACKEND" "$T" "$(meta_value "$META" zellij_tab_id)" "fm-$ID" \
+    fm_meta_get "$META" zellij_tab_id TEARDOWN_ZELLIJ_TAB_ID
+    fm_backend_kill "$BACKEND" "$T" "$TEARDOWN_ZELLIJ_TAB_ID" "fm-$ID" \
       || { endpoint_close_refusal "$ID" "$BACKEND" "$T" 0; exit 1; }
   fi
   fm_backend_remove_worktree "$BACKEND" "$ORCA_WORKTREE_ID"
@@ -3832,7 +3874,8 @@ elif [ "$BACKEND" = herdr ]; then
     echo "warning: herdr session presentation lock path is unavailable; skipping the pane close rather than closing unlocked" >&2
   fi
 elif [ "$BACKEND" != orca ] && [ "$TEARDOWN_WINDOWLESS" != 1 ]; then
-  fm_backend_kill "$BACKEND" "$T" "$(meta_value "$META" zellij_tab_id)" "fm-$ID" \
+  fm_meta_get "$META" zellij_tab_id TEARDOWN_ZELLIJ_TAB_ID
+  fm_backend_kill "$BACKEND" "$T" "$TEARDOWN_ZELLIJ_TAB_ID" "fm-$ID" \
     || endpoint_close_refusal "$ID" "$BACKEND" "$T" 1 || exit 1
 fi
 if [ "$HERDR_PRESENTATION_RETIRE_CANDIDATE" = 1 ]; then
@@ -3990,13 +4033,21 @@ else
 fi
 fm_lock_release "$META_LOCK"
 META_LOCK_HELD=0
+# The clone refresh is requested and served in the background rather than
+# awaited: a fetch and fast-forward can take minutes, which every cleanup in a
+# batch would otherwise pay after its worker is already gone. The server
+# coalesces a batch's requests per project and relays actionable results as a
+# check wake.
 if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only ]; then
-  "$FM_ROOT/bin/fm-fleet-sync.sh" "$PROJ" || true
+  "$FM_ROOT/bin/fm-fleet-sync.sh" --request "$PROJ" || true
 fi
 # A secondmate retirement may remove the home containing an overridden control
 # state directory. Do not let the side-band refresh recreate that retired home.
+# The refresh is requested and served in the background rather than awaited:
+# a full-home summary can take its whole bound, which every cleanup in a batch
+# would otherwise pay again after its worker is already gone.
 if [ -d "$STATE" ]; then
-  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
+  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --request --service --best-effort || true
 fi
 if [ "$TEARDOWN_LEGACY_ACCEPTED" = 1 ]; then
   echo "teardown $ID complete (window ${T:-none}, worktree $WT, legacy record accepted without spawn_gen: endpoint $TEARDOWN_LEGACY_ENDPOINT, incarnation $TEARDOWN_META_SPAWN_GEN)"

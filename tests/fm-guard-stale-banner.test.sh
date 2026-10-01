@@ -942,7 +942,81 @@ test_pi_harness_routes_itself_to_the_extension_model() {
   pass "fm-guard stale banner: Pi and pi-signed primaries route themselves to the extension model"
 }
 
+# A full banner needs the own harness twice: the supervision verdict maps it to a
+# model, and the repair line renders that harness's protocol. Detection walks the
+# process tree and is slow on some hosts, so one guard invocation must detect once
+# and hand the validated identity to the repair line. A code copy with a counting
+# fm-harness.sh observes how often the real guard path detects.
+make_counting_harness_code() {
+  local code=$1
+  mkdir -p "$code/docs"
+  cp -R "$ROOT/bin" "$code/bin"
+  cp -R "$ROOT/docs/supervision-protocols" "$code/docs/supervision-protocols"
+  cat > "$code/bin/fm-harness.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'detect\n' >> "$FM_TEST_HARNESS_COUNT"
+[ "$FM_TEST_HARNESS_RESULT" != fail ] || exit 1
+printf '%s\n' "$FM_TEST_HARNESS_RESULT"
+SH
+  chmod +x "$code/bin/fm-harness.sh"
+}
+
+run_counting_guard_case() {  # <code> <dir> <count-file> <harness|fail> [model]
+  local code=$1 dir=$2 count=$3 result=$4 model=${5:-}
+  : > "$count"
+  env -u FM_SUPERVISION_MODEL \
+    ${model:+FM_SUPERVISION_MODEL="$model"} \
+    FM_TEST_HARNESS_COUNT="$count" \
+    FM_TEST_HARNESS_RESULT="$result" \
+    FM_ROOT_OVERRIDE="$(case_root "$dir")" \
+    FM_HOME="$(case_home "$dir")" \
+    FM_GUARD_GRACE=999 \
+    "$code/bin/fm-guard.sh" 2>&1
+}
+
+expected_repair_line() {  # <code> <harness>
+  FM_TEST_HARNESS_COUNT=/dev/null FM_TEST_HARNESS_RESULT=unknown \
+    "$1/bin/fm-supervision-instructions.sh" --harness "$2" \
+    --read-only 0 --afk 0 --afk-mode away --x-mode 0 --queue-pending 0 --repair-line
+}
+
+test_full_banner_detects_own_harness_once() {
+  local code dir count out want
+  code="$TMP_ROOT/counting-harness-code"
+  make_counting_harness_code "$code"
+  count="$TMP_ROOT/counting-harness.count"
+
+  dir=$(make_guard_case counting-detected)
+  out=$(run_counting_guard_case "$code" "$dir" "$count" codex)
+  want=$(expected_repair_line "$code" codex)
+  assert_contains "$out" "WATCHER DOWN - SUPERVISION IS OFF" \
+    "a stale detected-harness guard call must print the full banner"
+  assert_contains "$out" "$want" \
+    "the full banner must carry the detected harness's repair line"
+  [ "$(wc -l < "$count" | tr -d ' ')" -eq 1 ] \
+    || fail "one full-banner guard call must detect its own harness exactly once, got $(wc -l < "$count" | tr -d ' ')"
+
+  dir=$(make_guard_case counting-override)
+  out=$(run_counting_guard_case "$code" "$dir" "$count" codex persistent)
+  assert_contains "$out" "$want" \
+    "a model override must leave the repair line to the instructions' own detection"
+  [ "$(wc -l < "$count" | tr -d ' ')" -eq 1 ] \
+    || fail "under a model override only the repair line may detect, got $(wc -l < "$count" | tr -d ' ')"
+
+  dir=$(make_guard_case counting-failed)
+  out=$(run_counting_guard_case "$code" "$dir" "$count" fail)
+  want=$(expected_repair_line "$code" unknown)
+  assert_contains "$out" "WATCHER DOWN - SUPERVISION IS OFF" \
+    "a failed detection must still treat the primary as persistent and alarm"
+  assert_contains "$out" "$want" \
+    "a failed detection must leave the repair line to the instructions' own fallback"
+  [ "$(wc -l < "$count" | tr -d ' ')" -eq 2 ] \
+    || fail "a failed detection must not be reused as a validated harness, got $(wc -l < "$count" | tr -d ' ') detections"
+  pass "fm-guard stale banner: one full banner detects its own harness once and reuses only a validated identity"
+}
+
 test_first_stale_call_prints_full_banner
+test_full_banner_detects_own_harness_once
 test_full_banner_names_quiet_mode_when_active
 test_repeated_same_episode_prints_reminder_only
 test_pi_harness_routes_itself_to_the_extension_model
