@@ -579,14 +579,29 @@ test_backend_validate_spawn_accepts_orca() {
 }
 
 test_meta_get_and_backend_of_meta() {
-  local meta=$TMP_ROOT/meta-get.meta edge=$TMP_ROOT/meta-get-edge.meta
+  local meta=$TMP_ROOT/meta-get.meta edge=$TMP_ROOT/meta-get-edge.meta out backend rc
   fm_write_meta "$meta" "window=firstmate:fm-x1" "harness=claude"
   [ "$(fm_meta_get "$meta" window)" = "firstmate:fm-x1" ] || fail "fm_meta_get did not read window="
   [ "$(fm_meta_get "$meta" missing)" = "" ] || fail "fm_meta_get should print nothing for an absent key"
   [ "$(fm_backend_of_meta "$meta")" = tmux ] || fail "fm_backend_of_meta should default absent backend= to tmux"
+  backend=stale
+  out=$(fm_backend_of_meta "$meta" backend; printf '[%s]' "$backend")
+  [ "$out" = "[tmux]" ] \
+    || fail "fm_backend_of_meta destination form should assign the tmux default and print nothing (got $out)"
+  fm_backend_of_meta "$meta" backend
+  [ "$backend" = tmux ] || fail "fm_backend_of_meta destination form did not assign in the caller's shell"
 
   printf 'backend=tmux\n' >> "$meta"
   [ "$(fm_backend_of_meta "$meta")" = tmux ] || fail "fm_backend_of_meta should read an explicit backend=tmux"
+  printf 'backend=herdr\n' >> "$meta"
+  fm_backend_of_meta "$meta" backend
+  [ "$backend" = herdr ] || fail "fm_backend_of_meta destination form should read the last explicit backend="
+  for out in '' 9lives 'bad-name' _fm_backend_of_meta_v; do
+    rc=0
+    fm_backend_of_meta "$meta" "$out" 2>/dev/null || rc=$?
+    [ "$rc" = 2 ] || fail "fm_backend_of_meta should refuse destination '$out' with status 2 (got $rc)"
+  done
+  [ "$backend" = herdr ] || fail "a refused destination changed the caller's value"
 
   printf 'token=first\ntoken=last=value' > "$edge"
   [ "$(fm_meta_get "$edge" token)" = "last=value" ] \

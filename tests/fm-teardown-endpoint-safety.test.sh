@@ -600,11 +600,17 @@ test_sole_slot_record_still_tears_down() {
     "worktree=$dir/other-worktree" "project=$dir/project" "kind=scout"
   ( cd "$dir/other-worktree" && exec sleep 30 ) &
   worker=$!
+  # A neighbour whose recorded paths no longer exist names no slot at all.
+  fm_write_meta "$dir/home/state/vanished.meta" \
+    "window=firstmate:fm-vanished" "endpoint_task_id=vanished" \
+    "worktree=$dir/gone-worktree" "home=$dir/gone-home" \
+    "project=$dir/project" "kind=scout"
 
   run_case "$dir" "$id" > "$dir/stdout" 2> "$dir/stderr" \
     || fail "teardown of a task that solely holds its slot failed: $(cat "$dir/stderr")"
   assert_absent "$dir/home/state/$id.meta" "uncontested teardown left the task record"
   assert_present "$dir/home/state/neighbour.meta" "uncontested teardown removed the neighbour's record"
+  assert_present "$dir/home/state/vanished.meta" "uncontested teardown removed a neighbour with vanished paths"
   kill -0 "$worker" 2>/dev/null || fail "uncontested teardown killed a worker in a different slot"
   grep -Fq "treehouse <return>" "$dir/runtime.log" \
     || fail "uncontested teardown did not return its own pool slot: $(cat "$dir/runtime.log")"

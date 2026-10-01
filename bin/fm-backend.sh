@@ -393,11 +393,19 @@ fm_meta_get() {  # <meta-file> <key> [<destination>]
 }
 
 # fm_backend_of_meta: the backend recorded in <meta-file>, defaulting to
-# `tmux` when the field is absent - the P1 compatibility contract.
-fm_backend_of_meta() {  # <meta-file>
-  local v
-  fm_meta_get "$1" backend v
-  printf '%s' "${v:-tmux}"
+# `tmux` when the field is absent - the P1 compatibility contract. An optional
+# destination receives the same value in-process instead of printing it.
+fm_backend_of_meta() {  # <meta-file> [<destination>]
+  local _fm_backend_of_meta_v
+  fm_meta_get "$1" backend _fm_backend_of_meta_v
+  if [ "$#" -ge 2 ]; then
+    case "$2" in
+      ''|[0-9]*|*[!A-Za-z0-9_]*|_fm_backend_of_meta_*) return 2 ;;
+    esac
+    printf -v "$2" '%s' "${_fm_backend_of_meta_v:-tmux}"
+    return $?
+  fi
+  printf '%s' "${_fm_backend_of_meta_v:-tmux}"
 }
 
 fm_backend_target_of_meta() {  # <meta-file>
