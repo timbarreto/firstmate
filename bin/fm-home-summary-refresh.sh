@@ -2,12 +2,23 @@
 # fm-home-summary-refresh.sh - publish this home's structured summary ledger.
 #
 # Usage: fm-home-summary-refresh.sh [--best-effort]
-#        fm-home-summary-refresh.sh --request [--best-effort]
+#        fm-home-summary-refresh.sh --request [--service] [--best-effort]
 #        fm-home-summary-refresh.sh --pending
 #
 # --request coalesces publication work into an empty home-local request
 # directory and returns without computing a summary or waiting for its lock.
 # The existing watcher owns execution on its next poll; no new daemon is started.
+# --request --service also starts one detached, pending-only refresh and still
+# returns at once, so a caller whose request must be served even when no live
+# watcher will poll again (task teardown, including the last worker's) does not
+# depend on one. That refresh waits its turn behind any refresh already
+# publishing, stops waiting once nothing is pending, and publishes only if a
+# request or inflight marker is still pending; when an earlier refresh already
+# served the request it exits without running the producer, so a burst of
+# requests costs at most one further publication. It never recreates a missing
+# state directory. Its whole bound is twice FM_HOME_SUMMARY_TIMEOUT because it
+# may first wait behind one publication carrying that same bound, and it always
+# runs best-effort, so its failures land in the error log described below.
 # --pending is a read-only predicate (0 pending, 1 absent). A worker claims the
 # current request before sampling and retains an inflight marker until atomic
 # publication succeeds. Requests arriving during that sample survive for the
@@ -54,6 +65,8 @@ INFLIGHT="$STATE/.home-summary-refresh.inflight"
 ERROR_LOG_MAX_BYTES=${FM_HOME_SUMMARY_ERROR_LOG_MAX_BYTES:-65536}
 HOME_SUMMARY_TIMEOUT=${FM_HOME_SUMMARY_TIMEOUT:-60}
 HOME_SUMMARY_IF_IDLE=${FM_HOME_SUMMARY_IF_IDLE:-0}
+HOME_SUMMARY_IF_PENDING=${FM_HOME_SUMMARY_IF_PENDING:-0}
+REQUEST_SERVICE=0
 BEST_EFFORT=0
 HOME_SUMMARY_MODE=parent
 HOME_SUMMARY_ERROR=
@@ -73,6 +86,7 @@ usage() {
 for home_summary_arg in "$@"; do
   case "$home_summary_arg" in
     --best-effort) BEST_EFFORT=1 ;;
+    --service) REQUEST_SERVICE=1 ;;
     --request|--pending|--_worker|--_log-failure)
       [ "$HOME_SUMMARY_MODE" = parent ] || { usage >&2; exit 2; }
       case "$home_summary_arg" in
@@ -89,10 +103,7 @@ for home_summary_arg in "$@"; do
     *) usage >&2; exit 2 ;;
   esac
 done
-if [ "$HOME_SUMMARY_MODE" = pending ]; then
-  [ -e "$REQUEST" ] || [ -L "$REQUEST" ] || [ -e "$INFLIGHT" ] || [ -L "$INFLIGHT" ]
-  exit "$?"
-fi
+[ "$REQUEST_SERVICE" -eq 0 ] || [ "$HOME_SUMMARY_MODE" = request ] || { usage >&2; exit 2; }
 case "$ERROR_LOG_MAX_BYTES" in
   ''|*[!0-9]*|0) ERROR_LOG_MAX_BYTES=65536 ;;
 esac
@@ -103,6 +114,19 @@ case "$HOME_SUMMARY_IF_IDLE" in
   0|1) ;;
   *) HOME_SUMMARY_IF_IDLE=0 ;;
 esac
+case "$HOME_SUMMARY_IF_PENDING" in
+  0|1) ;;
+  *) HOME_SUMMARY_IF_PENDING=0 ;;
+esac
+
+# A pending-only refresh never recreates a state directory that is gone, such
+# as a retired home's: whatever was pending went with it. This runs before the
+# wake library is sourced because sourcing it creates the state directory.
+if [ "$HOME_SUMMARY_IF_PENDING" -eq 1 ] && [ ! -d "$STATE" ]; then
+  case "$HOME_SUMMARY_MODE" in
+    parent|worker) exit 0 ;;
+  esac
+fi
 
 if [ "$HOME_SUMMARY_MODE" = worker ] || [ "$HOME_SUMMARY_MODE" = log-failure ]; then
   # shellcheck source=bin/fm-wake-lib.sh
@@ -125,6 +149,10 @@ home_summary_fail() {
   return 1
 }
 
+home_summary_pending() {
+  [ -e "$REQUEST" ] || [ -L "$REQUEST" ] || [ -e "$INFLIGHT" ] || [ -L "$INFLIGHT" ]
+}
+
 home_summary_refresh_once() {
   local producer_rc producer_error
   if ! mkdir -p "$STATE" 2>/dev/null; then
@@ -137,10 +165,25 @@ home_summary_refresh_once() {
   trap 'exit 143' TERM
   if [ "$HOME_SUMMARY_IF_IDLE" -eq 1 ]; then
     fm_lock_try_acquire "$REFRESH_LOCK" || return 0
+  elif [ "$HOME_SUMMARY_IF_PENDING" -eq 1 ]; then
+    # Stop waiting as soon as the publisher ahead of us has served everything.
+    while ! fm_lock_try_acquire "$REFRESH_LOCK"; do
+      home_summary_pending || return 0
+      sleep 0.1
+    done
   else
     fm_lock_acquire_wait "$REFRESH_LOCK"
   fi
   HOME_SUMMARY_LOCK_HELD=1
+  # A pending-only refresh (--request --service) that finds both markers gone
+  # was beaten to the request by a refresh that published after it was filed.
+  # A symlinked marker still counts as pending so the check below reports it.
+  if [ "$HOME_SUMMARY_IF_PENDING" -eq 1 ] && ! home_summary_pending; then
+    fm_lock_release "$REFRESH_LOCK"
+    HOME_SUMMARY_LOCK_HELD=0
+    trap - EXIT HUP INT TERM
+    return 0
+  fi
   # Only the serialized publisher touches INFLIGHT. Claim before reading any
   # inputs; a later request creates REQUEST again and is never cleared here.
   if [ -L "$REQUEST" ] || [ -L "$INFLIGHT" ] \
@@ -246,9 +289,19 @@ home_summary_log_failure() {
   fi
 }
 
+if [ "$HOME_SUMMARY_MODE" = pending ]; then
+  home_summary_pending
+  exit "$?"
+fi
+
 if [ "$HOME_SUMMARY_MODE" = request ]; then
   if [ ! -L "$REQUEST" ] && mkdir -p "$STATE" 2>/dev/null \
      && { (umask 077; mkdir "$REQUEST") 2>/dev/null || [ -d "$REQUEST" ]; }; then
+    if [ "$REQUEST_SERVICE" -eq 1 ]; then
+      FM_HOME_SUMMARY_IF_PENDING=1 \
+        "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort </dev/null >/dev/null 2>&1 &
+      disown "$!" 2>/dev/null || true
+    fi
     exit 0
   fi
   if [ "$BEST_EFFORT" = 1 ]; then
@@ -270,9 +323,12 @@ fi
 
 if [ "$HOME_SUMMARY_MODE" = parent ]; then
   attempt_stamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || attempt_stamp=
-  if fm_run_timed "$HOME_SUMMARY_TIMEOUT" env \
+  refresh_bound=$HOME_SUMMARY_TIMEOUT
+  [ "$HOME_SUMMARY_IF_PENDING" -eq 0 ] || refresh_bound=$((HOME_SUMMARY_TIMEOUT * 2))
+  if fm_run_timed "$refresh_bound" env \
     FM_HOME_SUMMARY_WORKER_BEST_EFFORT="$BEST_EFFORT" \
     FM_HOME_SUMMARY_IF_IDLE="$HOME_SUMMARY_IF_IDLE" \
+    FM_HOME_SUMMARY_IF_PENDING="$HOME_SUMMARY_IF_PENDING" \
     "$SCRIPT_DIR/fm-home-summary-refresh.sh" --_worker; then
     exit 0
   else
@@ -280,7 +336,7 @@ if [ "$HOME_SUMMARY_MODE" = parent ]; then
   fi
   if [ "$BEST_EFFORT" -eq 1 ]; then
     if [ "$refresh_rc" -eq 124 ]; then
-      parent_error="refresh exceeded its ${HOME_SUMMARY_TIMEOUT}-second deadline"
+      parent_error="refresh exceeded its ${refresh_bound}-second deadline"
     else
       parent_error="refresh worker failed with exit $refresh_rc"
     fi
@@ -292,7 +348,7 @@ if [ "$HOME_SUMMARY_MODE" = parent ]; then
   fi
   if [ "$refresh_rc" -eq 124 ]; then
     printf 'fm-home-summary-refresh: refresh exceeded its %s-second deadline\n' \
-      "$HOME_SUMMARY_TIMEOUT" >&2
+      "$refresh_bound" >&2
   fi
   exit "$refresh_rc"
 fi

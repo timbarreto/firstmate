@@ -671,7 +671,7 @@ make_path_without_lsof() {  # <case-dir>
 }
 
 test_local_only_fork_remote_allows() {
-  local case_dir rc
+  local case_dir rc waited
   case_dir=$(make_case fork-allow)
   write_meta "$case_dir" local-only ship
   wt_commit "$case_dir" "fix the thing"
@@ -702,6 +702,17 @@ test_local_only_fork_remote_allows() {
     || fail "fork-allow: post-teardown branch report recreated the retired task index"
   [ "$(cat "$case_dir/state/.branch-outcome-index-ready")" = 1 ] \
     || fail "fork-allow: post-teardown branch report did not publish its ready sequence"
+  # Teardown requests the summary and serves it in the background instead of
+  # waiting on it, so wait for that publication within its own bound (twice
+  # the 60-second refresh deadline) plus process-startup margin.
+  waited=0
+  while { [ ! -s "$case_dir/state/home-summary.json" ] \
+          || [ -e "$case_dir/state/.home-summary-refresh.request" ] \
+          || [ -e "$case_dir/state/.home-summary-refresh.inflight" ]; } \
+        && [ "$waited" -lt 1500 ]; do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
   jq -e --arg id task-x1 '
     .schema == "fm-secondmate-home-summary.v1"
     and all(.endpoints[]; .id != $id)

@@ -1099,7 +1099,7 @@ remote_secondmate_teardown_locked() {
 }
 
 if remote_secondmate_teardown_locked; then
-  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
+  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --request --service --best-effort || true
   exit 0
 else
   remote_teardown_rc=$?
@@ -4000,8 +4000,11 @@ if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only 
 fi
 # A secondmate retirement may remove the home containing an overridden control
 # state directory. Do not let the side-band refresh recreate that retired home.
+# The refresh is requested and served in the background rather than awaited:
+# a full-home summary can take its whole bound, which every cleanup in a batch
+# would otherwise pay again after its worker is already gone.
 if [ -d "$STATE" ]; then
-  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
+  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --request --service --best-effort || true
 fi
 if [ "$TEARDOWN_LEGACY_ACCEPTED" = 1 ]; then
   echo "teardown $ID complete (window ${T:-none}, worktree $WT, legacy record accepted without spawn_gen: endpoint $TEARDOWN_LEGACY_ENDPOINT, incarnation $TEARDOWN_META_SPAWN_GEN)"
