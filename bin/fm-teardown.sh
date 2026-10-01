@@ -4029,8 +4029,13 @@ else
 fi
 fm_lock_release "$META_LOCK"
 META_LOCK_HELD=0
+# The clone refresh is requested and served in the background rather than
+# awaited: a fetch and fast-forward can take minutes, which every cleanup in a
+# batch would otherwise pay after its worker is already gone. The server
+# coalesces a batch's requests per project and relays actionable results as a
+# check wake.
 if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only ]; then
-  "$FM_ROOT/bin/fm-fleet-sync.sh" "$PROJ" || true
+  "$FM_ROOT/bin/fm-fleet-sync.sh" --request "$PROJ" || true
 fi
 # A secondmate retirement may remove the home containing an overridden control
 # state directory. Do not let the side-band refresh recreate that retired home.

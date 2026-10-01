@@ -27,6 +27,14 @@
 # worktree dir as its cwd also blocks removal (the clone-dir liveness check); a
 # transient lock that self-clears is retried without a force-remove; and any
 # non-packed-refs.lock fetch failure keeps today's behavior with no retry.
+#
+# It also pins the --request form task cleanup uses: it returns without syncing,
+# never runs the guard, and leaves the refresh to one background server that
+# serves every request filed while another refresh holds the service lock in a
+# single pass, appends its output to the bounded state/.fleet-sync.log, and
+# raises a check wake for anything session start would relay as FLEET_SYNC. A
+# missing state directory or project directory falls back to the foreground
+# single-project behavior without recreating state.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -824,6 +832,193 @@ test_non_signature_fetch_failure_is_not_retried() {
   pass "a non-packed-refs.lock fetch failure keeps today's behavior (no retry)"
 }
 
+# stub_guard_root <home>: an FM_ROOT whose guard only records that it ran, so a
+# test can tell which fleet-sync forms invoke it. The registry lookup the sync
+# also reaches through FM_ROOT passes through to the real script.
+stub_guard_root() {
+  local home=$1 root
+  root="$home/stub-root"
+  mkdir -p "$root/bin"
+  printf '#!/usr/bin/env bash\necho ran >> %q\n' "$home/guard-ran" > "$root/bin/fm-guard.sh"
+  printf '#!/usr/bin/env bash\nFM_ROOT_OVERRIDE=%q exec %q "$@"\n' \
+    "$ROOT" "$ROOT/bin/fm-project-mode.sh" > "$root/bin/fm-project-mode.sh"
+  chmod +x "$root/bin/fm-guard.sh" "$root/bin/fm-project-mode.sh"
+  printf '%s\n' "$root"
+}
+
+# request_sync <home> <root> [args...]: run the --request form, stdout only.
+request_sync() {
+  local home=$1 root=$2
+  shift 2
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-fleet-sync.sh" --request "$@" 2>/dev/null
+}
+
+# sync_busy <home>: succeed while a request is pending or a background server
+# holds the service or waiter lock.
+sync_busy() {
+  local f
+  for f in "$1/state/.fleet-sync-requests"/req.* \
+    "$1/state/.fleet-sync-service.lock" "$1/state/.fleet-sync-waiter.lock"; do
+    [ -e "$f" ] && return 0
+  done
+  return 1
+}
+
+# wait_sync_idle <home>: wait until the background servers of <home> are idle
+# for several consecutive looks, so assertions see the final result and cleanup
+# never races a server that was still starting.
+wait_sync_idle() {
+  local i quiet=0
+  for ((i = 0; i < 600; i++)); do
+    if sync_busy "$1"; then
+      quiet=0
+    else
+      quiet=$((quiet + 1))
+      [ "$quiet" -lt 8 ] || return 0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
+# fleet_sync_wake_rows <home>: print the payload of each queued fleet-sync check
+# wake from the durable wake queue (epoch, seq, kind, key, payload per row).
+fleet_sync_wake_rows() {
+  [ -f "$1/state/.wake-queue" ] || return 0
+  awk -F '\t' '$3 == "check" && $4 == "fleet-sync" { print $5 }' "$1/state/.wake-queue"
+}
+
+test_request_coalesces_requests_filed_while_a_refresh_runs() {
+  local home clone root before holder out1 out2 log i
+  home=$(new_home)
+  mkdir -p "$home/state"
+  clone=$(build_pair "$home" kappa)
+  advance_origin "$home" kappa C1
+  before=$(head_sha "$clone")
+  root=$(stub_guard_root "$home")
+
+  # Hold the service lock the way a refresh already under way does.
+  # shellcheck disable=SC2016 # $1-$4 expand inside the holder shell.
+  FM_HOME="$home" bash -c '
+    . "$1/bin/fm-wake-lib.sh"
+    fm_lock_try_acquire "$2" || exit 1
+    : > "$3"
+    i=0
+    while [ ! -e "$4" ] && [ "$i" -lt 1500 ]; do sleep 0.2; i=$((i + 1)); done
+    fm_lock_release "$2"
+  ' _ "$ROOT" "$home/state/.fleet-sync-service.lock" "$home/held" "$home/release" &
+  holder=$!
+  for ((i = 0; i < 200; i++)); do
+    [ -e "$home/held" ] && break
+    sleep 0.1
+  done
+  [ -e "$home/held" ] || fail "the test could not hold the service lock"
+
+  out1=$(request_sync "$home" "$root" kappa)
+  out2=$(request_sync "$home" "$root" "$clone")
+  assert_contains "$out1" "kappa: refresh requested in the background" \
+    "a request did not report that the refresh was requested"
+  assert_contains "$out2" "kappa: refresh requested in the background" \
+    "a request by path did not report that the refresh was requested"
+  [ "$(head_sha "$clone")" = "$before" ] \
+    || fail "a request synced in the foreground instead of returning at once"
+
+  : > "$home/release"
+  wait "$holder" 2>/dev/null || true
+  wait_sync_idle "$home" || fail "the background refresh never finished"
+
+  [ "$(head_sha "$clone")" = "$(head_sha "$home/work-kappa")" ] \
+    || fail "the background refresh did not fast-forward the clone"
+  log="$home/state/.fleet-sync.log"
+  [ "$(grep -c 'background refresh of 2 request(s)' "$log")" = 1 ] \
+    || fail "requests filed during a running refresh were not served in one pass: $(cat "$log")"
+  [ "$(grep -c 'kappa: synced' "$log")" = 1 ] \
+    || fail "two requests for one project did not coalesce into one sync: $(cat "$log")"
+  [ -z "$(fleet_sync_wake_rows "$home")" ] \
+    || fail "an ordinary fast-forward raised a wake: $(fleet_sync_wake_rows "$home")"
+  [ ! -e "$home/guard-ran" ] || fail "the request form ran the guard"
+
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-fleet-sync.sh" kappa >/dev/null 2>&1
+  [ -e "$home/guard-ran" ] || fail "the direct form no longer runs the guard"
+  pass "requests filed while a refresh runs are served by one background pass without the guard"
+}
+
+test_request_relays_actionable_results_as_a_check_wake() {
+  local home clone root before out log size rows
+  home=$(new_home)
+  mkdir -p "$home/state"
+  clone=$(build_pair "$home" lambda)
+  advance_origin "$home" lambda C1
+  before=$(head_sha "$clone")
+  printf 'uncommitted edit\n' >> "$clone/file.txt"
+  root=$(stub_guard_root "$home")
+  log="$home/state/.fleet-sync.log"
+  head -c 10000 /dev/zero | tr '\0' 'x' > "$log"
+
+  out=$(FM_FLEET_SYNC_LOG_MAX_BYTES=4096 request_sync "$home" "$root" lambda)
+  assert_contains "$out" "lambda: refresh requested in the background" \
+    "a request did not report that the refresh was requested"
+  wait_sync_idle "$home" || fail "the background refresh never finished"
+
+  [ "$(head_sha "$clone")" = "$before" ] || fail "a STUCK clone's HEAD was moved"
+  grep -q "uncommitted edit" "$clone/file.txt" || fail "a STUCK clone's change was discarded"
+  assert_grep "lambda: STUCK:" "$log" "the background refresh did not log the STUCK result"
+  size=$(wc -c < "$log")
+  [ "$size" -le 4096 ] || fail "the background refresh log grew past its bound: $size bytes"
+  rows=$(fleet_sync_wake_rows "$home")
+  [ "$(printf '%s\n' "$rows" | grep -c 'FLEET_SYNC: lambda: STUCK:')" = 1 ] \
+    || fail "a STUCK result did not raise exactly one fleet-sync check wake: $rows"
+  assert_contains "$rows" "$log" "the fleet-sync check wake does not name the full log"
+  pass "a background refresh logs its output and raises a check wake for a STUCK clone"
+}
+
+test_request_without_state_dir_syncs_in_the_foreground() {
+  local home clone root out
+  home=$(new_home)
+  clone=$(build_pair "$home" mu)
+  advance_origin "$home" mu C1
+  root=$(stub_guard_root "$home")
+
+  out=$(request_sync "$home" "$root" mu)
+
+  assert_contains "$out" "mu: synced" "a request without a state directory did not sync in the foreground"
+  [ "$(head_sha "$clone")" = "$(head_sha "$home/work-mu")" ] \
+    || fail "a request without a state directory left the clone behind"
+  [ ! -e "$home/state" ] || fail "a request recreated a missing state directory"
+  [ ! -e "$home/guard-ran" ] || fail "the request form ran the guard"
+  pass "a request without a state directory syncs in the foreground and recreates nothing"
+}
+
+test_request_for_a_missing_directory_reports_its_skip_at_once() {
+  local home root out
+  home=$(new_home)
+  mkdir -p "$home/state"
+  root=$(stub_guard_root "$home")
+
+  out=$(request_sync "$home" "$root" "$home/projects/gone")
+
+  assert_contains "$out" "skipped: not a directory" \
+    "a request for a missing directory did not report its skip"
+  sync_busy "$home" && fail "a request for a missing directory was left to the background"
+  [ -z "$(fleet_sync_wake_rows "$home")" ] || fail "a request for a missing directory raised a wake"
+  pass "a request for a missing directory reports its skip without a background refresh"
+}
+
+test_request_usage_errors() {
+  local home rc
+  home=$(new_home)
+  usage_rc() {
+    rc=0
+    FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" "$ROOT/bin/fm-fleet-sync.sh" "$@" >/dev/null 2>&1 || rc=$?
+    [ "$rc" = 1 ] || fail "fleet-sync $* exited $rc instead of a usage error"
+  }
+  usage_rc --request
+  usage_rc --request ''
+  usage_rc --request a b
+  [ ! -e "$home/state/.fleet-sync-requests" ] || fail "a usage error filed a request"
+  pass "the request form rejects a missing, empty, or extra project argument"
+}
+
 fm_test_run_cases \
   test_detached_clean_ancestor_recovers \
   test_detached_unique_commit_is_stuck_untouched \
@@ -853,4 +1048,9 @@ fm_test_run_cases \
   test_clone_root_identity_forms \
   test_directory_aliases_preserve_local_only \
   test_pruning_preserves_unlanded_gone_branches \
-  test_unresolvable_registry_posture_skipped
+  test_unresolvable_registry_posture_skipped \
+  test_request_coalesces_requests_filed_while_a_refresh_runs \
+  test_request_relays_actionable_results_as_a_check_wake \
+  test_request_without_state_dir_syncs_in_the_foreground \
+  test_request_for_a_missing_directory_reports_its_skip_at_once \
+  test_request_usage_errors
