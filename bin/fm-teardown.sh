@@ -3117,7 +3117,11 @@ teardown_herdr_require_prerequisites() {  # <task-id>
     fi
   done
   if ! declare -F fm_lock_try_acquire >/dev/null 2>&1; then
-    # shellcheck source=bin/fm-wake-lib.sh
+    # fm-wake-lib.sh is already expanded by this script's top-level directed
+    # source and is a canonical lint root in its own right; keep this lazy
+    # fallback an analysis boundary so ShellCheck's external-source traversal
+    # does not duplicate that large graph a second time in this root.
+    # shellcheck source=/dev/null
     . "$SCRIPT_DIR/fm-wake-lib.sh"
   fi
   if ! declare -F fm_lock_try_acquire >/dev/null 2>&1 \
