@@ -204,6 +204,25 @@ fm_watcher_healthy() {
 # mid-turn, where the auto-arm model runs no watcher at all, so it wants a
 # different, model-aware question:
 
+# fm_supervision_own_harness
+# Detect this process tree's own harness once through bin/fm-harness.sh and
+# keep the result for the calling invocation in FM_SUPERVISION_OWN_HARNESS and
+# its exit status in FM_SUPERVISION_OWN_HARNESS_STATUS (the harness is empty
+# unless the status is 0). Call it in the caller's shell, not a command
+# substitution, so a later reader in that invocation reuses the validated
+# identity instead of walking the process tree again. Both are plain shell
+# variables, never exported: no child process or launched agent inherits them,
+# so they can never act as a harness marker.
+FM_SUPERVISION_OWN_HARNESS=
+FM_SUPERVISION_OWN_HARNESS_STATUS=
+fm_supervision_own_harness() {
+  FM_SUPERVISION_OWN_HARNESS_STATUS=0
+  FM_SUPERVISION_OWN_HARNESS=$("$FM_WAKE_LIB_DIR/fm-harness.sh" 2>/dev/null) \
+    || FM_SUPERVISION_OWN_HARNESS_STATUS=$?
+  [ "$FM_SUPERVISION_OWN_HARNESS_STATUS" -eq 0 ] || FM_SUPERVISION_OWN_HARNESS=
+  return 0
+}
+
 # fm_supervision_model
 # Print the supervision model of this home's PRIMARY harness:
 #   autoarm     Claude's Stop-hook auto-arm plus Copilot and Cursor stop-hook parks: the
@@ -223,19 +242,24 @@ fm_watcher_healthy() {
 # FM_SUPERVISION_MODEL overrides detection (tests, and callers that already know
 # the harness). Otherwise bin/fm-harness.sh is the single detection owner, so this
 # stays consistent with the harness-specific repair line the guards already emit.
-fm_supervision_model() {
+# With --detected it maps the identity fm_supervision_own_harness already
+# resolved in the calling shell instead of detecting again.
+fm_supervision_model() {  # [--detected]
   local harness
   case "${FM_SUPERVISION_MODEL:-}" in
     autoarm|extension|persistent) printf '%s\n' "$FM_SUPERVISION_MODEL"; return 0 ;;
   esac
-  if harness=$("$FM_WAKE_LIB_DIR/fm-harness.sh" 2>/dev/null); then
-    :
-  elif [ "$?" -eq 2 ]; then
-    printf 'error: could not load the primary harness adapter for supervision\n' >&2
-    return 2
-  else
-    harness=unknown
+  if [ "${1:-}" != --detected ] || [ -z "$FM_SUPERVISION_OWN_HARNESS_STATUS" ]; then
+    fm_supervision_own_harness
   fi
+  case "$FM_SUPERVISION_OWN_HARNESS_STATUS" in
+    0) harness=$FM_SUPERVISION_OWN_HARNESS ;;
+    2)
+      printf 'error: could not load the primary harness adapter for supervision\n' >&2
+      return 2
+      ;;
+    *) harness=unknown ;;
+  esac
   case "$harness" in
     copilot|pi)
       # shellcheck source=bin/fm-harness-lib.sh
@@ -430,23 +454,37 @@ fm_afk_mode() {
 # extension never restores still alarms once the beacon passes grace.
 # persistent: require a live identity-matched watcher with a fresh beacon
 # (fm_watcher_healthy); a fresh leftover beacon with no live watcher is still down.
+# FM_WATCHER_VERDICT_HARNESS is the own harness this call detected and validated
+# (empty when FM_SUPERVISION_MODEL overrode detection or detection failed), so the
+# caller can render that harness's repair line without detecting it again.
 # shellcheck disable=SC2034 # Read by callers after the function returns.
 FM_WATCHER_VERDICT_OK=false
 # shellcheck disable=SC2034 # Read by callers after the function returns.
 FM_WATCHER_VERDICT_REASON=stale-beacon
+# shellcheck disable=SC2034 # Read by callers after the function returns.
+FM_WATCHER_VERDICT_HARNESS=
 fm_watcher_supervision_verdict() {
   local state=$1 watch=$2 grace=${3:-${FM_GUARD_GRACE:-300}} home=${4:-$FM_HOME}
   local root=${5:-$FM_ROOT}
   local beat age fresh=false model
   FM_WATCHER_VERDICT_OK=false
   FM_WATCHER_VERDICT_REASON=stale-beacon
+  FM_WATCHER_VERDICT_HARNESS=
   beat="$state/.last-watcher-beat"
   age=$(fm_path_age "$beat")
   case "$age" in
     ''|*[!0-9]*) ;;
     *) [ "$age" -lt "$grace" ] && fresh=true ;;
   esac
-  model=$(fm_supervision_model)
+  case "${FM_SUPERVISION_MODEL:-}" in
+    autoarm|extension|persistent) model=$FM_SUPERVISION_MODEL ;;
+    *)
+      fm_supervision_own_harness
+      # shellcheck disable=SC2034 # Read by callers after the function returns.
+      FM_WATCHER_VERDICT_HARNESS=$FM_SUPERVISION_OWN_HARNESS
+      model=$(fm_supervision_model --detected)
+      ;;
+  esac
   if [ "$model" = autoarm ]; then
     if [ "$fresh" = true ] || fm_autoarm_midturn_healthy "$state" "$grace"; then
       FM_WATCHER_VERDICT_OK=true
